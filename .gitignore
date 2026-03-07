@@ -1,2 +1,10 @@
 node_modules/
 .next/
+.crawl4ai/
+.crawl4ai-venv/
+.crawl4ai-venv311/
+.crawl4ai-browsers/
+.env
+.env.local
+.env.*.local
+prefix.md
