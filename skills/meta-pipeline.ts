@@ -8,6 +8,11 @@
  * Dual entry:
  *   1. Automated: signals from YouTube/Reddit/Twitter → cron → here
  *   2. Manual: user submits requirement directly → here
+ *
+ * Three exported functions:
+ *   - runDecisionPhase()   — DM only, returns DecisionOutput
+ *   - runArchitectPhase()  — Architect only, returns ArchitectResult
+ *   - runMetaPipeline()    — backward-compatible wrapper (DM → Architect)
  */
 
 import { z } from 'zod';
@@ -89,93 +94,94 @@ export interface MetaPipelineResult {
   skippedDecision: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 1: Decision Maker
+// ---------------------------------------------------------------------------
+
 /**
- * Run the full meta pipeline: Decision Maker → Architect.
- *
- * @param input - Single requirement string or array of signal descriptions for batch processing
- * @param options - Pipeline configuration
+ * Run only the Decision Maker phase.
+ * Returns a validated DecisionOutput (degrades to HALT on validation failure).
  */
-export async function runMetaPipeline(
+export async function runDecisionPhase(
   input: string | string[],
-  options: MetaPipelineOptions = {}
-): Promise<MetaPipelineResult> {
+  options: MetaPipelineOptions = {},
+): Promise<DecisionOutput> {
   const log = options.logger || console.log;
 
-  // Normalize input
   const inputMessage = Array.isArray(input)
     ? `以下是批量信号/需求，请先聚合再决策:\n\n${input.map((s, i) => `[信号 ${i + 1}] ${s}`).join('\n\n')}`
     : input;
-
-  // Publish pipeline start
-  messageBus.publish({
-    from: 'meta-pipeline',
-    channel: 'meta-pipeline',
-    type: 'agent_start',
-    payload: { input: typeof input === 'string' ? input.slice(0, 200) : `${input.length} signals` },
-  });
 
   const agentCtx = {
     projectId: options.projectId,
     recordUsage: options.recordUsage,
   };
 
-  let decision: DecisionOutput | undefined;
+  await log('[Meta] Starting Decision Maker...');
 
-  // --- Phase 1: Decision Maker ---
-  if (!options.skipDecision) {
-    await log('[Meta] Starting Decision Maker...');
+  const dm = createDecisionMakerAgent();
+  const dmContext = options.signalIds
+    ? `\n\n关联信号 IDs: ${options.signalIds.join(', ')}`
+    : '';
 
-    const dm = createDecisionMakerAgent();
-    const dmContext = options.signalIds
-      ? `\n\n关联信号 IDs: ${options.signalIds.join(', ')}`
-      : '';
+  const dmResult = await dm.run(inputMessage + dmContext, {
+    logger: messageBus.createLogger('decision-maker'),
+    ...agentCtx,
+  });
 
-    const dmResult = await dm.run(inputMessage + dmContext, {
-      logger: messageBus.createLogger('decision-maker'),
-      ...agentCtx,
-    });
+  // Validate DM output with Zod — safe degradation on failure
+  const dmValidation = DecisionOutputSchema.safeParse(dmResult);
+  let decision: DecisionOutput;
 
-    // Validate DM output with Zod — safe degradation on failure
-    const dmValidation = DecisionOutputSchema.safeParse(dmResult);
-    if (dmValidation.success) {
-      decision = dmValidation.data as DecisionOutput;
-    } else {
-      const issues = dmValidation.error.issues
-        .map(i => `${i.path.join('.')}: ${i.message}`)
-        .join('; ');
-      await log(`[Meta] ⚠️ Decision Maker output validation failed: ${issues}. Degrading to HALT.`);
-      decision = {
-        decision: 'HALT',
-        confidence: 0,
-        summary: dmResult?.summary || 'Decision output validation failed.',
-        rationale: `Validation errors: ${issues}`,
-        risk_level: 'critical',
-        risk_factors: ['Agent output did not match expected schema'],
-        sources: [],
-        recommended_actions: ['Review agent output and retry'],
-        aggregated_signals: dmResult?.aggregated_signals,
-      };
-    }
-
-    await log(`[Meta] Decision: ${decision.decision} (confidence: ${decision.confidence})`);
-
-    if (decision.decision !== 'PROCEED') {
-      await log(`[Meta] Pipeline stopped. Decision: ${decision.decision}. Rationale: ${decision.rationale}`);
-
-      messageBus.publish({
-        from: 'meta-pipeline',
-        channel: 'meta-pipeline',
-        type: 'pipeline_complete',
-        payload: { decision: decision.decision },
-      });
-
-      return { decision, skippedDecision: false };
-    }
+  if (dmValidation.success) {
+    decision = dmValidation.data as DecisionOutput;
   } else {
-    await log('[Meta] Decision Maker skipped (skipDecision=true)');
+    const issues = dmValidation.error.issues
+      .map(i => `${i.path.join('.')}: ${i.message}`)
+      .join('; ');
+    await log(`[Meta] ⚠️ Decision Maker output validation failed: ${issues}. Degrading to HALT.`);
+    decision = {
+      decision: 'HALT',
+      confidence: 0,
+      summary: dmResult?.summary || 'Decision output validation failed.',
+      rationale: `Validation errors: ${issues}`,
+      risk_level: 'critical',
+      risk_factors: ['Agent output did not match expected schema'],
+      sources: [],
+      recommended_actions: ['Review agent output and retry'],
+      aggregated_signals: dmResult?.aggregated_signals,
+    };
   }
 
-  // --- Phase 2: Architect ---
+  await log(`[Meta] Decision: ${decision.decision} (confidence: ${decision.confidence})`);
+
+  return decision;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Architect
+// ---------------------------------------------------------------------------
+
+/**
+ * Run only the Architect phase (+ cleanup).
+ * Expects a pre-validated DecisionOutput (or undefined when decision was skipped).
+ */
+export async function runArchitectPhase(
+  input: string | string[],
+  decision: DecisionOutput | undefined,
+  options: MetaPipelineOptions = {},
+): Promise<ArchitectResult> {
+  const log = options.logger || console.log;
+
+  const inputMessage = Array.isArray(input)
+    ? `以下是批量信号/需求，请先聚合再决策:\n\n${input.map((s, i) => `[信号 ${i + 1}] ${s}`).join('\n\n')}`
+    : input;
+
+  const agentCtx = {
+    projectId: options.projectId,
+    recordUsage: options.recordUsage,
+  };
+
   await log('[Meta] Starting Architect...');
 
   const architectInput = decision
@@ -195,8 +201,6 @@ export async function runMetaPipeline(
   let architectResult: ArchitectResult;
   const acValidation = ArchitectResultSchema.safeParse(rawArchitectResult);
   if (acValidation.success) {
-    // Zod schema validates structure; cast via unknown because execution_trace
-    // step fields (action union, retry_count) are looser in the exit tool schema.
     architectResult = acValidation.data as unknown as ArchitectResult;
   } else {
     const issues = acValidation.error.issues
@@ -217,11 +221,10 @@ export async function runMetaPipeline(
 
   await log(`[Meta] Architect complete. Steps: ${architectResult.steps_completed} completed, ${architectResult.steps_failed} failed, ${architectResult.steps_retried} retried`);
 
-  // --- Phase 3: Cleanup dynamic agents/skills ---
+  // --- Cleanup dynamic agents/skills ---
   const createdAgents = architectResult.created_agents || [];
   const createdSkills = architectResult.created_skills || [];
 
-  // Only cleanup non-persistent ones
   const dynamicAgents = getAllDynamicAgents();
   const dynamicSkills = getAllDynamicSkills();
 
@@ -245,6 +248,59 @@ export async function runMetaPipeline(
   if (cleanedAgents > 0 || cleanedSkills > 0) {
     await log(`[Meta] Cleanup: ${cleanedAgents} temp agents, ${cleanedSkills} temp skills removed`);
   }
+
+  return architectResult;
+}
+
+// ---------------------------------------------------------------------------
+// Full pipeline (backward-compatible wrapper)
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the full meta pipeline: Decision Maker → Architect.
+ * Backward-compatible — callers (cron, meta API) continue to work unchanged.
+ *
+ * @param input - Single requirement string or array of signal descriptions for batch processing
+ * @param options - Pipeline configuration
+ */
+export async function runMetaPipeline(
+  input: string | string[],
+  options: MetaPipelineOptions = {}
+): Promise<MetaPipelineResult> {
+  const log = options.logger || console.log;
+
+  // Publish pipeline start
+  messageBus.publish({
+    from: 'meta-pipeline',
+    channel: 'meta-pipeline',
+    type: 'agent_start',
+    payload: { input: typeof input === 'string' ? input.slice(0, 200) : `${input.length} signals` },
+  });
+
+  let decision: DecisionOutput | undefined;
+
+  // --- Phase 1: Decision Maker ---
+  if (!options.skipDecision) {
+    decision = await runDecisionPhase(input, options);
+
+    if (decision.decision !== 'PROCEED') {
+      await log(`[Meta] Pipeline stopped. Decision: ${decision.decision}. Rationale: ${decision.rationale}`);
+
+      messageBus.publish({
+        from: 'meta-pipeline',
+        channel: 'meta-pipeline',
+        type: 'pipeline_complete',
+        payload: { decision: decision.decision },
+      });
+
+      return { decision, skippedDecision: false };
+    }
+  } else {
+    await log('[Meta] Decision Maker skipped (skipDecision=true)');
+  }
+
+  // --- Phase 2: Architect ---
+  const architectResult = await runArchitectPhase(input, decision, options);
 
   // Publish pipeline complete
   messageBus.publish({

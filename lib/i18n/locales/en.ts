@@ -97,6 +97,24 @@ const en: TranslationDict = {
   'plan.reject': 'Reject',
   'plan.approved': 'Plan approved — executing...',
 
+  // ── DM Decision Panel ──
+  'dm.title': 'Decision Review',
+  'dm.decision': 'Decision',
+  'dm.confidence': 'Confidence',
+  'dm.riskLevel': 'Risk Level',
+  'dm.summary': 'Summary',
+  'dm.rationale': 'Rationale',
+  'dm.riskFactors': 'Risk Factors',
+  'dm.recommendedActions': 'Recommended Actions',
+  'dm.approve': 'Approve & Continue',
+  'dm.reject': 'Reject',
+  'dm.approved': 'Approved — starting Architect...',
+  'dm.rejected': 'Decision rejected',
+  'dm.riskLow': 'Low',
+  'dm.riskMedium': 'Medium',
+  'dm.riskHigh': 'High',
+  'dm.riskCritical': 'Critical',
+
   // ── Complexity Labels ──
   'complexity.L1': 'Quick Answer',
   'complexity.L2': 'Light Task',

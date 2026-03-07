@@ -97,6 +97,24 @@ const zh: TranslationDict = {
   'plan.reject': '拒绝',
   'plan.approved': '计划已批准 — 执行中...',
 
+  // ── DM Decision Panel ──
+  'dm.title': '决策审查',
+  'dm.decision': '决策',
+  'dm.confidence': '置信度',
+  'dm.riskLevel': '风险等级',
+  'dm.summary': '摘要',
+  'dm.rationale': '决策理由',
+  'dm.riskFactors': '风险因素',
+  'dm.recommendedActions': '推荐行动',
+  'dm.approve': '批准并继续',
+  'dm.reject': '驳回',
+  'dm.approved': '已批准 — 正在启动架构师...',
+  'dm.rejected': '决策已驳回',
+  'dm.riskLow': '低',
+  'dm.riskMedium': '中',
+  'dm.riskHigh': '高',
+  'dm.riskCritical': '严重',
+
   // ── Complexity Labels ──
   'complexity.L1': '快速回答',
   'complexity.L2': '轻量任务',

@@ -17,7 +17,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from('conversations')
-    .select('complexity_assessment, execution_mode')
+    .select('complexity_assessment, execution_mode, dm_decision, dm_approval_status')
     .eq('id', params.id)
     .single();
 
@@ -30,6 +30,8 @@ export async function GET(
     data: {
       assessment: data.complexity_assessment,
       execution_mode: data.execution_mode,
+      dm_decision: data.dm_decision,
+      dm_approval_status: data.dm_approval_status,
     },
   });
 }
@@ -107,6 +109,46 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .update({
           complexity_assessment: null,
           execution_mode: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', params.id);
+    }
+    return NextResponse.json({ success: true, data: { status: 'rejected' } });
+  }
+
+  if (action === 'approve_dm') {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of chatEngine.executeDmApproval(params.id)) {
+            const data = `data: ${JSON.stringify(event)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          }
+        } catch (error: any) {
+          const errorEvent = `data: ${JSON.stringify({ type: 'error', data: { message: error.message } })}\n\n`;
+          controller.enqueue(encoder.encode(errorEvent));
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
+    });
+  }
+
+  if (action === 'reject_dm') {
+    if (supabaseConfigured) {
+      await supabase
+        .from('conversations')
+        .update({
+          dm_approval_status: 'rejected',
           updated_at: new Date().toISOString(),
         })
         .eq('id', params.id);

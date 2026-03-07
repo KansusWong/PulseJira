@@ -12,7 +12,7 @@ import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { assessComplexity } from '@/agents/complexity-assessor';
 import { messageBus } from '@/connectors/bus/message-bus';
 import { getTools } from '@/lib/tools';
-import { runMetaPipeline } from '@/skills/meta-pipeline';
+import { runDecisionPhase, runArchitectPhase } from '@/skills/meta-pipeline';
 import { hasAgentFactory, getAgentFactoryIds } from '@/lib/tools/spawn-agent';
 import { BaseAgent } from '@/lib/core/base-agent';
 import { createProject } from '@/projects/project-service';
@@ -20,6 +20,7 @@ import type {
   Conversation,
   ChatMessage,
   ComplexityAssessment,
+  DecisionOutput,
   ExecutionMode,
   ChatEvent,
   StructuredRequirements,
@@ -506,30 +507,18 @@ You have access to tools for searching the web, reading files, and listing direc
   }
 
   /**
-   * Agent team mode — delegates to the Meta Pipeline (Decision Maker → Architect).
-   * Creates a team record for tracking, then runs the full pipeline.
+   * Agent team mode — runs DM phase only, then waits for human approval.
+   * Team record creation is deferred to handleArchitectPhase.
    */
   private async *handleAgentTeam(context: ChatContext): AsyncGenerator<ChatEvent> {
     yield {
       type: 'agent_log',
-      data: { message: 'Forming agent team...' },
+      data: { message: 'Running Decision Maker...' },
     };
 
-    // Create team record
-    const teamId = await this.createTeam(context.conversation.id, context.assessment);
-
-    yield {
-      type: 'team_update',
-      data: {
-        team_id: teamId,
-        status: 'active',
-        agents: context.assessment?.suggested_agents || [],
-      },
-    };
-
-    // Run the meta pipeline with the user's request
     try {
-      const pipelineResult = await runMetaPipeline(context.userMessage, {
+      // Phase 1: Decision Maker only
+      const decision = await runDecisionPhase(context.userMessage, {
         projectId: context.conversation.project_id ?? undefined,
         logger: async (msg: string) => {
           messageBus.publish({
@@ -541,14 +530,74 @@ You have access to tools for searching the web, reading files, and listing direc
         },
       });
 
-      const decisionText = pipelineResult.decision
-        ? `Decision: ${pipelineResult.decision.decision} (confidence: ${pipelineResult.decision.confidence})`
-        : 'Decision: skipped';
-      const architectText = pipelineResult.architect
-        ? `Architect: ${pipelineResult.architect.steps_completed} steps completed, ${pipelineResult.architect.steps_failed} failed`
-        : 'Architect: not executed';
+      const decisionText = `Decision: ${decision.decision} (confidence: ${decision.confidence})\nRisk: ${decision.risk_level}\n\n${decision.summary}`;
 
-      const responseText = `Agent team execution complete.\n\n${decisionText}\n${architectText}`;
+      // Save DM summary as chat message
+      await this.saveMessage(context.conversation.id, 'assistant', decisionText);
+      yield {
+        type: 'message',
+        data: { role: 'assistant', content: decisionText },
+      };
+
+      if (decision.decision === 'PROCEED') {
+        // Store decision + pending status in conversation
+        await this.updateConversation(context.conversation.id, {
+          dm_decision: decision,
+          dm_approval_status: 'pending',
+        } as any);
+
+        // Yield dm_decision SSE event so frontend shows DMDecisionPanel
+        yield {
+          type: 'dm_decision',
+          data: decision,
+        };
+      } else {
+        // HALT / DEFER / ESCALATE — no approval needed, flow ends
+        await this.updateConversation(context.conversation.id, {
+          dm_decision: decision,
+          dm_approval_status: null,
+        } as any);
+      }
+    } catch (error: any) {
+      const errorMsg = `Decision Maker failed: ${error.message}`;
+      await this.saveMessage(context.conversation.id, 'assistant', errorMsg);
+      yield { type: 'error', data: { message: errorMsg } };
+    }
+  }
+
+  /**
+   * Architect phase — creates team record, runs Architect, updates team status.
+   * Called after DM approval.
+   */
+  private async *handleArchitectPhase(context: ChatContext): AsyncGenerator<ChatEvent> {
+    // Create team record now (deferred from handleAgentTeam)
+    const teamId = await this.createTeam(context.conversation.id, context.assessment);
+
+    yield {
+      type: 'team_update',
+      data: {
+        team_id: teamId,
+        status: 'active',
+        agents: context.assessment?.suggested_agents || [],
+      },
+    };
+
+    try {
+      const dmDecision = context.conversation.dm_decision as DecisionOutput | undefined;
+
+      const architectResult = await runArchitectPhase(context.userMessage, dmDecision, {
+        projectId: context.conversation.project_id ?? undefined,
+        logger: async (msg: string) => {
+          messageBus.publish({
+            from: 'meta-pipeline',
+            channel: 'agent-log',
+            type: 'agent_log',
+            payload: { message: msg },
+          });
+        },
+      });
+
+      const responseText = `Architect complete. ${architectResult.steps_completed} steps completed, ${architectResult.steps_failed} failed.`;
 
       await this.saveMessage(context.conversation.id, 'assistant', responseText);
 
@@ -557,7 +606,7 @@ You have access to tools for searching the web, reading files, and listing direc
         data: { role: 'assistant', content: responseText },
       };
 
-      // Update team status
+      // Update team status to idle
       if (supabaseConfigured) {
         await supabase
           .from('agent_teams')
@@ -565,10 +614,52 @@ You have access to tools for searching the web, reading files, and listing direc
           .eq('id', teamId);
       }
     } catch (error: any) {
-      const errorMsg = `Agent team execution failed: ${error.message}`;
+      const errorMsg = `Architect execution failed: ${error.message}`;
       await this.saveMessage(context.conversation.id, 'assistant', errorMsg);
       yield { type: 'error', data: { message: errorMsg } };
     }
+  }
+
+  /**
+   * Execute DM approval — called when user approves in DMDecisionPanel.
+   * Validates state, updates approval status, then runs Architect phase.
+   */
+  async *executeDmApproval(conversationId: string): AsyncGenerator<ChatEvent> {
+    const conversation = await this.getOrCreateConversation(conversationId);
+
+    // Validate: must have a PROCEED decision with pending approval
+    const dmDecision = conversation.dm_decision as DecisionOutput | null | undefined;
+    if (!dmDecision || dmDecision.decision !== 'PROCEED') {
+      yield { type: 'error', data: { message: 'No PROCEED decision found for this conversation.' } };
+      yield { type: 'done', data: { conversation_id: conversationId } };
+      return;
+    }
+    if (conversation.dm_approval_status !== 'pending') {
+      yield { type: 'error', data: { message: `DM approval is not pending (current: ${conversation.dm_approval_status}).` } };
+      yield { type: 'done', data: { conversation_id: conversationId } };
+      return;
+    }
+
+    // Mark as approved
+    await this.updateConversation(conversationId, {
+      dm_approval_status: 'approved',
+    } as any);
+
+    // Build context for architect phase
+    const messages = await this.getMessages(conversationId);
+    const assessment = conversation.complexity_assessment;
+    const userMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+
+    const context: ChatContext = {
+      conversation: { ...conversation, dm_approval_status: 'approved' },
+      messages,
+      userMessage,
+      assessment,
+    };
+
+    yield* this.handleArchitectPhase(context);
+
+    yield { type: 'done', data: { conversation_id: conversationId } };
   }
 
   // ---------------------------------------------------------------------------

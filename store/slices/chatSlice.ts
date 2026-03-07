@@ -3,6 +3,7 @@ import type {
   Conversation,
   ChatMessage,
   ComplexityAssessment,
+  DecisionOutput,
   AgentStatus,
   AgentMailMessage,
   TeamStatus,
@@ -27,6 +28,13 @@ export interface ChatSlice {
   clarificationPanel: {
     visible: boolean;
     requirements: StructuredRequirements | null;
+  };
+
+  // DM decision panel state (L3 DM checkpoint approval)
+  dmPanel: {
+    visible: boolean;
+    decision: DecisionOutput | null;
+    status: 'pending' | 'approved' | 'rejected' | 'idle';
   };
 
   // Team panel state
@@ -56,6 +64,11 @@ export interface ChatSlice {
   showClarificationForm: (requirements: StructuredRequirements) => void;
   hideClarificationForm: () => void;
 
+  showDmPanel: (decision: DecisionOutput) => void;
+  hideDmPanel: () => void;
+  approveDm: () => void;
+  rejectDm: () => void;
+
   showTeamPanel: (teamId: string, agents: AgentStatus[]) => void;
   hideTeamPanel: () => void;
   updateTeamStatus: (status: TeamStatus) => void;
@@ -77,6 +90,12 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   clarificationPanel: {
     visible: false,
     requirements: null,
+  },
+
+  dmPanel: {
+    visible: false,
+    decision: null,
+    status: 'idle',
   },
 
   teamPanel: {
@@ -155,6 +174,26 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   hideClarificationForm: () =>
     set((state) => ({
       clarificationPanel: { ...state.clarificationPanel, visible: false },
+    })),
+
+  showDmPanel: (decision) =>
+    set({
+      dmPanel: { visible: true, decision, status: 'pending' },
+    }),
+
+  hideDmPanel: () =>
+    set((state) => ({
+      dmPanel: { ...state.dmPanel, visible: false },
+    })),
+
+  approveDm: () =>
+    set((state) => ({
+      dmPanel: { ...state.dmPanel, status: 'approved' },
+    })),
+
+  rejectDm: () =>
+    set((state) => ({
+      dmPanel: { ...state.dmPanel, status: 'rejected', visible: false },
     })),
 
   showTeamPanel: (teamId, agents) =>

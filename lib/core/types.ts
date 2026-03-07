@@ -216,6 +216,8 @@ export interface Conversation {
   execution_mode: ExecutionMode | null;
   clarification_round?: number;
   clarification_context?: { questions: string[]; answers: string[] };
+  dm_decision?: DecisionOutput | null;
+  dm_approval_status?: 'pending' | 'approved' | 'rejected' | null;
   created_at: string;
   updated_at: string;
 }
@@ -293,6 +295,7 @@ export type ChatEventType =
   | 'team_comms'
   | 'clarification_form'
   | 'project_created'
+  | 'dm_decision'
   | 'error'
   | 'done';
 

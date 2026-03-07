@@ -6,7 +6,7 @@ import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage, ChatEvent, ComplexityAssessment, StructuredRequirements } from "@/lib/core/types";
+import type { ChatMessage, ChatEvent, ComplexityAssessment, DecisionOutput, StructuredRequirements } from "@/lib/core/types";
 
 export function ChatView() {
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
@@ -21,6 +21,7 @@ export function ChatView() {
   const showPlanPanel = usePulseStore((s) => s.showPlanPanel);
   const showTeamPanel = usePulseStore((s) => s.showTeamPanel);
   const showClarificationForm = usePulseStore((s) => s.showClarificationForm);
+  const showDmPanel = usePulseStore((s) => s.showDmPanel);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [streamingText, setStreamingText] = useState("");
@@ -115,7 +116,7 @@ export function ChatView() {
         setStreamingText("");
       }
     },
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel]
   );
 
   const handleSSEEvent = useCallback(
@@ -170,6 +171,14 @@ export function ChatView() {
           break;
         }
 
+        case "dm_decision": {
+          const dmDecision = event.data as DecisionOutput;
+          if (dmDecision.decision === 'PROCEED') {
+            showDmPanel(dmDecision);
+          }
+          break;
+        }
+
         case "clarification_form": {
           const requirements = event.data as StructuredRequirements;
           showClarificationForm(requirements);
@@ -204,7 +213,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm]
+    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel]
   );
 
   return (
