@@ -603,6 +603,17 @@ const zh: TranslationDict = {
   'settings.skillBound': '已绑定: {list}',
   'settings.addSuccess': '添加成功',
 
+  // ── Tool Approval ──
+  'toolApproval.title': '工具执行审批',
+  'toolApproval.toolName': '工具',
+  'toolApproval.agent': 'Agent',
+  'toolApproval.arguments': '参数',
+  'toolApproval.warning': '此工具将修改文件或外部系统，请仔细审查参数后再批准。',
+  'toolApproval.approve': '批准执行',
+  'toolApproval.reject': '拒绝',
+  'toolApproval.approved': '已批准 — 正在执行...',
+  'toolApproval.rejected': '工具执行已拒绝',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',
   'error.pageLoadFailedGlobal': '页面加载失败',

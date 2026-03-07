@@ -16,6 +16,13 @@ export interface AgentContext {
   }) => void;
   /** Shared blackboard for inter-agent state. Available during pipeline execution. */
   blackboard?: import('../blackboard/blackboard').Blackboard;
+  /** Callback for tools that require human approval before execution.
+   *  Returns true if approved, false if rejected. Blocks the agent thread. */
+  onApprovalRequired?: (params: {
+    toolName: string;
+    toolArgs: Record<string, any>;
+    agentName: string;
+  }) => Promise<boolean>;
 }
 
 export interface AgentConfig {
@@ -207,6 +214,15 @@ export interface StructuredRequirements {
 }
 
 /** Conversation record. */
+/** Tool approval request stored in conversation for persistence. */
+export interface ToolApprovalRequest {
+  approval_id: string;
+  tool_name: string;
+  tool_args: Record<string, any>;
+  agent_name: string;
+  requested_at: string;
+}
+
 export interface Conversation {
   id: string;
   title: string | null;
@@ -218,6 +234,8 @@ export interface Conversation {
   clarification_context?: { questions: string[]; answers: string[] };
   dm_decision?: DecisionOutput | null;
   dm_approval_status?: 'pending' | 'approved' | 'rejected' | null;
+  structured_requirements?: StructuredRequirements | null;
+  pending_tool_approval?: ToolApprovalRequest | null;
   created_at: string;
   updated_at: string;
 }
@@ -296,6 +314,8 @@ export type ChatEventType =
   | 'clarification_form'
   | 'project_created'
   | 'dm_decision'
+  | 'tool_approval_required'
+  | 'tool_approval_resolved'
   | 'error'
   | 'done';
 

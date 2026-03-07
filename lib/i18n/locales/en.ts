@@ -603,6 +603,17 @@ const en: TranslationDict = {
   'settings.skillBound': 'Bound: {list}',
   'settings.addSuccess': 'Added successfully',
 
+  // ── Tool Approval ──
+  'toolApproval.title': 'Tool Execution Approval',
+  'toolApproval.toolName': 'Tool',
+  'toolApproval.agent': 'Agent',
+  'toolApproval.arguments': 'Arguments',
+  'toolApproval.warning': 'This tool will modify files or external systems. Please review the arguments carefully before approving.',
+  'toolApproval.approve': 'Approve Execution',
+  'toolApproval.reject': 'Reject',
+  'toolApproval.approved': 'Approved — executing...',
+  'toolApproval.rejected': 'Tool execution rejected',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',
   'error.pageLoadFailedGlobal': 'Page load failed',

@@ -356,6 +356,25 @@ export class BaseAgent {
           let resultStr = '';
           try {
             const args = JSON.parse(toolCall.function.arguments);
+
+            // Approval gate: block on human approval for dangerous tools
+            if (tool.requiresApproval && context.onApprovalRequired) {
+              const approved = await context.onApprovalRequired({
+                toolName,
+                toolArgs: args,
+                agentName: name,
+              });
+              if (!approved) {
+                resultStr = 'Tool execution was rejected by the user. Adjust your plan accordingly.';
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: resultStr,
+                });
+                continue;
+              }
+            }
+
             const result = await tool.execute(args);
             resultStr = result.success
               ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))

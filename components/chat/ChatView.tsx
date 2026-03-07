@@ -22,6 +22,8 @@ export function ChatView() {
   const showTeamPanel = usePulseStore((s) => s.showTeamPanel);
   const showClarificationForm = usePulseStore((s) => s.showClarificationForm);
   const showDmPanel = usePulseStore((s) => s.showDmPanel);
+  const showToolApproval = usePulseStore((s) => s.showToolApproval);
+  const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [streamingText, setStreamingText] = useState("");
@@ -116,7 +118,7 @@ export function ChatView() {
         setStreamingText("");
       }
     },
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval]
   );
 
   const handleSSEEvent = useCallback(
@@ -200,6 +202,21 @@ export function ChatView() {
           break;
         }
 
+        case "tool_approval_required": {
+          showToolApproval({
+            approvalId: event.data.approval_id,
+            toolName: event.data.tool_name,
+            toolArgs: event.data.tool_args,
+            agentName: event.data.agent_name,
+          });
+          break;
+        }
+
+        case "tool_approval_resolved": {
+          hideToolApproval();
+          break;
+        }
+
         case "error": {
           addMessage(conversationId, {
             id: crypto.randomUUID(),
@@ -213,7 +230,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel]
+    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval]
   );
 
   return (

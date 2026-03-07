@@ -21,7 +21,7 @@ import { createArchitectAgent } from '@/agents/architect';
 import { removeDynamicAgent, getAllDynamicAgents } from '@/lib/tools/create-agent';
 import { removeDynamicSkill, getAllDynamicSkills } from '@/lib/tools/create-skill';
 import { messageBus } from '@/connectors/bus/message-bus';
-import type { ArchitectResult, DecisionOutput } from '@/lib/core/types';
+import type { ArchitectResult, AgentContext, DecisionOutput, StructuredRequirements } from '@/lib/core/types';
 
 // ---------------------------------------------------------------------------
 // Zod schemas for runtime validation of agent outputs.
@@ -86,6 +86,33 @@ export interface MetaPipelineOptions {
     completion_tokens: number;
     total_tokens: number;
   }) => void;
+  /** Structured requirements from L3 clarification (injected into DM/Architect input). */
+  structuredRequirements?: StructuredRequirements;
+  /** Callback for tools that require human approval before execution. */
+  onApprovalRequired?: AgentContext['onApprovalRequired'];
+}
+
+/**
+ * Format StructuredRequirements into a markdown block for agent input injection.
+ */
+function formatStructuredRequirements(req: StructuredRequirements): string {
+  const lines: string[] = ['\n\n---\n## Structured Requirements\n'];
+  lines.push(`**Summary:** ${req.summary}\n`);
+  if (req.goals.length > 0) {
+    lines.push('### Goals');
+    for (const g of req.goals) lines.push(`- ${g}`);
+    lines.push('');
+  }
+  if (req.scope) {
+    lines.push(`### Scope\n${req.scope}\n`);
+  }
+  if (req.constraints.length > 0) {
+    lines.push('### Constraints');
+    for (const c of req.constraints) lines.push(`- ${c}`);
+    lines.push('');
+  }
+  lines.push('---');
+  return lines.join('\n');
 }
 
 export interface MetaPipelineResult {
@@ -124,7 +151,11 @@ export async function runDecisionPhase(
     ? `\n\n关联信号 IDs: ${options.signalIds.join(', ')}`
     : '';
 
-  const dmResult = await dm.run(inputMessage + dmContext, {
+  const reqContext = options.structuredRequirements
+    ? formatStructuredRequirements(options.structuredRequirements)
+    : '';
+
+  const dmResult = await dm.run(inputMessage + dmContext + reqContext, {
     logger: messageBus.createLogger('decision-maker'),
     ...agentCtx,
   });
@@ -184,16 +215,22 @@ export async function runArchitectPhase(
 
   await log('[Meta] Starting Architect...');
 
+  const reqContext = options.structuredRequirements
+    ? formatStructuredRequirements(options.structuredRequirements)
+    : '';
+
   const architectInput = decision
-    ? `决策者已批准以下需求 (confidence: ${decision.confidence}):\n\n${decision.summary}\n\n推荐行动:\n${decision.recommended_actions?.join('\n') || 'N/A'}\n\n原始需求:\n${inputMessage}`
-    : inputMessage;
+    ? `决策者已批准以下需求 (confidence: ${decision.confidence}):\n\n${decision.summary}\n\n推荐行动:\n${decision.recommended_actions?.join('\n') || 'N/A'}\n\n原始需求:\n${inputMessage}${reqContext}`
+    : `${inputMessage}${reqContext}`;
 
   const architect = createArchitectAgent({
     context: architectInput,
+    onApprovalRequired: options.onApprovalRequired,
   });
 
   const rawArchitectResult = await architect.run(architectInput, {
     logger: messageBus.createLogger('architect'),
+    onApprovalRequired: options.onApprovalRequired,
     ...agentCtx,
   });
 

@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { chatEngine } from '@/lib/services/chat-engine';
+import { toolApprovalService } from '@/lib/services/tool-approval';
 
 export async function GET(
   _req: Request,
@@ -154,6 +155,30 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .eq('id', params.id);
     }
     return NextResponse.json({ success: true, data: { status: 'rejected' } });
+  }
+
+  if (action === 'approve_tool') {
+    const { approval_id } = body;
+    if (!approval_id) {
+      return NextResponse.json({ success: false, error: 'Missing approval_id' }, { status: 400 });
+    }
+    const resolved = toolApprovalService.resolve(approval_id, true);
+    if (!resolved) {
+      return NextResponse.json({ success: false, error: 'Approval not found or already resolved' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data: { status: 'approved', approval_id } });
+  }
+
+  if (action === 'reject_tool') {
+    const { approval_id } = body;
+    if (!approval_id) {
+      return NextResponse.json({ success: false, error: 'Missing approval_id' }, { status: 400 });
+    }
+    const resolved = toolApprovalService.resolve(approval_id, false);
+    if (!resolved) {
+      return NextResponse.json({ success: false, error: 'Approval not found or already resolved' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data: { status: 'rejected', approval_id } });
   }
 
   return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });

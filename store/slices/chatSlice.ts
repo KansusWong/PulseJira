@@ -37,6 +37,16 @@ export interface ChatSlice {
     status: 'pending' | 'approved' | 'rejected' | 'idle';
   };
 
+  // Tool approval panel state (L3 dangerous tool gating)
+  toolApprovalPanel: {
+    visible: boolean;
+    approvalId: string | null;
+    toolName: string | null;
+    toolArgs: Record<string, any> | null;
+    agentName: string | null;
+    status: 'pending' | 'approved' | 'rejected' | 'idle';
+  };
+
   // Team panel state
   teamPanel: {
     visible: boolean;
@@ -69,6 +79,11 @@ export interface ChatSlice {
   approveDm: () => void;
   rejectDm: () => void;
 
+  showToolApproval: (data: { approvalId: string; toolName: string; toolArgs: Record<string, any>; agentName: string }) => void;
+  hideToolApproval: () => void;
+  approveToolExecution: () => void;
+  rejectToolExecution: () => void;
+
   showTeamPanel: (teamId: string, agents: AgentStatus[]) => void;
   hideTeamPanel: () => void;
   updateTeamStatus: (status: TeamStatus) => void;
@@ -95,6 +110,15 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   dmPanel: {
     visible: false,
     decision: null,
+    status: 'idle',
+  },
+
+  toolApprovalPanel: {
+    visible: false,
+    approvalId: null,
+    toolName: null,
+    toolArgs: null,
+    agentName: null,
     status: 'idle',
   },
 
@@ -194,6 +218,33 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   rejectDm: () =>
     set((state) => ({
       dmPanel: { ...state.dmPanel, status: 'rejected', visible: false },
+    })),
+
+  showToolApproval: (data) =>
+    set({
+      toolApprovalPanel: {
+        visible: true,
+        approvalId: data.approvalId,
+        toolName: data.toolName,
+        toolArgs: data.toolArgs,
+        agentName: data.agentName,
+        status: 'pending',
+      },
+    }),
+
+  hideToolApproval: () =>
+    set((state) => ({
+      toolApprovalPanel: { ...state.toolApprovalPanel, visible: false },
+    })),
+
+  approveToolExecution: () =>
+    set((state) => ({
+      toolApprovalPanel: { ...state.toolApprovalPanel, status: 'approved' },
+    })),
+
+  rejectToolExecution: () =>
+    set((state) => ({
+      toolApprovalPanel: { ...state.toolApprovalPanel, status: 'rejected', visible: false },
     })),
 
   showTeamPanel: (teamId, agents) =>

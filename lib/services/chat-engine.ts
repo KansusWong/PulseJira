@@ -16,6 +16,8 @@ import { runDecisionPhase, runArchitectPhase } from '@/skills/meta-pipeline';
 import { hasAgentFactory, getAgentFactoryIds } from '@/lib/tools/spawn-agent';
 import { BaseAgent } from '@/lib/core/base-agent';
 import { createProject } from '@/projects/project-service';
+import { EventChannel } from '@/lib/utils/event-channel';
+import { toolApprovalService } from '@/lib/services/tool-approval';
 import type {
   Conversation,
   ChatMessage,
@@ -263,10 +265,11 @@ export class ChatEngine {
       conversation_id: conversationId,
     });
 
-    // Link conversation to project
+    // Link conversation to project + store structured requirements
     await this.updateConversation(conversation.id, {
       project_id: project.id,
       status: 'converted',
+      structured_requirements: requirements,
     } as any);
 
     yield {
@@ -279,7 +282,7 @@ export class ChatEngine {
     const assessment = conversation.complexity_assessment;
 
     const context: ChatContext = {
-      conversation: { ...conversation, project_id: project.id },
+      conversation: { ...conversation, project_id: project.id, structured_requirements: requirements },
       messages,
       userMessage: requirements.summary,
       assessment,
@@ -520,6 +523,7 @@ You have access to tools for searching the web, reading files, and listing direc
       // Phase 1: Decision Maker only
       const decision = await runDecisionPhase(context.userMessage, {
         projectId: context.conversation.project_id ?? undefined,
+        structuredRequirements: context.conversation.structured_requirements ?? undefined,
         logger: async (msg: string) => {
           messageBus.publish({
             from: 'meta-pipeline',
@@ -568,6 +572,11 @@ You have access to tools for searching the web, reading files, and listing direc
   /**
    * Architect phase — creates team record, runs Architect, updates team status.
    * Called after DM approval.
+   *
+   * Uses EventChannel to bridge the async architect.run() with the SSE generator:
+   * - Architect runs in the background (non-blocking promise)
+   * - Agent logs and tool approval events are pushed to the channel
+   * - This generator consumes events from the channel and yields them as SSE
    */
   private async *handleArchitectPhase(context: ChatContext): AsyncGenerator<ChatEvent> {
     // Create team record now (deferred from handleAgentTeam)
@@ -582,29 +591,108 @@ You have access to tools for searching the web, reading files, and listing direc
       },
     };
 
+    const channel = new EventChannel<ChatEvent>();
+
     try {
       const dmDecision = context.conversation.dm_decision as DecisionOutput | undefined;
+      const conversationId = context.conversation.id;
 
-      const architectResult = await runArchitectPhase(context.userMessage, dmDecision, {
+      // Define onApprovalRequired callback — pushes event to channel, blocks agent thread
+      const onApprovalRequired = async (params: {
+        toolName: string;
+        toolArgs: Record<string, any>;
+        agentName: string;
+      }): Promise<boolean> => {
+        const approvalId = crypto.randomUUID();
+
+        // Store pending approval in conversation for persistence
+        await this.updateConversation(conversationId, {
+          pending_tool_approval: {
+            approval_id: approvalId,
+            tool_name: params.toolName,
+            tool_args: params.toolArgs,
+            agent_name: params.agentName,
+            requested_at: new Date().toISOString(),
+          },
+        } as any);
+
+        // Push approval-required event to SSE channel
+        channel.push({
+          type: 'tool_approval_required',
+          data: {
+            approval_id: approvalId,
+            tool_name: params.toolName,
+            tool_args: params.toolArgs,
+            agent_name: params.agentName,
+          },
+        });
+
+        // Block agent thread until resolved
+        const { promise } = toolApprovalService.requestApproval({
+          approvalId,
+          toolName: params.toolName,
+          agentName: params.agentName,
+        });
+
+        const approved = await promise;
+
+        // Clear pending approval from conversation
+        await this.updateConversation(conversationId, {
+          pending_tool_approval: null,
+        } as any);
+
+        // Push resolution event
+        channel.push({
+          type: 'tool_approval_resolved',
+          data: { approval_id: approvalId, approved },
+        });
+
+        return approved;
+      };
+
+      // Start architect as background promise (non-blocking)
+      const architectPromise = runArchitectPhase(context.userMessage, dmDecision, {
         projectId: context.conversation.project_id ?? undefined,
+        structuredRequirements: context.conversation.structured_requirements ?? undefined,
+        onApprovalRequired,
         logger: async (msg: string) => {
-          messageBus.publish({
-            from: 'meta-pipeline',
-            channel: 'agent-log',
+          channel.push({
             type: 'agent_log',
-            payload: { message: msg },
+            data: { message: msg },
           });
         },
       });
 
-      const responseText = `Architect complete. ${architectResult.steps_completed} steps completed, ${architectResult.steps_failed} failed.`;
+      // When architect finishes (success or error), close the channel
+      architectPromise
+        .then((result) => {
+          const responseText = `Architect complete. ${result.steps_completed} steps completed, ${result.steps_failed} failed.`;
+          this.saveMessage(conversationId, 'assistant', responseText).catch(() => {});
 
-      await this.saveMessage(context.conversation.id, 'assistant', responseText);
+          channel.push({
+            type: 'message',
+            data: { role: 'assistant', content: responseText },
+          });
+          channel.close();
+        })
+        .catch((error: any) => {
+          const errorMsg = `Architect execution failed: ${error.message}`;
+          this.saveMessage(conversationId, 'assistant', errorMsg).catch(() => {});
 
-      yield {
-        type: 'message',
-        data: { role: 'assistant', content: responseText },
-      };
+          channel.push({
+            type: 'error',
+            data: { message: errorMsg },
+          });
+          channel.close();
+        });
+
+      // Consume events from channel and yield them as SSE
+      for await (const event of channel) {
+        yield event;
+      }
+
+      // Wait for architect promise to settle (should already be done)
+      await architectPromise.catch(() => {});
 
       // Update team status to idle
       if (supabaseConfigured) {
@@ -614,6 +702,7 @@ You have access to tools for searching the web, reading files, and listing direc
           .eq('id', teamId);
       }
     } catch (error: any) {
+      channel.close();
       const errorMsg = `Architect execution failed: ${error.message}`;
       await this.saveMessage(context.conversation.id, 'assistant', errorMsg);
       yield { type: 'error', data: { message: errorMsg } };
