@@ -178,11 +178,11 @@ export interface DynamicSkillDefinition {
 // Chat-First Architecture types
 // ---------------------------------------------------------------------------
 
-/** Complexity levels for user requests. */
-export type ComplexityLevel = 'trivial' | 'simple' | 'moderate' | 'complex' | 'epic';
+/** Complexity levels for user requests (3-tier). */
+export type ComplexityLevel = 'L1' | 'L2' | 'L3';
 
 /** Execution modes mapped from complexity. */
-export type ExecutionMode = 'single_agent' | 'workflow' | 'agent_team' | 'agent_swarm';
+export type ExecutionMode = 'direct' | 'single_agent' | 'agent_team';
 
 /** Output from the Complexity Assessor agent. */
 export interface ComplexityAssessment {
@@ -193,6 +193,17 @@ export interface ComplexityAssessment {
   estimated_steps: number;
   plan_outline: string[];
   requires_project: boolean;
+  /** L3 only: whether the request needs clarification before execution. */
+  requires_clarification: boolean;
+}
+
+/** Structured requirements produced after L3 clarification rounds. */
+export interface StructuredRequirements {
+  summary: string;
+  goals: string[];
+  scope: string;
+  constraints: string[];
+  suggested_name: string;
 }
 
 /** Conversation record. */
@@ -203,6 +214,8 @@ export interface Conversation {
   project_id: string | null;
   complexity_assessment: ComplexityAssessment | null;
   execution_mode: ExecutionMode | null;
+  clarification_round?: number;
+  clarification_context?: { questions: string[]; answers: string[] };
   created_at: string;
   updated_at: string;
 }
@@ -278,6 +291,8 @@ export type ChatEventType =
   | 'agent_log'
   | 'team_update'
   | 'team_comms'
+  | 'clarification_form'
+  | 'project_created'
   | 'error'
   | 'done';
 

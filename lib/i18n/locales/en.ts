@@ -97,6 +97,26 @@ const en: TranslationDict = {
   'plan.reject': 'Reject',
   'plan.approved': 'Plan approved — executing...',
 
+  // ── Complexity Labels ──
+  'complexity.L1': 'Quick Answer',
+  'complexity.L2': 'Light Task',
+  'complexity.L3': 'Full Project',
+  'mode.direct': 'Direct',
+  'mode.single_agent': 'Single Agent',
+  'mode.agent_team': 'Agent Team',
+
+  // ── Clarification Form ──
+  'clarification.title': 'Requirement Confirmation',
+  'clarification.summary': 'Summary',
+  'clarification.goals': 'Goals',
+  'clarification.scope': 'Scope',
+  'clarification.constraints': 'Constraints',
+  'clarification.projectName': 'Project Name',
+  'clarification.confirm': 'Confirm & Create Project',
+  'clarification.goBack': 'Continue Editing',
+  'clarification.projectCreated': 'Project created: {name}',
+  'clarification.lightProjectCreated': 'Light project created: {name}',
+
   // ── Agent Team Panel ──
   'team.title': 'Agent Team',
   'team.members': 'Team Members',

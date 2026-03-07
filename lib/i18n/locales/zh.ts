@@ -97,6 +97,26 @@ const zh: TranslationDict = {
   'plan.reject': '拒绝',
   'plan.approved': '计划已批准 — 执行中...',
 
+  // ── Complexity Labels ──
+  'complexity.L1': '快速回答',
+  'complexity.L2': '轻量任务',
+  'complexity.L3': '完整项目',
+  'mode.direct': '直接回答',
+  'mode.single_agent': '单 Agent',
+  'mode.agent_team': 'Agent 团队',
+
+  // ── Clarification Form ──
+  'clarification.title': '需求确认',
+  'clarification.summary': '需求摘要',
+  'clarification.goals': '目标',
+  'clarification.scope': '范围',
+  'clarification.constraints': '约束',
+  'clarification.projectName': '项目名称',
+  'clarification.confirm': '确认并创建项目',
+  'clarification.goBack': '继续修改',
+  'clarification.projectCreated': '项目已创建：{name}',
+  'clarification.lightProjectCreated': '轻量项目已创建：{name}',
+
   // ── Agent Team Panel ──
   'team.title': '智能体团队',
   'team.members': '团队成员',

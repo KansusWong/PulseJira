@@ -3,7 +3,7 @@
  *
  * Handles the full lifecycle:
  * 1. Receive user message
- * 2. Assess complexity (first message only, with re-assessment support)
+ * 2. Assess complexity (L1/L2/L3)
  * 3. Route to appropriate executor based on execution mode
  * 4. Stream responses back via async generators
  */
@@ -15,12 +15,14 @@ import { getTools } from '@/lib/tools';
 import { runMetaPipeline } from '@/skills/meta-pipeline';
 import { hasAgentFactory, getAgentFactoryIds } from '@/lib/tools/spawn-agent';
 import { BaseAgent } from '@/lib/core/base-agent';
+import { createProject } from '@/projects/project-service';
 import type {
   Conversation,
   ChatMessage,
   ComplexityAssessment,
   ExecutionMode,
   ChatEvent,
+  StructuredRequirements,
 } from '@/lib/core/types';
 
 // ---------------------------------------------------------------------------
@@ -36,6 +38,44 @@ interface ChatContext {
 
 /** Number of new user messages after which we re-assess complexity. */
 const REASSESS_MESSAGE_THRESHOLD = 5;
+
+/** Maximum clarification rounds for L3. */
+const MAX_CLARIFICATION_ROUNDS = 3;
+
+// ---------------------------------------------------------------------------
+// Clarification agent prompt
+// ---------------------------------------------------------------------------
+
+const CLARIFICATION_SYSTEM_PROMPT = `You are a Requirement Clarification assistant. Your job is to analyze a user's request and determine if you have enough information to create a detailed project specification.
+
+You will receive the original request plus any previous clarification Q&A.
+
+You MUST respond with a valid JSON object:
+
+If the requirements are CLEAR ENOUGH to proceed:
+{
+  "status": "ready",
+  "requirements": {
+    "summary": "Concise description of what needs to be built",
+    "goals": ["Goal 1", "Goal 2"],
+    "scope": "Technical scope description",
+    "constraints": ["Constraint 1", "Constraint 2"],
+    "suggested_name": "project-name-slug"
+  }
+}
+
+If the requirements are NOT clear enough and you need to ask a question:
+{
+  "status": "needs_clarification",
+  "question": "Your specific clarifying question here"
+}
+
+Guidelines:
+- Ask ONE focused question at a time, not multiple
+- Focus on: target users, key features, technical constraints, scale expectations, quality requirements
+- Be conversational and concise
+- After receiving enough context (usually 1-2 answers), declare "ready"
+- When forced to produce requirements (round >= 3), always output "ready" with best-effort requirements`;
 
 // ---------------------------------------------------------------------------
 // ChatEngine
@@ -58,7 +98,32 @@ export class ChatEngine {
     // 3. Load conversation history
     const history = await this.getMessages(conversation.id);
 
-    // 4. Assess complexity (on first message, or re-assess if stale — B4 fix)
+    // 4. Check if we're in an active clarification flow
+    const clarRound = conversation.clarification_round ?? 0;
+    const inClarification = clarRound > 0 && clarRound < MAX_CLARIFICATION_ROUNDS
+      && conversation.execution_mode === 'agent_team';
+
+    if (inClarification) {
+      // Continue clarification — update context with user's answer
+      const clarCtx = conversation.clarification_context ?? { questions: [], answers: [] };
+      clarCtx.answers.push(message);
+      await this.updateConversation(conversation.id, {
+        clarification_context: clarCtx,
+      } as any);
+      conversation.clarification_context = clarCtx;
+
+      yield* this.handleClarification({
+        conversation,
+        messages: history,
+        userMessage: message,
+        assessment: conversation.complexity_assessment,
+      });
+
+      yield { type: 'done', data: { conversation_id: conversation.id } };
+      return;
+    }
+
+    // 5. Assess complexity (on first message, or re-assess if stale)
     let assessment = conversation.complexity_assessment;
     const assessedAtCount = (conversation as any).assessed_at_message_count ?? 0;
     const userMessageCount = history.filter(m => m.role === 'user').length;
@@ -86,21 +151,22 @@ export class ChatEngine {
 
         yield { type: 'plan_assessment', data: assessment };
       } catch {
-        // Default to single_agent on assessment failure
+        // Default to direct on assessment failure
         assessment = {
-          complexity_level: 'simple',
-          execution_mode: 'single_agent',
-          rationale: 'Assessment failed, defaulting to single agent.',
+          complexity_level: 'L1',
+          execution_mode: 'direct',
+          rationale: 'Assessment failed, defaulting to direct answer.',
           suggested_agents: [],
           estimated_steps: 1,
           plan_outline: [],
           requires_project: false,
+          requires_clarification: false,
         };
         yield { type: 'plan_assessment', data: assessment };
       }
     }
 
-    // 5. Route to executor
+    // 6. Route to executor
     const context: ChatContext = {
       conversation,
       messages: history,
@@ -110,21 +176,39 @@ export class ChatEngine {
 
     const mode = assessment!.execution_mode;
 
-    // For trivial/simple: execute directly
-    // For moderate+: yield plan for approval (requires separate approval step)
-    if (mode === 'single_agent') {
-      yield* this.handleSingleAgent(context);
+    if (mode === 'direct') {
+      // L1: Direct LLM answer
+      yield* this.handleDirect(context);
+    } else if (mode === 'single_agent') {
+      // L2: Create light project + single agent execution
+      yield* this.handleSingleAgentWithProject(context);
+    } else if (mode === 'agent_team') {
+      // L3: Check if clarification needed
+      if (assessment!.requires_clarification) {
+        // Initialize clarification flow
+        await this.updateConversation(conversation.id, {
+          clarification_round: 0,
+          clarification_context: { questions: [], answers: [] },
+        } as any);
+        conversation.clarification_round = 0;
+        conversation.clarification_context = { questions: [], answers: [] };
+
+        yield* this.handleClarification(context);
+      } else {
+        // Requirements clear — yield plan for approval
+        yield {
+          type: 'plan_update',
+          data: {
+            status: 'pending_approval',
+            mode,
+            assessment,
+            plan_outline: assessment!.plan_outline,
+          },
+        };
+      }
     } else {
-      // For non-trivial modes, yield plan and wait for approval
-      yield {
-        type: 'plan_update',
-        data: {
-          status: 'pending_approval',
-          mode,
-          assessment,
-          plan_outline: assessment!.plan_outline,
-        },
-      };
+      // Fallback: direct answer
+      yield* this.handleDirect(context);
     }
 
     yield { type: 'done', data: { conversation_id: conversation.id } };
@@ -148,19 +232,59 @@ export class ChatEngine {
       assessment,
     };
 
-    switch (mode) {
-      case 'workflow':
-        yield* this.handleWorkflow(context);
-        break;
-      case 'agent_team':
-        yield* this.handleAgentTeam(context);
-        break;
-      case 'agent_swarm':
-        yield* this.handleAgentSwarm(context);
-        break;
-      default:
-        yield* this.handleSingleAgent(context);
+    if (mode === 'agent_team') {
+      yield* this.handleAgentTeam(context);
+    } else if (mode === 'single_agent') {
+      yield* this.handleSingleAgentWithProject(context);
+    } else {
+      yield* this.handleDirect(context);
     }
+
+    yield { type: 'done', data: { conversation_id: conversationId } };
+  }
+
+  /**
+   * Confirm requirements from clarification form and execute agent team.
+   */
+  async *confirmAndExecute(
+    conversationId: string,
+    requirements: StructuredRequirements,
+  ): AsyncGenerator<ChatEvent> {
+    const conversation = await this.getOrCreateConversation(conversationId);
+
+    // Create full project from requirements
+    yield { type: 'agent_log', data: { message: 'Creating project...' } };
+
+    const project = await createProject({
+      name: requirements.suggested_name || 'Untitled Project',
+      description: requirements.summary,
+      is_light: false,
+      conversation_id: conversationId,
+    });
+
+    // Link conversation to project
+    await this.updateConversation(conversation.id, {
+      project_id: project.id,
+      status: 'converted',
+    } as any);
+
+    yield {
+      type: 'project_created',
+      data: { project_id: project.id, name: project.name, is_light: false },
+    };
+
+    // Build context and execute agent team
+    const messages = await this.getMessages(conversationId);
+    const assessment = conversation.complexity_assessment;
+
+    const context: ChatContext = {
+      conversation: { ...conversation, project_id: project.id },
+      messages,
+      userMessage: requirements.summary,
+      assessment,
+    };
+
+    yield* this.handleAgentTeam(context);
 
     yield { type: 'done', data: { conversation_id: conversationId } };
   }
@@ -170,11 +294,11 @@ export class ChatEngine {
   // ---------------------------------------------------------------------------
 
   /**
-   * Single agent mode — lightweight chat with tool access.
-   * Equipped with web_search, read_file, list_files for context-aware answers.
+   * L1 Direct mode — lightweight chat with tool access.
+   * No project creation.
    */
-  private async *handleSingleAgent(context: ChatContext): AsyncGenerator<ChatEvent> {
-    yield { type: 'agent_log', data: { message: 'Processing with single agent...' } };
+  private async *handleDirect(context: ChatContext): AsyncGenerator<ChatEvent> {
+    yield { type: 'agent_log', data: { message: 'Processing with direct answer...' } };
 
     try {
       const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
@@ -223,99 +347,162 @@ You have access to tools for searching the web, reading files, and listing direc
   }
 
   /**
-   * Workflow mode — sequential agent execution.
-   * Runs each suggested agent in order, passing output from one to the next.
-   * Emits agentStart/agentComplete lifecycle events via messageBus (B7 fix).
+   * L2 Single Agent mode — create light project, then execute with single agent.
    */
-  private async *handleWorkflow(context: ChatContext): AsyncGenerator<ChatEvent> {
-    const agentNames = context.assessment?.suggested_agents || ['pm', 'tech-lead'];
-    const total = agentNames.length;
+  private async *handleSingleAgentWithProject(context: ChatContext): AsyncGenerator<ChatEvent> {
+    yield { type: 'agent_log', data: { message: 'Creating light project...' } };
 
-    yield {
-      type: 'agent_log',
-      data: { message: `Starting workflow: ${agentNames.join(' → ')} (${total} steps)` },
-    };
+    try {
+      // Create light project
+      const projectName = context.userMessage.slice(0, 60).replace(/[^\w\s\u4e00-\u9fff-]/g, '').trim() || 'Light Task';
+      const project = await createProject({
+        name: projectName,
+        description: context.userMessage,
+        is_light: true,
+        conversation_id: context.conversation.id,
+      });
 
-    let previousOutput = context.userMessage;
-    const results: Array<{ agent: string; output: any }> = [];
+      // Link conversation to project
+      await this.updateConversation(context.conversation.id, {
+        project_id: project.id,
+      } as any);
 
-    for (let i = 0; i < agentNames.length; i++) {
-      const agentName = agentNames[i];
-      const step = i + 1;
-
-      // Publish lifecycle event
-      messageBus.agentStart(agentName, step, total);
       yield {
-        type: 'agent_log',
-        data: { message: `[${step}/${total}] Running agent: ${agentName}...`, agent: agentName },
+        type: 'project_created',
+        data: { project_id: project.id, name: project.name, is_light: true },
       };
 
-      try {
-        // Check if the agent factory is registered
-        if (!hasAgentFactory(agentName)) {
-          const available = getAgentFactoryIds().join(', ');
-          const errorMsg = `Agent "${agentName}" not registered. Available: [${available}]`;
-          messageBus.agentComplete(agentName, { error: errorMsg });
-          yield { type: 'agent_log', data: { message: `⚠️ ${errorMsg}`, agent: agentName } };
-          results.push({ agent: agentName, output: { error: errorMsg } });
-          continue;
-        }
+      yield { type: 'agent_log', data: { message: 'Processing with single agent...' } };
 
-        // Dynamically import agent factory — agents register themselves on import
-        const agentModule = await this.loadAgentFactory(agentName);
-        if (!agentModule) {
-          const errorMsg = `Failed to load agent factory for "${agentName}"`;
-          messageBus.agentComplete(agentName, { error: errorMsg });
-          yield { type: 'agent_log', data: { message: `⚠️ ${errorMsg}`, agent: agentName } };
-          results.push({ agent: agentName, output: { error: errorMsg } });
-          continue;
-        }
+      // Execute with single agent (same as handleDirect but with project context)
+      const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
+You are working on a light project task. Produce the requested deliverable directly.
+Be concise, professional, and helpful. Use Markdown formatting.
+If the request involves code, provide complete, runnable code examples.
+You have access to tools for searching the web, reading files, and listing directories.`;
 
-        const agent = agentModule();
+      const tools = getTools('web_search', 'read_file', 'list_files');
 
-        // Build input: original request + previous agent output as context
-        const agentInput = i === 0
-          ? previousOutput
-          : `Previous agent (${agentNames[i - 1]}) output:\n${typeof previousOutput === 'string' ? previousOutput : JSON.stringify(previousOutput, null, 2)}\n\nOriginal request:\n${context.userMessage}`;
+      const agent = new BaseAgent({
+        name: 'chat-assistant',
+        systemPrompt,
+        tools,
+        maxLoops: 5,
+        model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
+      });
 
-        const agentResult = await agent.run(agentInput, {
-          logger: messageBus.createLogger(agentName),
-          projectId: context.conversation.project_id ?? undefined,
-        });
+      const historyContext = context.messages
+        .slice(-10)
+        .map(m => `[${m.role}]: ${m.content}`)
+        .join('\n\n');
 
-        // Store result and pass to next agent
-        previousOutput = typeof agentResult === 'string'
-          ? agentResult
-          : JSON.stringify(agentResult, null, 2);
-        results.push({ agent: agentName, output: agentResult });
+      const result = await agent.run(
+        `${historyContext}\n\n[user]: ${context.userMessage}`,
+      );
 
-        messageBus.agentComplete(agentName, agentResult);
-        yield {
-          type: 'agent_log',
-          data: { message: `[${step}/${total}] Agent ${agentName} completed.`, agent: agentName },
-        };
-      } catch (error: any) {
-        messageBus.agentComplete(agentName, { error: error.message });
-        yield {
-          type: 'agent_log',
-          data: { message: `[${step}/${total}] Agent ${agentName} failed: ${error.message}`, agent: agentName },
-        };
-        results.push({ agent: agentName, output: { error: error.message } });
-      }
+      const responseText = typeof result === 'string'
+        ? result
+        : result?.content || result?.response || JSON.stringify(result);
+
+      // Save assistant response
+      await this.saveMessage(context.conversation.id, 'assistant', responseText);
+
+      yield {
+        type: 'message',
+        data: {
+          role: 'assistant',
+          content: responseText,
+        },
+      };
+    } catch (error: any) {
+      yield { type: 'error', data: { message: error.message } };
     }
+  }
 
-    // Summarize workflow results
-    const summary = results.map(r =>
-      `**${r.agent}**: ${r.output?.error ? `Failed — ${r.output.error}` : 'Completed'}`
-    ).join('\n');
+  /**
+   * L3 Clarification handler — ask clarifying questions or produce structured form.
+   */
+  private async *handleClarification(context: ChatContext): AsyncGenerator<ChatEvent> {
+    const round = context.conversation.clarification_round ?? 0;
+    const clarCtx = context.conversation.clarification_context ?? { questions: [], answers: [] };
 
-    const responseText = `Workflow completed.\n\n${summary}`;
-    await this.saveMessage(context.conversation.id, 'assistant', responseText);
+    yield { type: 'agent_log', data: { message: `Clarifying requirements (round ${round + 1}/${MAX_CLARIFICATION_ROUNDS})...` } };
 
-    yield {
-      type: 'message',
-      data: { role: 'assistant', content: responseText },
-    };
+    try {
+      const agent = new BaseAgent({
+        name: 'clarification-assistant',
+        systemPrompt: CLARIFICATION_SYSTEM_PROMPT,
+        tools: [],
+        maxLoops: 1,
+        model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
+      });
+
+      // Build context with all Q&A so far
+      let clarificationHistory = `## Original Request\n${context.messages.filter(m => m.role === 'user')[0]?.content || context.userMessage}\n`;
+
+      if (clarCtx.questions.length > 0) {
+        clarificationHistory += '\n## Previous Clarification\n';
+        for (let i = 0; i < clarCtx.questions.length; i++) {
+          clarificationHistory += `Q${i + 1}: ${clarCtx.questions[i]}\n`;
+          if (clarCtx.answers[i]) {
+            clarificationHistory += `A${i + 1}: ${clarCtx.answers[i]}\n`;
+          }
+        }
+      }
+
+      // Force ready on final round
+      if (round >= MAX_CLARIFICATION_ROUNDS - 1) {
+        clarificationHistory += '\n## IMPORTANT: This is the final round. You MUST output status "ready" with best-effort requirements.';
+      }
+
+      const result = await agent.runOnce(clarificationHistory, {});
+
+      if (result.status === 'ready' && result.requirements) {
+        // Requirements ready — emit form
+        yield {
+          type: 'clarification_form',
+          data: result.requirements as StructuredRequirements,
+        };
+
+        // Save a system message
+        const formSummary = `**Requirements confirmed:**\n- ${result.requirements.summary}\n- Goals: ${result.requirements.goals?.join(', ')}`;
+        await this.saveMessage(context.conversation.id, 'assistant', formSummary);
+
+        yield {
+          type: 'message',
+          data: { role: 'assistant', content: formSummary },
+        };
+      } else if (result.status === 'needs_clarification' && result.question) {
+        // Ask clarifying question
+        const question = result.question;
+        clarCtx.questions.push(question);
+
+        await this.updateConversation(context.conversation.id, {
+          clarification_round: round + 1,
+          clarification_context: clarCtx,
+        } as any);
+
+        await this.saveMessage(context.conversation.id, 'assistant', question);
+
+        yield {
+          type: 'message',
+          data: { role: 'assistant', content: question },
+        };
+      } else {
+        // Unexpected output — force form generation
+        const fallbackReqs: StructuredRequirements = {
+          summary: context.userMessage,
+          goals: ['Complete the requested task'],
+          scope: 'To be determined',
+          constraints: [],
+          suggested_name: context.userMessage.slice(0, 40).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'new-project',
+        };
+
+        yield { type: 'clarification_form', data: fallbackReqs };
+      }
+    } catch (error: any) {
+      yield { type: 'error', data: { message: error.message } };
+    }
   }
 
   /**
@@ -345,8 +532,6 @@ You have access to tools for searching the web, reading files, and listing direc
       const pipelineResult = await runMetaPipeline(context.userMessage, {
         projectId: context.conversation.project_id ?? undefined,
         logger: async (msg: string) => {
-          // Forward pipeline logs as ChatEvents — cannot yield from callback,
-          // so publish to message bus for SSE streaming.
           messageBus.publish({
             from: 'meta-pipeline',
             channel: 'agent-log',
@@ -386,32 +571,14 @@ You have access to tools for searching the web, reading files, and listing direc
     }
   }
 
-  /**
-   * Agent swarm mode — phased execution for epic-level tasks.
-   * Currently delegates to agent_team (single phase). Future: multi-phase with
-   * Supervisor validation between phases.
-   */
-  private async *handleAgentSwarm(context: ChatContext): AsyncGenerator<ChatEvent> {
-    yield {
-      type: 'agent_log',
-      data: { message: 'Initializing agent swarm (Phase 1)...' },
-    };
-
-    // Phase 1: same as agent_team
-    yield* this.handleAgentTeam(context);
-  }
-
   // ---------------------------------------------------------------------------
   // Agent loading helper
   // ---------------------------------------------------------------------------
 
   /**
    * Attempt to load an agent factory by name.
-   * Agent factories are registered when their modules are imported.
-   * Returns the factory function, or null if not loadable.
    */
   private async loadAgentFactory(agentName: string): Promise<(() => BaseAgent) | null> {
-    // Map common agent names to their module paths
     const moduleMap: Record<string, () => Promise<any>> = {
       'pm': () => import('@/agents/pm'),
       'tech-lead': () => import('@/agents/tech-lead'),
@@ -421,26 +588,21 @@ You have access to tools for searching the web, reading files, and listing direc
       'decision-maker': () => import('@/agents/decision-maker'),
     };
 
-    // Ensure module is imported so factory is registered
     const loader = moduleMap[agentName];
     if (loader) {
       try {
         const mod = await loader();
-        // Module exports a create function like createPMAgent, createArchitectAgent, etc.
         const createFn = Object.values(mod).find(
           (v): v is (...args: any[]) => BaseAgent => typeof v === 'function' && v.name?.startsWith('create')
         );
         if (createFn) return () => createFn();
       } catch {
-        // Fall through — factory might already be registered
+        // Fall through
       }
     }
 
-    // Check if factory was registered (e.g. by a previous import or dynamic creation)
     if (hasAgentFactory(agentName)) {
-      // Use dynamic import side-effect: the factory is now in the registry
-      // We need to access it via spawn-agent's internal map — use a lightweight wrapper
-      return null; // Factory exists but we can't access it directly from here
+      return null;
     }
 
     return null;
@@ -481,6 +643,8 @@ You have access to tools for searching the web, reading files, and listing direc
       project_id: null,
       complexity_assessment: null,
       execution_mode: null,
+      clarification_round: 0,
+      clarification_context: undefined,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
