@@ -4,6 +4,7 @@ import { runProjectPrepare, runProjectPlan } from '@/projects/project-runner';
 import { messageBus } from '@/connectors/bus/message-bus';
 import { recordLlmUsage } from '@/lib/services/usage';
 import { createSafeWriter } from '@/lib/utils/api-error';
+import { startTrace, recordEvent, completeTrace } from '@/lib/services/trace';
 
 /**
  * POST /api/projects/[projectId]/execute — Run Agent pipeline via SSE stream.
@@ -32,11 +33,14 @@ export async function POST(
   const { stage, description, urls = [], signalId, confirmed_proposal } = body;
   const projectId = params.projectId;
   const sessionId = randomUUID();
+  const resolvedStage = stage === 'prepare' || stage === 'plan' ? stage : 'execute';
   const streamScope = {
     projectId,
     sessionId,
-    stage: stage === 'prepare' || stage === 'plan' ? stage : 'execute',
+    stage: resolvedStage,
   };
+
+  startTrace(sessionId, projectId, resolvedStage);
 
   const recordUsage = (u: {
     agentName: string;
@@ -52,6 +56,7 @@ export async function POST(
       model: u.model ?? undefined,
       promptTokens: u.prompt_tokens,
       completionTokens: u.completion_tokens,
+      traceId: sessionId,
     }).catch((err) => console.error('[execute] Record usage failed:', err));
   };
 
@@ -66,6 +71,7 @@ export async function POST(
       agent: message.from,
       ...message.payload,
     });
+    recordEvent(sessionId, message.type, message.from, message.payload);
   }, streamScope);
 
   (async () => {
@@ -92,9 +98,11 @@ export async function POST(
         }
 
         await safe.write({ type: 'result', data: result });
+        completeTrace(sessionId, 'completed');
       });
     } catch (e: any) {
       console.error('Pipeline Error:', e);
+      completeTrace(sessionId, 'failed', { error: e.message });
       await safe.write({ type: 'error', error: e.message });
     } finally {
       unsubscribe();

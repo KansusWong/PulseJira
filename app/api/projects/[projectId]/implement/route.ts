@@ -20,6 +20,7 @@ import { runImplementation } from '@/skills/implement-pipeline';
 import { supabase, assertSupabase } from '@/lib/db/client';
 import { syncTaskStatus, clearProjectTasks } from '@/projects/project-service';
 import { recordLlmUsage } from '@/lib/services/usage';
+import { startTrace, recordEvent, completeTrace } from '@/lib/services/trace';
 
 export async function POST(
   req: Request,
@@ -36,6 +37,8 @@ export async function POST(
   const projectId = params.projectId;
   const sessionId = randomUUID();
   const streamScope = { projectId, sessionId, stage: 'implement' };
+
+  startTrace(sessionId, projectId, 'implement');
 
   assertSupabase();
 
@@ -104,6 +107,7 @@ export async function POST(
       model: u.model ?? undefined,
       promptTokens: u.prompt_tokens,
       completionTokens: u.completion_tokens,
+      traceId: sessionId,
     }).catch((err) => console.error('[implement] Record usage failed:', err));
   };
 
@@ -114,6 +118,7 @@ export async function POST(
       ...message.payload,
     };
     await safeWrite(encoder.encode(`data: ${JSON.stringify(sseEvent)}\n\n`));
+    recordEvent(sessionId, message.type, message.from, message.payload);
 
     // Persist task status changes to the database
     if (message.type === 'task_update' && message.payload?.title) {
@@ -208,9 +213,15 @@ export async function POST(
         await safeWrite(
           encoder.encode(`data: ${JSON.stringify({ type: 'result', data: result })}\n\n`)
         );
+        completeTrace(sessionId, 'completed', {
+          status: result.status,
+          tasksCompleted: result.plan?.tasks.filter((t: any) => t.status === 'completed').length ?? 0,
+          tasksTotal: result.plan?.tasks.length ?? 0,
+        });
       });
     } catch (e: any) {
       console.error('[implement] Pipeline Error:', e);
+      completeTrace(sessionId, 'failed', { error: e.message });
       await safeWrite(
         encoder.encode(`data: ${JSON.stringify({ type: 'error', error: e.message })}\n\n`)
       );
