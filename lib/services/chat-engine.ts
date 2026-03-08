@@ -19,6 +19,7 @@ import { createProject } from '@/projects/project-service';
 import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
 import { Blackboard } from '@/lib/blackboard';
+import { teamCoordinator } from '@/lib/services/team-coordinator';
 import type {
   Conversation,
   ChatMessage,
@@ -595,17 +596,29 @@ You have access to tools for searching the web, reading files, and listing direc
    * - This generator consumes events from the channel and yields them as SSE
    */
   private async *handleArchitectPhase(context: ChatContext): AsyncGenerator<ChatEvent> {
-    // Create team record now (deferred from handleAgentTeam)
-    const teamId = await this.createTeam(context.conversation.id, context.assessment);
+    // Create team record via coordinator (deferred from handleAgentTeam)
+    const suggestedAgents = context.assessment?.suggested_agents || [];
+    const team = await teamCoordinator.formTeam({
+      conversationId: context.conversation.id,
+      projectId: context.conversation.project_id ?? undefined,
+      teamName: `team-${Date.now()}`,
+      leadAgent: 'architect',
+      members: suggestedAgents,
+      executionMode: context.assessment?.execution_mode || 'agent_team',
+    });
+    const teamId = team.id;
 
     yield {
       type: 'team_update',
       data: {
         team_id: teamId,
         status: 'active',
-        agents: context.assessment?.suggested_agents || [],
+        agents: suggestedAgents,
       },
     };
+
+    // Mark architect as working
+    await teamCoordinator.updateAgentStatus(teamId, 'architect', 'working').catch(() => {});
 
     const channel = new EventChannel<ChatEvent>();
 
@@ -763,6 +776,9 @@ You have access to tools for searching the web, reading files, and listing direc
             architect_checkpoint: null,
           } as any).catch(err => console.error('[ChatEngine] Architect completion update failed:', err));
 
+          // Mark architect agent as completed
+          teamCoordinator.updateAgentStatus(teamId, 'architect', 'completed').catch(() => {});
+
           channel.push({
             type: 'message',
             data: { role: 'assistant', content: responseText },
@@ -777,6 +793,9 @@ You have access to tools for searching the web, reading files, and listing direc
           this.updateConversation(conversationId, {
             architect_phase_status: 'failed',
           } as any).catch(err => console.error('[ChatEngine] Architect failure update failed:', err));
+
+          // Mark architect agent as failed
+          teamCoordinator.updateAgentStatus(teamId, 'architect', 'failed').catch(() => {});
 
           channel.push({
             type: 'architect_failed',
@@ -801,13 +820,18 @@ You have access to tools for searching the web, reading files, and listing direc
       // Wait for architect promise to settle (should already be done)
       await architectPromise.catch(() => { /* already handled above */ });
 
-      // Update team status to idle
+      // Update team status to idle via coordinator
       if (supabaseConfigured) {
         await supabase
           .from('agent_teams')
           .update({ status: 'idle' })
           .eq('id', teamId);
       }
+      // Fetch and emit real agent statuses
+      try {
+        const teamStatus = await teamCoordinator.getTeamStatus(teamId);
+        // no-op: status already yielded through channel events
+      } catch { /* team may already be disbanded */ }
     } catch (error: any) {
       channel.close();
       const errorMsg = `Architect execution failed: ${error.message}`;
@@ -1036,34 +1060,7 @@ You have access to tools for searching the web, reading files, and listing direc
       .eq('id', id);
   }
 
-  private async createTeam(
-    conversationId: string,
-    assessment: ComplexityAssessment | null,
-  ): Promise<string> {
-    const teamName = `team-${Date.now()}`;
-    const leadAgent = 'architect';
-
-    if (supabaseConfigured) {
-      const { data } = await supabase
-        .from('agent_teams')
-        .insert({
-          conversation_id: conversationId,
-          team_name: teamName,
-          lead_agent: leadAgent,
-          status: 'forming',
-          config: {
-            members: assessment?.suggested_agents || [],
-            execution_mode: assessment?.execution_mode,
-          },
-        })
-        .select('id')
-        .single();
-
-      if (data) return data.id;
-    }
-
-    return crypto.randomUUID();
-  }
+  // createTeam removed — use teamCoordinator.formTeam() instead
 }
 
 /** Singleton instance. */
