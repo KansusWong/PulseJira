@@ -1,0 +1,20 @@
+{
+  "pm": {
+    "model": "gpt-4o-mini"
+  },
+  "researcher": {
+    "model": "gpt-4o-mini"
+  },
+  "critic": {
+    "model": "gpt-4o-mini"
+  },
+  "blue-team": {
+    "model": "gpt-4o-mini"
+  },
+  "arbitrator": {
+    "model": "gpt-4o-mini"
+  },
+  "knowledge-curator": {
+    "model": "gpt-4o-mini"
+  }
+}

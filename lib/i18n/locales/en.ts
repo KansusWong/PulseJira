@@ -441,6 +441,14 @@ const en: TranslationDict = {
   'usage.noAgentData': 'No agent usage data yet',
   'usage.noAgentTimeData': 'No agent duration data yet',
   'usage.loadFailed': 'Failed to load usage data',
+  'usage.descCost': 'LLM cost statistics (USD)',
+  'usage.switchToCost': 'Switch to cost view',
+  'usage.cost7d': 'Cost (7d)',
+  'usage.cost30d': 'Cost (30d)',
+  'usage.costSignal': 'Signal Intelligence Cost',
+  'usage.costProject': 'Project Execution Cost',
+  'usage.costByAgent': 'Cost by Agent',
+  'usage.costByAccount': 'Cost by Account',
 
   // ── Usage: Agent Labels ──
   'usage.agent.signalScreener': 'Signal Screen',

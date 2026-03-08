@@ -441,6 +441,14 @@ const zh: TranslationDict = {
   'usage.noAgentData': '暂无 Agent 用量数据',
   'usage.noAgentTimeData': '暂无 Agent 耗时数据',
   'usage.loadFailed': '无法加载用量数据',
+  'usage.descCost': 'LLM 成本统计（美元）',
+  'usage.switchToCost': '切换到成本视图',
+  'usage.cost7d': '成本 (7天)',
+  'usage.cost30d': '成本 (30天)',
+  'usage.costSignal': '信号情报成本',
+  'usage.costProject': '项目执行成本',
+  'usage.costByAgent': '按 Agent 成本分布',
+  'usage.costByAccount': '按账户成本分布',
 
   // ── Usage: Agent Labels ──
   'usage.agent.signalScreener': '信号筛选',
