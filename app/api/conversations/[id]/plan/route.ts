@@ -197,11 +197,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   if (action === 'reject_tool') {
-    const { approval_id } = body;
+    const { approval_id, rejection_reason } = body;
     if (!approval_id) {
       return NextResponse.json({ success: false, error: 'Missing approval_id' }, { status: 400 });
     }
-    const resolved = toolApprovalService.resolve(approval_id, false);
+    const resolved = toolApprovalService.resolve(approval_id, false, rejection_reason);
     if (!resolved) {
       return NextResponse.json({ success: false, error: 'Approval not found or already resolved' }, { status: 404 });
     }

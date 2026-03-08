@@ -7,11 +7,14 @@
  * or the 10-minute timeout expires (auto-reject).
  */
 
+import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
+
 export interface PendingApproval {
   resolve: (approved: boolean) => void;
   timer: ReturnType<typeof setTimeout>;
   toolName: string;
   agentName: string;
+  conversationId?: string;
 }
 
 /** Default timeout: 10 minutes. */
@@ -28,17 +31,29 @@ class ToolApprovalService {
     approvalId: string;
     toolName: string;
     agentName: string;
+    conversationId?: string;
   }): { approvalId: string; promise: Promise<boolean> } {
-    const { approvalId, toolName, agentName } = params;
+    const { approvalId, toolName, agentName, conversationId } = params;
 
     const promise = new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => {
         // Auto-reject on timeout
         this.pending.delete(approvalId);
+
+        // Record timed_out audit event (fire-and-forget)
+        recordToolApprovalEvent({
+          approvalId,
+          conversationId,
+          agentName,
+          toolName,
+          status: 'timed_out',
+          decidedBy: 'timeout',
+        }).catch(() => {});
+
         resolve(false);
       }, APPROVAL_TIMEOUT_MS);
 
-      this.pending.set(approvalId, { resolve, timer, toolName, agentName });
+      this.pending.set(approvalId, { resolve, timer, toolName, agentName, conversationId });
     });
 
     return { approvalId, promise };
@@ -48,12 +63,24 @@ class ToolApprovalService {
    * Resolve a pending approval (approve or reject).
    * Returns true if the approval existed and was resolved, false if not found.
    */
-  resolve(approvalId: string, approved: boolean): boolean {
+  resolve(approvalId: string, approved: boolean, rejectionReason?: string): boolean {
     const entry = this.pending.get(approvalId);
     if (!entry) return false;
 
     clearTimeout(entry.timer);
     this.pending.delete(approvalId);
+
+    // Record audit event (fire-and-forget)
+    recordToolApprovalEvent({
+      approvalId,
+      conversationId: entry.conversationId,
+      agentName: entry.agentName,
+      toolName: entry.toolName,
+      status: approved ? 'approved' : 'rejected',
+      decidedBy: 'user',
+      rejectionReason: approved ? null : (rejectionReason ?? null),
+    }).catch(() => {});
+
     entry.resolve(approved);
     return true;
   }

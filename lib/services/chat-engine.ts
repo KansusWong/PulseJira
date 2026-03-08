@@ -18,6 +18,7 @@ import { BaseAgent } from '@/lib/core/base-agent';
 import { createProject } from '@/projects/project-service';
 import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
+import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
 import { Blackboard } from '@/lib/blackboard';
 import { teamCoordinator } from '@/lib/services/team-coordinator';
 import type {
@@ -674,6 +675,16 @@ You have access to tools for searching the web, reading files, and listing direc
           },
         } as any);
 
+        // Record 'requested' audit event (fire-and-forget)
+        recordToolApprovalEvent({
+          approvalId,
+          conversationId,
+          agentName: params.agentName,
+          toolName: params.toolName,
+          toolArgs: params.toolArgs,
+          status: 'requested',
+        }).catch(() => {});
+
         // Push approval-required event to SSE channel
         channel.push({
           type: 'tool_approval_required',
@@ -690,6 +701,7 @@ You have access to tools for searching the web, reading files, and listing direc
           approvalId,
           toolName: params.toolName,
           agentName: params.agentName,
+          conversationId,
         });
 
         const approved = await promise;
