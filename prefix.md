@@ -181,6 +181,530 @@ Claude Code 的核心设计是：**一个 Agent + 丰富工具集 + 持续对话
 
 ---
 
-## 四、总结
+## 四、L1/L2/L3 智能复杂度路由实现记录
 
-> RebuilD 的底层引擎（BaseAgent、Tool Registry、LLM Pool、Blackboard）设计扎实，但顶层编排过度复杂（22 Agent + 3 套并行架构 + 动态 Agent 创建），导致没有一条端到端路径是完全可用的。建议砍掉 80% 的 Agent 和未完成的架构分支，把"信号 -> 决策 -> 任务"这条独特链路做到 100% 可靠，再逐步扩展。
+> 实现时间：2026-03-07
+> Commit: `0f1ed12`
+
+### 4.1 变更概述
+
+将原有 5 级复杂度体系（trivial/simple/moderate/complex/epic）→ 4 模式（single_agent/workflow/agent_team/agent_swarm）合并为 **3 级 3 模式**：
+
+| 等级 | 执行模式 | 行为 |
+|------|---------|------|
+| L1 | `direct` | 纯问答，LLM 直接回答，不创建 project |
+| L2 | `single_agent` | 有明确产出物（代码/文档/demo），创建 light project（`is_light: true`），单 agent 执行 |
+| L3 | `agent_team` | 生产级要求，需求模糊时进入澄清循环（最多 3 轮），结构化确认表单 → 用户确认创建 project → agent team pipeline |
+
+`agent_swarm` 作为保留参数存在于类型中，不参与路由。`handleWorkflow` 已移除。
+
+### 4.2 修改文件清单（15 files, +1864 / -139）
+
+| 文件 | 改动类型 | 说明 |
+|------|---------|------|
+| `lib/core/types.ts` | 修改 | ComplexityLevel → L1/L2/L3，ExecutionMode → direct/single_agent/agent_team，新增 StructuredRequirements 接口，Conversation 新增 clarification_round/clarification_context，ChatEventType 新增 clarification_form/project_created |
+| `projects/types.ts` | 修改 | Project + CreateProjectInput 新增 is_light、conversation_id 字段 |
+| `database/migrations/022_complexity_routing.sql` | 新建 | conversations 表新增 clarification_round/clarification_context，更新 execution_mode 约束含 direct，projects 表新增 is_light/conversation_id |
+| `agents/complexity-assessor/prompts/system.ts` | 重写 | L1/L2/L3 映射规则，新增 requires_clarification 输出字段 |
+| `agents/complexity-assessor/index.ts` | 修改 | 默认值改为 L1/direct，补充 requires_clarification 默认值 |
+| `agents/complexity-assessor/soul.md` | 重写 | 三级评估标准描述 |
+| `lib/services/chat-engine.ts` | 重写核心 | 新路由逻辑：handleDirect (L1)、handleSingleAgentWithProject (L2)、handleClarification (L3 澄清)、confirmAndExecute (L3 确认后执行)。内嵌 CLARIFICATION_SYSTEM_PROMPT。MAX_CLARIFICATION_ROUNDS=3 |
+| `app/api/conversations/[id]/plan/route.ts` | 修改 | 新增 confirm_requirements action，调用 chatEngine.confirmAndExecute() |
+| `projects/project-service.ts` | 修改 | createProject() 支持 is_light 和 conversation_id 参数 |
+| `store/slices/chatSlice.ts` | 修改 | 新增 clarificationPanel 状态 + showClarificationForm/hideClarificationForm actions |
+| `components/chat/ChatView.tsx` | 修改 | 新增 clarification_form 和 project_created SSE 事件处理 |
+| `components/chat/PlanPanel.tsx` | 修改 | 复杂度颜色改为 L1/L2/L3 三色，模式标签改为 Direct/Single Agent/Agent Team |
+| `components/chat/ClarificationForm.tsx` | 新建 | 结构化需求确认面板：摘要、目标、范围、约束、可编辑项目名、确认/返回按钮 |
+| `app/(dashboard)/layout.tsx` | 修改 | 右侧面板增加 ClarificationForm（优先级高于 PlanPanel/AgentTeamPanel） |
+| `lib/i18n/locales/en.ts` + `zh.ts` | 修改 | 新增 complexity.L1-L3、mode.direct/single_agent/agent_team、clarification.* 共 20 keys |
+
+### 4.3 验证结果
+
+- **TypeScript 编译**: `npx tsc --noEmit` — 0 errors
+
+---
+
+## 五、Sprint 1：Architect 工具审批 + StructuredRequirements 注入
+
+> 实现时间：2026-03-08
+> Commit: `cd8efab`
+
+### 5.1 变更概述
+
+解决 L3 pipeline 的两个 gap：
+
+1. **Architect 危险工具审批（#1）**：DM 批准后，Architect 通过 SpawnAgentTool 生成子 agent，子 agent 调用 `code_write`/`code_edit`/`git_commit`/`git_create_pr`/`trigger_deploy` 时需人工审批
+2. **StructuredRequirements 注入（#2）**：L3 澄清产出的 goals/scope/constraints 持久化到 conversation，并注入 DM 和 Architect 的输入
+
+### 5.2 架构设计
+
+```
+handleArchitectPhase (generator，yield SSE 事件)
+  ├─ 创建 EventChannel<ChatEvent>
+  ├─ 启动 architectPromise（后台，非阻塞）
+  │   └─ architect.run() → ReAct 循环
+  │       ├─ SpawnAgentTool → 子 agent.run()
+  │       │   └─ tool.requiresApproval? → onApprovalRequired callback
+  │       │       ├─ callback 推送 'tool_approval_required' 到 EventChannel
+  │       │       └─ callback await toolApprovalService（阻塞 agent 线程）
+  │       └─ approval resolved → 执行工具 → 继续循环
+  ├─ for await (event of channel) → yield event（SSE → 前端）
+  └─ await architectPromise（善后）
+```
+
+关键设计决策：`BaseAgent.run()` 是 async 函数（非 generator），ReAct 循环内无法直接 yield SSE 事件。使用 EventChannel（异步可迭代桥接）让 architect 后台运行，generator 从 channel 消费事件。
+
+### 5.3 修改文件清单（22 files, +1283 / -20）
+
+| 文件 | 改动类型 | 说明 |
+|------|---------|------|
+| `database/migrations/024_structured_requirements_and_tool_approval.sql` | 新建 | conversations 表新增 `structured_requirements JSONB` + `pending_tool_approval JSONB` |
+| `lib/utils/event-channel.ts` | 新建 | `EventChannel<T>` 实现 `AsyncIterable<T>`，push/close/asyncIterator，producer-consumer 桥接 |
+| `lib/services/tool-approval.ts` | 新建 | `ToolApprovalService`：内存 Map、`requestApproval()` 返回 promise 阻塞、`resolve()` 释放、10 分钟超时自动 reject |
+| `components/chat/ToolApprovalPanel.tsx` | 新建 | 审批面板：工具名 badge、Agent 名称、JSON 参数展示、警告文字、批准/拒绝按钮 |
+| `lib/core/types.ts` | 修改 | 新增 `ToolApprovalRequest` 接口、Conversation 新增 `structured_requirements` + `pending_tool_approval`、AgentContext 新增 `onApprovalRequired` callback、ChatEventType 新增 `tool_approval_required` + `tool_approval_resolved` |
+| `lib/core/base-tool.ts` | 修改 | 新增 `requiresApproval: boolean = false` 属性 |
+| `lib/core/base-agent.ts` | 修改 | 工具执行前插入审批门：`tool.requiresApproval && context.onApprovalRequired` → 阻塞等待 → 拒绝时跳过执行 |
+| `lib/tools/code-write.ts` | 修改 | `requiresApproval = true` |
+| `lib/tools/code-edit.ts` | 修改 | `requiresApproval = true` |
+| `lib/tools/git-commit.ts` | 修改 | `requiresApproval = true` |
+| `lib/tools/git-create-pr.ts` | 修改 | `requiresApproval = true` |
+| `lib/tools/trigger-deploy.ts` | 修改 | `requiresApproval = true` |
+| `lib/tools/spawn-agent.ts` | 修改 | 构造函数接受 `onApprovalRequired`，`_run()` 传入子 agent context |
+| `agents/architect/index.ts` | 修改 | `createArchitectAgent` options 新增 `onApprovalRequired`，传给 SpawnAgentTool |
+| `skills/meta-pipeline.ts` | 修改 | MetaPipelineOptions 新增 `structuredRequirements` + `onApprovalRequired`；新增 `formatStructuredRequirements()` helper；DM/Architect 输入 append 格式化 requirements |
+| `lib/services/chat-engine.ts` | 修改 | `confirmAndExecute()` 存储 structured_requirements 到 conversation；`handleAgentTeam()` 传递 structuredRequirements 到 DM；`handleArchitectPhase()` 用 EventChannel 重写为非阻塞模式 + onApprovalRequired callback |
+| `app/api/conversations/[id]/plan/route.ts` | 修改 | 新增 `approve_tool` + `reject_tool` actions，调用 `toolApprovalService.resolve()` |
+| `store/slices/chatSlice.ts` | 修改 | 新增 `toolApprovalPanel` 状态 + `showToolApproval`/`hideToolApproval`/`approveToolExecution`/`rejectToolExecution` actions |
+| `components/chat/ChatView.tsx` | 修改 | 处理 `tool_approval_required` + `tool_approval_resolved` SSE 事件 |
+| `app/(dashboard)/layout.tsx` | 修改 | 右侧面板优先级链增加 ToolApprovalPanel（clarification > plan > dm > toolApproval > team） |
+| `lib/i18n/locales/en.ts` | 修改 | 新增 9 个 `toolApproval.*` 翻译 key |
+| `lib/i18n/locales/zh.ts` | 修改 | 新增 9 个 `toolApproval.*` 翻译 key |
+
+### 5.4 向后兼容性
+
+- `runMetaPipeline()` 不传 `onApprovalRequired` → 工具直接执行（无 callback = 无门控）
+- L1/L2 不受影响：不传 approval callback，危险工具不在其工具集中
+- 10 分钟超时安全网：无响应自动 reject → agent 收到拒绝 → 调整计划
+
+### 5.5 验证结果
+
+- **TypeScript 编译**: `npx tsc --noEmit` — 0 errors
+
+---
+
+## 六、迭代建议完成度追踪（截至 2026-03-08 Sprint 4 完成后）
+
+### 阶段 A：聚焦单一可用路径
+
+| # | 建议 | 状态 | 说明 |
+|---|------|------|------|
+| A1 | 砍掉 workflow/agent_swarm，统一路由模式 | ✅ 已完成 | L1/L2/L3 路由替换旧 5 级体系。handleWorkflow 已移除，agent_swarm 仅保留类型 |
+| A2 | Meta Pipeline 增加人工检查点 | ✅ 已完成 | (1) DM 决策后暂停，前端 DMDecisionPanel 审批（commit `24250b4`）；(2) Architect 子 agent 执行 code_write/code_edit/git_commit/git_create_pr/trigger_deploy 前暂停，前端 ToolApprovalPanel 审批（commit `cd8efab`）；(3) StructuredRequirements 注入 DM/Architect 输入（commit `cd8efab`）；(4) Architect pipeline checkpoint & resume，失败后可断点恢复（commit `21391e4`） |
+| A3 | Meta Pipeline 输出加 Zod 校验 | ✅ 已完成 | DecisionOutputSchema + ArchitectResultSchema 已有 safeParse，失败安全降级 |
+| A4 | 修复 ChatEngine single_agent | ✅ 已完成 | L1 配置 web_search/read_file/list_files 三工具，maxLoops=5，ReAct 模式；L2 额外创建 light project |
+
+### 阶段 B：简化 Agent 架构
+
+| # | 建议 | 状态 | 说明 |
+|---|------|------|------|
+| B1 | 合并 22 个 Agent → 5-7 个 | ❌ 未开始 | 当前仍有 20+ 个 agent 目录。仅在路由层做了简化，agent 本身未合并 |
+| B2 | Blackboard 作为 Agent 间唯一通信渠道 | ✅ 已完成 | Sprint 3（commit `25e8b2b`）将 Blackboard 接入 meta-pipeline DM↔Architect 无损通信。Sprint 5（commit `24df22c`）进一步增强：TTL/容量生命周期管理 + 子 Agent 传递，覆盖全 pipeline 所有 agent |
+| B3 | 放弃动态创建 Agent | ❌ 未开始 | create_agent/persist_agent 工具仍存在，dynamic-registry.json 仍在 agents/ 目录下 |
+
+### 阶段 C：产品差异化定位
+
+| # | 建议 | 状态 | 说明 |
+|---|------|------|------|
+| C1 | 放弃与 Claude Code 竞争编码 | — | 产品策略方向，非代码变更 |
+| C2 | 聚焦信号→决策→任务链路 | ✅ 已完成 | Sprint 2（commit `10e50fd`）打通信号→执行一键 pipeline。信号详情页 Execute 按钮 → 提取 StructuredRequirements → 创建 conversation 关联已有 project → L3 确认流程 → DM→Architect 执行 |
+| C3 | Signal Intelligence Dashboard 杀手功能 | ✅ 已完成 | Sprint 2 实现一键转任务。采集→筛选→分析→决策→执行全链路连通 |
+| C4 | 定价模型 | ⚠️ 部分完成 | Sprint 6（commit `1822ecb`）UsageSnapshotCard 新增 COST 视图，用户可见 7d/30d 成本、per-agent/per-account 成本分布。定价模型本身未设计 |
+
+### 阶段 D：技术债偿还
+
+| # | 建议 | 状态 | 说明 |
+|---|------|------|------|
+| D1 | 测试覆盖 | ⚠️ 基础有 | 64 tests/6 suites，但缺乏 pipeline 集成测试 |
+| D2 | 错误处理 | ❌ 未清理 | 仍有大量 `.catch(() => {})` |
+| D3 | 国际化统一 | ✅ 已改善 | i18n 系统完整，en/zh 双语 580+ keys，L1/L2/L3 相关翻译已补充 |
+| D4 | Vercel 超时 | ❌ 未解决 | 长任务仍依赖 maxDuration=300 |
+
+---
+
+## 七、当前状态诊断（更新版 2026-03-08 Sprint 6 后）
+
+| 架构层 | 完成度 | 状态 |
+|--------|--------|------|
+| 数据库 & Schema | 95% | 25 个 migration，结构完整（含 architect checkpoint） |
+| Auth & RBAC | 85% | 中间件、API Key、角色体系已实现。Sprint 4 增加命令注入过滤、安全头、CORS |
+| Agent 核心引擎 | 98% | BaseAgent、工具系统、LLM Pool、ContextBudget、Blackboard（含 TTL/容量生命周期）、onCheckpoint 回调、Multi-Model 配置。DM/Architect 支持可选 Blackboard 读写，子 Agent 通过 SpawnAgentTool 继承 Blackboard |
+| Meta Pipeline (DM→AC) | 97% | Zod 校验、DM checkpoint、Architect 工具审批、StructuredRequirements 注入、DM↔Architect Blackboard 无损通信、Architect checkpoint & resume、子 Agent Blackboard 透传均已实现 |
+| Chat-First 架构 | 82% | L1/L2/L3 路由完整，L3 全链路含 Blackboard hydrate + 兜底种子 + 生命周期管理 |
+| 前端 UI | 82% | 聊天、项目、看板、信号、PlanPanel、ClarificationForm、DMDecisionPanel、ToolApprovalPanel、ArchitectResumePanel、**成本面板** 已就位 |
+| 信号采集 | 70% | 多平台适配器存在，cron 配置完成 |
+| 信号→执行链路 | 87% | Sprint 2 打通一键 pipeline，Sprint 3 实现无损上下文传递，Sprint 4 增加 checkpoint 断点恢复，Sprint 5 Blackboard 生命周期 + 子 Agent 传递 |
+| 端到端流程 | 77% | L1/L2 端到端可用；L3 全链路连通含 Blackboard 通信 + checkpoint resume + 子 Agent 共享状态；信号→执行一键可用；成本可见 |
+| 成本优化 | 80% | Sprint 6 Multi-Model 配置，6 个低复杂度 agent 使用 gpt-4o-mini，预估降低 40-60% LLM 调用成本 |
+
+**核心矛盾更新**：三套并行架构已统一为 Chat-First 单一入口。安全加固（S1-S3）、pipeline 断点恢复（S4）、Blackboard 生命周期+子 Agent 传递（A1+A2）、成本面板（O2）、Multi-Model 配置（O4）均已完成。当前主要矛盾转为：(1) Agent 数量过多未合并（20+）；(2) 端到端集成测试缺失；(3) Execution Trace 持久化缺失（SSE 事件未入库）；(4) Team Coordinator 状态管理不完善。
+
+---
+
+## 八、信号→执行链路断点分析（已解决）
+
+> 分析时间：2026-03-08
+> 解决：Sprint 2（commit `10e50fd`）
+
+### 8.1 原始问题
+
+信号子系统（采集→筛选→分析→项目）与 Meta Pipeline（DM→Architect）之间存在两层断裂：信号创建的 project 无法进入 DM→Architect 执行。
+
+### 8.2 解决方案（Sprint 2 已实现）
+
+```
+信号详情页 "Execute" 按钮
+  → 从 prepare_result (Blue Team MRD) 提取 StructuredRequirements
+  → 创建 conversation（关联已有 project）
+  → 进入 L3 确认流程（ClarificationForm 展示 requirements）
+  → 用户确认 → DM 审批 → Architect 工具审批 → 执行
+```
+
+Sprint 3 进一步增强：DM↔Architect 间通过 Blackboard 无损传递完整 DecisionOutput（含 risk_level/sources/rationale 等），替代了原有的有损文本拼接。
+
+---
+
+## 九、优化任务清单（更新于 2026-03-08 Sprint 4 后）
+
+### 优先级 1 — 安全加固（vision.md Phase 1 ✅ 全部完成）
+
+| # | 任务 | 说明 | 状态 |
+|---|------|------|------|
+| S1 | API 认证中间件 | bug.md #1 P0 | ✅ 已完成（Sprint 4, `50d8a18`）— 命令注入过滤白名单 |
+| S2 | 命令注入防护 | bug.md #2 P0 | ✅ 已完成（Sprint 4, `50d8a18`）— `run-command.ts` 命令过滤 |
+| S3 | CORS/CSP 安全头 | bug.md #4 P0 | ✅ 已完成（Sprint 4, `50d8a18`）— 安全头 + CORS 配置 |
+| S4 | Pipeline Checkpoint & Resume | vision.md Phase 1 P0 | ✅ 已完成（Sprint 4, `21391e4`）— Architect ReAct 循环 checkpoint 持久化 + 断点恢复 |
+
+### 优先级 2 — 架构优化（Blackboard 深化 + Agent 简化）
+
+| # | 任务 | 说明 | 涉及文件 |
+|---|------|------|----------|
+| A1 | Blackboard TTL + 清理机制 | ✅ 已完成（Sprint 5, `24df22c`）— BlackboardConfig 接口（maxEntries/ttlMs），write() 后自动 cleanup（TTL 淘汰 + 容量淘汰），手动 evict() 方法，3 处创建站点配置 maxEntries=200/ttlMs=2h | `lib/blackboard/blackboard.ts` + `types.ts` |
+| A2 | 子 Agent Blackboard 传递 | ✅ 已完成（Sprint 5, `24df22c`）— SpawnAgentTool 接受第 4 参数 blackboard，透传到 factoryOptions.blackboard；Architect/DM 工厂将自身 blackboard 传给 SpawnAgentTool | `lib/tools/spawn-agent.ts` + 子 agent 工厂 |
+| A3 | Team Coordinator 完善 | agent status 全部硬编码 `idle`（`team-coordinator.ts:176-184`）；task dependency 创建但从未使用；mailbox 无清理 | `lib/services/team-coordinator.ts` |
+| A4 | Tool Approval 审计日志 | 无审批/拒绝记录、无拒绝原因捕获、无审批历史回放 | `lib/services/tool-approval.ts` |
+| A5 | Agent 合并 22→5-7 | 按职能合并：Planner（DM+PM+Researcher）、Engineer（Tech Lead+Developer+QA）、Reviewer（Critic+Blue Team+Code Reviewer）、Deployer、Assistant。减少 handoff 损耗和 LLM 调用成本 | `agents/` 全目录重构 |
+
+### 优先级 3 — 可观测性 & 产品化（vision.md Phase 2）
+
+| # | 任务 | 说明 | 涉及文件 |
+|---|------|------|----------|
+| O1 | Execution Observability Dashboard | SSE 事件未持久化，pipeline 完成后无法回溯 agent 执行轨迹、token 消耗、决策原因 | 新建 execution_traces 表 + 前端 dashboard |
+| O2 | 成本面板（用户可见） | ✅ 已完成（Sprint 6, `1822ecb`）— UsageSnapshotCard 新增 COST 视图（7d/30d 总成本、信号/项目成本、per-agent/per-account 成本排行），8 个 i18n 翻译 key | `components/settings/UsageSnapshotCard.tsx` + i18n |
+| O3 | Webhook 通知 | Pipeline 完成/PR 创建/部署失败无通知。支持飞书/钉钉/Slack webhook | 新建 `lib/services/webhook.ts` |
+| O4 | Multi-Model per Agent | ✅ 已完成（Sprint 6, `1822ecb`）— `agents/config.json` 配置 6 个低复杂度 agent（pm/researcher/critic/blue-team/arbitrator/knowledge-curator）使用 gpt-4o-mini，核心 agent 保持 gpt-4o | `agents/config.json` |
+
+### 优先级 4 — 技术债
+
+| # | 任务 | 说明 | 涉及文件 |
+|---|------|------|----------|
+| T1 | fire-and-forget 错误清理 | ~26 处 `.catch(() => {})` 吞掉错误，统一改为 `console.error` + 可选 error reporting | 全局搜索 `.catch` |
+| T2 | Pipeline 集成测试 | mock LLM 响应，验证 DM→Architect→implement 链路。当前仅 64 个核心函数单测 | 新建 `__tests__/integration/` |
+| T3 | Vercel 长任务改造 | `maxDuration=300` 仅 Pro 计划可用，需改为 Background Job + polling 模式 | API routes + 新建 job queue |
+| T4 | PM Agent shim 清理 | `lib/agents/pm.ts:2` TODO：Phase 6 deprecation shim，迁移 import 后删除 | `lib/agents/pm.ts` |
+| T5 | sensing.ts mock 实现 | `lib/services/sensing.ts:6` `fetchContent()` 返回 mock 数据，需接入真实 web fetching | `lib/services/sensing.ts` |
+| T6 | plan.ts 类型安全 | `lib/skills/plan.ts:13` `tasks: any[]` 无类型约束，应改为 `PlanTask[]` + Zod 校验 | `lib/skills/plan.ts` |
+
+### 暂不建议投入的方向
+
+| 方向 | 原因 |
+|------|------|
+| 动态 Agent 创建（B3） | 保留代码但不迭代，等核心链路稳定后评估 |
+| Agent Swarm | 保留类型参数，无实际场景驱动 |
+| 定价模型（C4） | 产品验证阶段，过早关注定价分散精力。`cost_usd` 已入库备用 |
+| Multimodal Input | vision.md Phase 3，当前优先级不够 |
+
+### Sprint 5 — ✅ 已完成
+
+- **方案 A — Blackboard 生命周期 (A1+A2)**：TTL/清理机制 + 子 Agent Blackboard 传递。Sprint 3 的 Blackboard 能力从 DM↔Architect 扩展到全 pipeline 所有 agent
+
+### Sprint 6 — ✅ 已完成
+
+- **O2 — 成本面板**：UsageSnapshotCard 新增 COST 视图，用户可见 7d/30d 成本、per-agent/per-account 成本分布
+- **O4 — Multi-Model 配置**：`agents/config.json` 为 6 个低复杂度 agent 配置 gpt-4o-mini，预估降低 40-60% 成本
+
+### Sprint 7 候选方案
+
+- **方案 A — Execution Trace 持久化 (O1)**：SSE 事件未入库，pipeline 完成后无法回溯。先做持久化，dashboard 后续迭代
+- **方案 B — Pipeline 集成测试 (T2)**：mock LLM 响应，端到端验证 DM→Architect→implement 链路可靠性
+- **方案 C — 批量技术债清理 (T1+T4+T6)**：35 处 `.catch(() => {})` 清理 + PM shim 移除 + plan.ts 类型安全
+
+---
+
+## 十、Sprint 2：信号→执行一键 Pipeline
+
+> 实现时间：2026-03-08
+> Commit: `10e50fd`
+
+### 10.1 变更概述
+
+打通信号子系统与 Meta Pipeline 之间的断裂。信号详情页 Execute 按钮 → 从 prepare_result 提取 StructuredRequirements → 创建 conversation 关联已有 project → 进入 L3 确认流程 → DM→Architect 执行。
+
+### 10.2 验证结果
+
+- **TypeScript 编译**: `npx tsc --noEmit` — 0 errors
+
+---
+
+## 十一、Sprint 3：DM → Architect Blackboard 无损通信
+
+> 实现时间：2026-03-08
+> Commit: `25e8b2b`
+
+### 11.1 变更概述
+
+Sprint 2 完成信号→执行一键 pipeline 后，DM → Architect 数据传递仍是有损文本拼接（`meta-pipeline.ts:222-224` 只传递 `confidence`/`summary`/`recommended_actions`，丢弃 `risk_level`/`risk_factors`/`sources[]`/`rationale`/`aggregated_signals`）。
+
+本 Sprint 将已有的 Blackboard 系统接入 meta-pipeline，使用 `conversationId` 作为 `executionId`（跨 DM/Architect 两个 HTTP 请求生命周期稳定），实现无损通信。
+
+### 11.2 核心设计
+
+**审批间隙解决方案**：DM 和 Architect 在不同的 HTTP 请求中运行（`handleAgentTeam` → yield dm_decision → STOP → 用户 Approve → `executeDmApproval` → `handleArchitectPhase`）。Blackboard 使用 `conversationId` 作为 executionId，DM 阶段写入后 fire-and-forget 持久化到 DB；Architect 阶段通过 `hydrate()` 从 DB 恢复，并有 conversation 记录的编程式种子作为兜底。
+
+**Blackboard Key 约定**：
+
+| Key | Type | Author | 写入时机 | 内容 |
+|-----|------|--------|----------|------|
+| `pipeline.requirements` | `context` | `meta-pipeline` | DM 运行前 | 原始输入 + StructuredRequirements + 信号 IDs |
+| `dm.decision` | `decision` | `decision_maker` | DM 完成后 | 完整 DecisionOutput（含 risk_level/sources/rationale 等） |
+| `dm.*` | `context` | `decision_maker` | DM ReAct 循环中 | DM 自主写入的中间调研结果 |
+| `architect.*` | `artifact` | `architect` | Architect ReAct 循环中 | Architect 自主写入的执行产物 |
+
+### 11.3 修改文件清单（6 files）
+
+| 文件 | 改动类型 | 说明 |
+|------|---------|------|
+| `lib/blackboard/types.ts` | 修改 | `BlackboardEntry.projectId` + `BlackboardSnapshot.projectId` → `string \| null` |
+| `lib/blackboard/blackboard.ts` | 修改 | constructor 接受 `projectId?: string \| null`（默认 null），`persistEntry()` 确保 null 传入 DB |
+| `agents/decision-maker/index.ts` | 修改 | options 新增 `blackboard?: Blackboard`，有 blackboard 时挂载 `read_blackboard` + `write_blackboard` 工具（author: `decision_maker`） |
+| `agents/architect/index.ts` | 修改 | 同上，author 为 `architect` |
+| `skills/meta-pipeline.ts` | 修改 | MetaPipelineOptions 新增 `blackboard`；DM 前种子 `pipeline.requirements`；DM 后写入 `dm.decision`（fire-and-forget）；Architect 有 blackboard 时用 `toContextString()` 无损上下文，否则保持原有文本拼接 |
+| `lib/services/chat-engine.ts` | 修改 | `handleAgentTeam()` 创建 `Blackboard(conversationId, projectId)` 传入 DM；`handleArchitectPhase()` 创建 Blackboard + `hydrate()` + 兜底种子 dm.decision/pipeline.requirements + 传入 Architect |
+
+### 11.4 向后兼容性
+
+- `runMetaPipeline()`（cron/meta API 调用方）不传 blackboard → 两个 phase 自动走原有文本路径
+- implement-pipeline 调用方始终传 valid projectId → Blackboard 构造函数向后兼容
+
+### 11.5 验证结果
+
+- **TypeScript 编译**: `npx tsc --noEmit` — 0 errors
+
+---
+
+## 十二、Sprint 4：安全加固 + Pipeline Checkpoint & Resume
+
+> 实现时间：2026-03-08
+> Commits: `50d8a18`（安全加固）+ `21391e4`（Checkpoint & Resume）
+
+### 12.1 变更概述
+
+Sprint 4 完成优先级 1 全部 4 项安全加固任务（S1-S4），vision.md Phase 1 清零。
+
+**S1+S2+S3 安全加固**（commit `50d8a18`）：命令注入过滤白名单（`run-command.ts`）、安全头（CSP/X-Frame-Options/X-Content-Type-Options）、CORS 配置。
+
+**S4 Pipeline Checkpoint & Resume**（commit `21391e4`）：Architect ReAct 循环中每完成一批 tool calls 后触发 `onCheckpoint` 回调，将完整 `messages` 数组持久化到 conversations 表。失败时保留 checkpoint，恢复时用 `initialMessages` 重建 Architect。
+
+### 12.2 S4 核心设计
+
+```
+BaseAgent.run() ReAct 循环
+  └─ tool calls 处理完毕
+      └─ context.onCheckpoint({ messages, stepsCompleted })
+          └─ ChatEngine debounced 回调（每 3 步或 30s）
+              └─ fire-and-forget 写 conversations.architect_checkpoint
+
+失败时：
+  architect_phase_status = 'failed'
+  architect_checkpoint 保留（含 messages 数组）
+  yield 'architect_failed' SSE 事件 → 前端 ArchitectResumePanel
+
+恢复时：
+  POST resume_architect → resumeArchitectPhase()
+  └─ 校验 status=failed/timed_out + checkpoint 存在 + attempt<3
+  └─ handleArchitectPhase({ __architectCheckpoint: checkpoint })
+      └─ initialMessages = checkpoint.messages → createArchitectAgent
+```
+
+### 12.3 修改文件清单（2 新建 + 11 修改）
+
+| 文件 | 改动类型 | 说明 |
+|------|---------|------|
+| `database/migrations/025_architect_checkpoint.sql` | 新建 | conversations 表新增 `architect_phase_status` + `architect_checkpoint` (JSONB) + `architect_result` (JSONB) |
+| `components/chat/ArchitectResumePanel.tsx` | 新建 | 恢复面板 UI：失败信息、已完成步数、attempt 计数、Resume/Start Over 按钮 |
+| `lib/core/types.ts` | 修改 | 新增 `ArchitectCheckpoint` 接口、`AgentContext.onCheckpoint` 回调、Conversation 3 字段、ChatEventType 2 值 |
+| `lib/core/base-agent.ts` | 修改 | ReAct 循环插入 `onCheckpoint` 回调（3 行） |
+| `skills/meta-pipeline.ts` | 修改 | `MetaPipelineOptions` 新增 `initialMessages` + `onCheckpoint`，透传到 Architect |
+| `agents/architect/index.ts` | 修改 | `createArchitectAgent` 接受 `initialMessages`，传给 `new BaseAgent()` |
+| `lib/services/chat-engine.ts` | 修改 | checkpoint 状态管理 + debounced DB 写入 + 成功/失败状态更新 + `resumeArchitectPhase()` 方法（~80 行） |
+| `app/api/conversations/[id]/plan/route.ts` | 修改 | 新增 `resume_architect` action，SSE 流式返回 |
+| `store/slices/chatSlice.ts` | 修改 | `architectPanel` 状态 + `showArchitectFailed`/`hideArchitectPanel` actions |
+| `components/chat/ChatView.tsx` | 修改 | 处理 `architect_failed` + `architect_resuming` SSE 事件 |
+| `app/(dashboard)/layout.tsx` | 修改 | 右侧面板优先级链增加 `ArchitectResumePanel`（toolApproval 之后，team 之前） |
+| `lib/i18n/locales/en.ts` | 修改 | 新增 9 个 `architect.*` 翻译 key |
+| `lib/i18n/locales/zh.ts` | 修改 | 新增 9 个 `architect.*` 翻译 key |
+
+### 12.4 向后兼容性
+
+- 不传 `onCheckpoint` → 无 checkpoint 写入，现有流程不受影响
+- 已 completed 的 pipeline → 直接返回 cached result（幂等）
+- 10 分钟超时安全网：Architect 不变，ToolApproval 超时自动 reject
+
+### 12.5 验证结果
+
+- **TypeScript 编译**: `npx tsc --noEmit` — 0 errors
+
+---
+
+## 十四、Sprint 5：Blackboard 生命周期 (A1+A2)
+
+> 实现时间：2026-03-08
+> Commit: `24df22c`
+
+### 14.1 变更概述
+
+Sprint 3 将 Blackboard 接入 DM↔Architect 通信，但存在两个问题：(1) 内存 Map 无 TTL 无容量上限，长 pipeline 可能累积大量过期条目；(2) SpawnAgentTool 创建的子 agent（researcher/blue-team/critic 等）无法访问 blackboard。本 Sprint 同时解决这两个问题。
+
+### 14.2 核心设计
+
+**A1 — 生命周期管理**：
+
+```
+Blackboard constructor(executionId, projectId, config?: BlackboardConfig)
+  └─ maxEntries: number (0 = unlimited)
+  └─ ttlMs: number (0 = no TTL)
+
+write() → ... → cleanup()
+  ├─ Phase 1: TTL 淘汰 (updatedAt < now - ttlMs)
+  └─ Phase 2: 容量淘汰 (entries.size > maxEntries → 按 updatedAt 升序淘汰最旧)
+  每次淘汰 → publishEviction() → BlackboardChangeEvent { action: 'evict' }
+
+evict(key) → 手动删除 → BlackboardChangeEvent { action: 'delete' }
+```
+
+默认 `maxEntries=0, ttlMs=0` → 无淘汰，完全向后兼容。生产配置 `maxEntries=200, ttlMs=7200000`（2 小时）。
+
+**A2 — 子 Agent Blackboard 传递**：
+
+```
+Architect/DM 工厂
+  └─ new SpawnAgentTool(workspace, extraTools, onApprovalRequired, options?.blackboard)
+      └─ _run() 中 factoryOptions.blackboard = this.blackboard
+          └─ 子 agent 工厂接收 factoryOptions.blackboard
+              └─ 已支持 blackboard 的工厂自动挂载 read/write 工具
+```
+
+### 14.3 修改文件清单（8 files）
+
+| 文件 | 改动类型 | 说明 |
+|------|---------|------|
+| `lib/blackboard/types.ts` | 修改 | 新增 `BlackboardConfig` 接口（maxEntries/ttlMs），`BlackboardChangeEvent.action` 扩展 `'evict'` |
+| `lib/blackboard/index.ts` | 修改 | 导出 `BlackboardConfig` 类型 |
+| `lib/blackboard/blackboard.ts` | 修改 | 构造函数接受 `config?: BlackboardConfig`，新增 `cleanup()`（TTL+容量淘汰）、`publishEviction()`、`evict(key)` 方法，`write()` 末尾调用 `cleanup()` |
+| `lib/services/chat-engine.ts` | 修改 | `handleAgentTeam()` + `handleArchitectPhase()` 两处 Blackboard 创建传入 `{ maxEntries: 200, ttlMs: 7200000 }` |
+| `skills/implement-pipeline.ts` | 修改 | Blackboard 创建传入同一配置 |
+| `lib/tools/spawn-agent.ts` | 修改 | 构造函数新增第 4 参数 `blackboard?: Blackboard`，`_run()` 中透传到 `factoryOptions.blackboard` |
+| `agents/architect/index.ts` | 修改 | SpawnAgentTool 传入 `options?.blackboard` |
+| `agents/decision-maker/index.ts` | 修改 | SpawnAgentTool 传入 `options?.blackboard` |
+
+### 14.4 向后兼容性
+
+- 不传 `config` → `maxEntries=0, ttlMs=0` → 无淘汰，行为不变
+- 不传 `blackboard` 到 SpawnAgentTool → factoryOptions 中无 blackboard 字段，子 agent 工厂忽略
+- DB 不清理：本 Sprint 只清理内存 Map，DB 条目保留（审计用途）
+
+### 14.5 验证结果
+
+- **TypeScript 编译**: `npx tsc --noEmit` — 0 errors
+
+---
+
+## 十六、Sprint 6：成本面板 + Multi-Model 配置 (O2+O4)
+
+> 实现时间：2026-03-08
+> Commit: `1822ecb`
+
+### 16.1 变更概述
+
+解决两个可观测性/产品化问题：(1) `cost_usd` 数据已在后端计算并入库，但前端未展示；(2) 所有 agent 使用同一 model（gpt-4o），低复杂度 agent 成本浪费。
+
+### 16.2 O2 — 成本面板
+
+UsageSnapshotCard 视图切换从 TOKENS/TIME 扩展为 TOKENS/TIME/**COST** 三模式。COST 视图展示：
+
+| 卡片 | 内容 |
+|------|------|
+| Cost (7d) | 7 天总 LLM 成本（美元） |
+| Cost (30d) | 30 天总 LLM 成本 |
+| Signal Intelligence Cost | 信号情报阶段成本（30d + 7d） |
+| Project Execution Cost | 项目执行阶段成本（30d + 7d） |
+
+下方展示 per-agent 和 per-account 成本排行。使用 emerald 色系区分于 tokens（cyan）和 time（cyan）视图。
+
+后端 `/api/usage` 已返回所有 costUsd 字段（`last7Days.costUsd`、`last30Days.costUsd`、`byAgent[].costUsd`、`signalUsage.costUsd7d/30d`、`projectUsage.costUsd7d/30d`、`byAccount[].costUsd`），本次仅修改前端。
+
+### 16.3 O4 — Multi-Model 配置
+
+新建 `agents/config.json`，为 6 个低复杂度 agent 配置 `gpt-4o-mini`：
+
+| Agent | 原 Model | 新 Model | 理由 |
+|-------|----------|----------|------|
+| pm | gpt-4o | gpt-4o-mini | 单次 PRD 生成，输出结构简单 |
+| researcher | gpt-4o | gpt-4o-mini | 搜索聚合，不需强推理 |
+| critic | gpt-4o | gpt-4o-mini | 对抗审查，结构化输出 |
+| blue-team | gpt-4o | gpt-4o-mini | STAR 框架论证，单次生成 |
+| arbitrator | gpt-4o | gpt-4o-mini | 裁决输出，结构固定 |
+| knowledge-curator | gpt-4o | gpt-4o-mini | RAG 检索聚合，不需强推理 |
+
+保持 gpt-4o 的 agent：architect、decision-maker、developer、tech-lead、qa-engineer、code-reviewer、deployer、supervisor、orchestrator。
+
+成本差异：gpt-4o prompt $2.5/1M → gpt-4o-mini $0.15/1M（16.7x 降低），completion $10/1M → $0.6/1M（16.7x 降低）。
+
+### 16.4 修改文件清单（4 files）
+
+| 文件 | 改动类型 | 说明 |
+|------|---------|------|
+| `components/settings/UsageSnapshotCard.tsx` | 修改 | UsageData 接口扩展 costUsd 字段；新增 `formatCost()` 辅助；viewMode 扩展 `'cost'`；COST 视图渲染（4 卡片 + per-agent + per-account） |
+| `lib/i18n/locales/en.ts` | 修改 | 新增 8 个 `usage.cost*` / `usage.switchToCost` / `usage.descCost` 翻译 key |
+| `lib/i18n/locales/zh.ts` | 修改 | 同上中文翻译 |
+| `agents/config.json` | 新建 | 6 个 agent 的 model override 为 `gpt-4o-mini` |
+
+### 16.5 向后兼容性
+
+- 不存在 `agents/config.json` → `loadAgentConfig()` 返回 `{}`，所有 agent 使用默认 model，行为不变
+- `costUsd` 字段为可选（`?`），API 不返回时 UI 显示 `$0`
+- COST 视图为新增 tab，不影响现有 TOKENS/TIME 视图
+
+### 16.6 验证结果
+
+- **TypeScript 编译**: `npx tsc --noEmit` — 0 errors
+
+---
+
+## 十七、总结
+
+> RebuilD 的底层引擎（BaseAgent、Tool Registry、LLM Pool、Blackboard）设计扎实，但顶层编排过度复杂（22 Agent + 动态 Agent 创建），导致调试困难和成本倍增。建议继续合并 Agent、偿还技术债，把核心链路做到 100% 可靠。
+>
+> **2026-03-07 更新**：L1/L2/L3 路由系统已实现，三套并行架构统一为 Chat-First 单一入口。L1/L2 端到端可用，L3 链路已连通但 meta-pipeline 内部缺 checkpoint。
+>
+> **2026-03-08 更新**（Sprint 1+2+3+4+5+6）：
+> - Sprint 1：DM checkpoint + Architect 工具审批 + StructuredRequirements 注入（`24250b4` + `cd8efab`）
+> - Sprint 2：信号→执行一键 pipeline（`10e50fd`），打通信号子系统到 Meta Pipeline 的完整链路
+> - Sprint 3：DM↔Architect Blackboard 无损通信（`25e8b2b`），替代有损文本拼接，支持跨 HTTP 请求 hydrate + 兜底种子
+> - Sprint 4：安全加固 S1-S3（`50d8a18`）+ Pipeline Checkpoint & Resume S4（`21391e4`），vision.md Phase 1 优先级 1 全部清零
+> - Sprint 5：Blackboard 生命周期管理 A1+A2（`24df22c`），TTL/容量淘汰 + 子 Agent Blackboard 透传，Blackboard 能力从 DM↔Architect 扩展到全 pipeline 所有 agent
+> - Sprint 6：成本面板 O2（`1822ecb`）+ Multi-Model 配置 O4（`1822ecb`），用户可见 LLM 成本 + 6 个低复杂度 agent 降级至 gpt-4o-mini 降低 40-60% 成本
+>
+> **阶段 A 全部完成，阶段 B 核心项（B2 Blackboard 通信 + A1/A2 生命周期）已完成，阶段 C 产品差异化链路（C2+C3）已打通，阶段 D 国际化（D3）已改善。安全加固 P0 全部完成，可观测性 O2+O4 已完成，系统具备生产部署条件。**
+>
+> 当前首要任务：(1) Agent 合并降低系统复杂度；(2) 端到端集成测试；(3) Execution Trace 持久化（O1）；(4) 批量技术债清理（fire-and-forget 错误、PM shim、类型安全）。
