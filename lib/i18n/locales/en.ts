@@ -635,6 +635,26 @@ const en: TranslationDict = {
   'toolApproval.approved': 'Approved — executing...',
   'toolApproval.rejected': 'Tool execution rejected',
 
+  // ── Execution Traces ──
+  'trace.pageOverview': 'Overview',
+  'trace.pageTasks': 'Tasks',
+  'trace.pageTraces': 'Traces',
+  'trace.title': 'Execution Traces',
+  'trace.noTraces': 'No execution traces',
+  'trace.noTracesHint': 'Traces will appear here after running agents',
+  'trace.filterAll': 'All',
+  'trace.duration': 'Duration',
+  'trace.events': '{count} events',
+  'trace.agents': 'Agents',
+  'trace.running': 'Running',
+  'trace.completed': 'Completed',
+  'trace.failed': 'Failed',
+  'trace.backToList': 'Back to traces',
+  'trace.eventTimeline': 'Event Timeline',
+  'trace.noEvents': 'No events recorded',
+  'trace.payload': 'Payload',
+  'trace.loadFailed': 'Failed to load traces',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',
   'error.pageLoadFailedGlobal': 'Page load failed',

@@ -13,6 +13,7 @@ import { AgentActivityFeed } from "@/components/agents/AgentActivityFeed";
 import { PrepareResultCard } from "@/components/agents/PrepareResultCard";
 import { PlanResultCard } from "@/components/agents/PlanResultCard";
 import { ImplementResultCard } from "@/components/project/ImplementResultCard";
+import { TracesPageView } from "@/components/traces/TracesPageView";
 import type { ImplementResultData, PreviewSessionData } from "@/components/project/ImplementResultCard";
 import type { PrepareResult } from "@/store/usePulseStore.new";
 import type { Project } from "@/projects/types";
@@ -775,11 +776,12 @@ export default function ProjectDetailPage() {
       />
 
       {/* Page switcher — only show when there are tasks or implement stage */}
-      {(hasTasks || isImplementStage || implementResult) && (
+      {(hasTasks || isImplementStage || implementResult || (project && project.status !== 'draft')) && (
         <PageSwitcher
           currentPage={currentPage}
-          totalPages={2}
+          totalPages={3}
           onPageChange={setCurrentPage}
+          labels={[t('trace.pageOverview'), t('trace.pageTasks'), t('trace.pageTraces')]}
         />
       )}
 
@@ -920,6 +922,13 @@ export default function ProjectDetailPage() {
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* ────── Page 3: Traces ────── */}
+      {currentPage === 2 && (
+        <div className="flex-1 overflow-y-auto">
+          <TracesPageView projectId={projectId} />
         </div>
       )}
     </div>

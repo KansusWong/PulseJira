@@ -635,6 +635,26 @@ const zh: TranslationDict = {
   'toolApproval.approved': '已批准 — 正在执行...',
   'toolApproval.rejected': '工具执行已拒绝',
 
+  // ── Execution Traces ──
+  'trace.pageOverview': '概览',
+  'trace.pageTasks': '任务',
+  'trace.pageTraces': '执行轨迹',
+  'trace.title': '执行轨迹',
+  'trace.noTraces': '暂无执行轨迹',
+  'trace.noTracesHint': '运行智能体后将在此显示执行轨迹',
+  'trace.filterAll': '全部',
+  'trace.duration': '耗时',
+  'trace.events': '{count} 个事件',
+  'trace.agents': '智能体',
+  'trace.running': '运行中',
+  'trace.completed': '已完成',
+  'trace.failed': '失败',
+  'trace.backToList': '返回轨迹列表',
+  'trace.eventTimeline': '事件时间线',
+  'trace.noEvents': '暂无事件记录',
+  'trace.payload': '负载数据',
+  'trace.loadFailed': '加载轨迹失败',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',
   'error.pageLoadFailedGlobal': '页面加载失败',
