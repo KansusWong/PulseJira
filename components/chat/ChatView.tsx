@@ -24,6 +24,8 @@ export function ChatView() {
   const showDmPanel = usePulseStore((s) => s.showDmPanel);
   const showToolApproval = usePulseStore((s) => s.showToolApproval);
   const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
+  const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
+  const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [streamingText, setStreamingText] = useState("");
@@ -118,7 +120,7 @@ export function ChatView() {
         setStreamingText("");
       }
     },
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel]
   );
 
   const handleSSEEvent = useCallback(
@@ -217,6 +219,20 @@ export function ChatView() {
           break;
         }
 
+        case "architect_failed": {
+          showArchitectFailed({
+            errorMessage: event.data.message,
+            stepsCompleted: event.data.steps_completed ?? 0,
+            attempt: event.data.attempt ?? 1,
+          });
+          break;
+        }
+
+        case "architect_resuming": {
+          hideArchitectPanel();
+          break;
+        }
+
         case "error": {
           addMessage(conversationId, {
             id: crypto.randomUUID(),
@@ -230,7 +246,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval]
+    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel]
   );
 
   return (

@@ -115,6 +115,17 @@ const en: TranslationDict = {
   'dm.riskHigh': 'High',
   'dm.riskCritical': 'Critical',
 
+  // ── Architect Checkpoint ──
+  'architect.failedTitle': 'Architect Pipeline Failed',
+  'architect.pipelineFailed': 'The Architect pipeline encountered an error',
+  'architect.stepsCompleted': 'Steps Completed',
+  'architect.attempt': 'Attempt',
+  'architect.attemptOf': 'Attempt {current} of {max}',
+  'architect.resumeHint': 'You can resume from the last checkpoint to continue where the pipeline left off, or start over from scratch.',
+  'architect.maxRetriesReached': 'Maximum retry attempts reached. Please start over from the Decision Maker phase.',
+  'architect.resume': 'Resume',
+  'architect.startOver': 'Start Over',
+
   // ── Complexity Labels ──
   'complexity.L1': 'Quick Answer',
   'complexity.L2': 'Light Task',

@@ -34,6 +34,8 @@ export function createArchitectAgent(options?: {
   extraTools?: BaseTool[];
   onApprovalRequired?: AgentContext['onApprovalRequired'];
   blackboard?: Blackboard;
+  /** Pre-seeded conversation history for resuming an incomplete run. */
+  initialMessages?: any[];
 }) {
   const override = loadAgentConfig('architect');
   const soul = override.soul ?? loadSoul('architect');
@@ -66,6 +68,7 @@ export function createArchitectAgent(options?: {
     exitToolName: 'finish_architect',
     maxLoops: override.maxLoops ?? 50,
     model: options?.model ?? override.model,
+    initialMessages: options?.initialMessages,
   });
 }
 

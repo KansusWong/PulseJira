@@ -398,6 +398,11 @@ export class BaseAgent {
           }
         }
 
+        // Checkpoint callback — fire after all tool calls in this step are processed
+        if (context.onCheckpoint) {
+          context.onCheckpoint({ messages: [...messages], stepsCompleted: step + 1 });
+        }
+
         // Warn agent about remaining steps BEFORE continuing the loop
         if (exitToolName) {
           const remaining = maxLoops! - step - 1;

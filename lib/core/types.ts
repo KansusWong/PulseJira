@@ -23,6 +23,9 @@ export interface AgentContext {
     toolArgs: Record<string, any>;
     agentName: string;
   }) => Promise<boolean>;
+  /** Checkpoint callback — fired after each tool-call batch in the ReAct loop.
+   *  Callers decide whether to persist (fire-and-forget DB write). */
+  onCheckpoint?: (data: { messages: any[]; stepsCompleted: number }) => void;
 }
 
 export interface AgentConfig {
@@ -125,6 +128,16 @@ export interface ArchitectExecutionStep {
   output?: any;
   validation?: SupervisorVerdict;
   retry_count: number;
+}
+
+/** Checkpoint data persisted during Architect pipeline execution. */
+export interface ArchitectCheckpoint {
+  messages: any[];
+  started_at: string;
+  updated_at: string;
+  steps_completed: number;
+  team_id: string;
+  attempt: number;
 }
 
 /** Final result returned by the Architect agent. */
@@ -236,6 +249,9 @@ export interface Conversation {
   dm_approval_status?: 'pending' | 'approved' | 'rejected' | null;
   structured_requirements?: StructuredRequirements | null;
   pending_tool_approval?: ToolApprovalRequest | null;
+  architect_phase_status?: 'running' | 'completed' | 'failed' | 'timed_out' | null;
+  architect_checkpoint?: ArchitectCheckpoint | null;
+  architect_result?: ArchitectResult | null;
   created_at: string;
   updated_at: string;
 }
@@ -316,6 +332,8 @@ export type ChatEventType =
   | 'dm_decision'
   | 'tool_approval_required'
   | 'tool_approval_resolved'
+  | 'architect_failed'
+  | 'architect_resuming'
   | 'error'
   | 'done';
 

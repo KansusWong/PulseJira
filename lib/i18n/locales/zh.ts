@@ -115,6 +115,17 @@ const zh: TranslationDict = {
   'dm.riskHigh': '高',
   'dm.riskCritical': '严重',
 
+  // ── Architect Checkpoint ──
+  'architect.failedTitle': '架构师流水线失败',
+  'architect.pipelineFailed': '架构师流水线执行遇到错误',
+  'architect.stepsCompleted': '已完成步数',
+  'architect.attempt': '尝试次数',
+  'architect.attemptOf': '第 {current} 次，共 {max} 次',
+  'architect.resumeHint': '你可以从上次断点恢复继续执行，或重新开始。',
+  'architect.maxRetriesReached': '已达到最大重试次数，请从决策者阶段重新开始。',
+  'architect.resume': '断点恢复',
+  'architect.startOver': '重新开始',
+
   // ── Complexity Labels ──
   'complexity.L1': '快速回答',
   'complexity.L2': '轻量任务',

@@ -47,6 +47,15 @@ export interface ChatSlice {
     status: 'pending' | 'approved' | 'rejected' | 'idle';
   };
 
+  // Architect resume panel state (checkpoint recovery)
+  architectPanel: {
+    visible: boolean;
+    status: 'idle' | 'failed';
+    stepsCompleted: number;
+    errorMessage: string | null;
+    attempt: number;
+  };
+
   // Team panel state
   teamPanel: {
     visible: boolean;
@@ -84,6 +93,9 @@ export interface ChatSlice {
   approveToolExecution: () => void;
   rejectToolExecution: () => void;
 
+  showArchitectFailed: (data: { errorMessage: string; stepsCompleted: number; attempt: number }) => void;
+  hideArchitectPanel: () => void;
+
   showTeamPanel: (teamId: string, agents: AgentStatus[]) => void;
   hideTeamPanel: () => void;
   updateTeamStatus: (status: TeamStatus) => void;
@@ -120,6 +132,14 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     toolArgs: null,
     agentName: null,
     status: 'idle',
+  },
+
+  architectPanel: {
+    visible: false,
+    status: 'idle',
+    stepsCompleted: 0,
+    errorMessage: null,
+    attempt: 0,
   },
 
   teamPanel: {
@@ -245,6 +265,22 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   rejectToolExecution: () =>
     set((state) => ({
       toolApprovalPanel: { ...state.toolApprovalPanel, status: 'rejected', visible: false },
+    })),
+
+  showArchitectFailed: (data) =>
+    set({
+      architectPanel: {
+        visible: true,
+        status: 'failed',
+        stepsCompleted: data.stepsCompleted,
+        errorMessage: data.errorMessage,
+        attempt: data.attempt,
+      },
+    }),
+
+  hideArchitectPanel: () =>
+    set((state) => ({
+      architectPanel: { ...state.architectPanel, visible: false },
     })),
 
   showTeamPanel: (teamId, agents) =>

@@ -144,6 +144,33 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
   }
 
+  if (action === 'resume_architect') {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of chatEngine.resumeArchitectPhase(params.id)) {
+            const data = `data: ${JSON.stringify(event)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          }
+        } catch (error: any) {
+          const errorEvent = `data: ${JSON.stringify({ type: 'error', data: { message: error.message } })}\n\n`;
+          controller.enqueue(encoder.encode(errorEvent));
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
+    });
+  }
+
   if (action === 'reject_dm') {
     if (supabaseConfigured) {
       await supabase

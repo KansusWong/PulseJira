@@ -9,6 +9,7 @@ import { AgentTeamPanel } from "@/components/chat/AgentTeamPanel";
 import { ClarificationForm } from "@/components/chat/ClarificationForm";
 import { DMDecisionPanel } from "@/components/chat/DMDecisionPanel";
 import { ToolApprovalPanel } from "@/components/chat/ToolApprovalPanel";
+import { ArchitectResumePanel } from "@/components/chat/ArchitectResumePanel";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { useTranslation } from "@/lib/i18n";
 import type { Project } from "@/projects/types";
@@ -41,6 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const clarificationVisible = usePulseStore((s) => s.clarificationPanel.visible);
   const dmPanelVisible = usePulseStore((s) => s.dmPanel.visible);
   const toolApprovalVisible = usePulseStore((s) => s.toolApprovalPanel.visible);
+  const architectPanelVisible = usePulseStore((s) => s.architectPanel.visible);
 
   const reconciledRef = useRef(false);
 
@@ -127,6 +129,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? <DMDecisionPanel />
     : toolApprovalVisible
     ? <ToolApprovalPanel />
+    : architectPanelVisible
+    ? <ArchitectResumePanel />
     : teamPanelVisible
     ? <AgentTeamPanel />
     : undefined;
@@ -135,7 +139,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <DashboardShell
       sidebarOpen={sidebarOpen}
       onToggleSidebar={toggleSidebar}
-      rightPanelOpen={clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || teamPanelVisible}
+      rightPanelOpen={clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || architectPanelVisible || teamPanelVisible}
       sidebar={
         <Sidebar
           projects={projects}

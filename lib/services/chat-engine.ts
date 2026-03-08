@@ -27,6 +27,8 @@ import type {
   ExecutionMode,
   ChatEvent,
   StructuredRequirements,
+  ArchitectCheckpoint,
+  ArchitectResult,
 } from '@/lib/core/types';
 
 // ---------------------------------------------------------------------------
@@ -693,12 +695,53 @@ You have access to tools for searching the web, reading files, and listing direc
         return approved;
       };
 
+      // --- Checkpoint state ---
+      const existingCheckpoint = (context.conversation as any).__architectCheckpoint as ArchitectCheckpoint | undefined;
+      const attempt = existingCheckpoint ? existingCheckpoint.attempt + 1 : 1;
+      const started_at = existingCheckpoint?.started_at || new Date().toISOString();
+      const initialMessages = existingCheckpoint?.messages;
+
+      // Mark architect as running
+      this.updateConversation(conversationId, {
+        architect_phase_status: 'running',
+        architect_checkpoint: {
+          messages: initialMessages || [],
+          started_at,
+          updated_at: new Date().toISOString(),
+          steps_completed: existingCheckpoint?.steps_completed || 0,
+          team_id: teamId,
+          attempt,
+        },
+      } as any).catch(err => console.error('[ChatEngine] Status update failed:', err));
+
+      // Debounced checkpoint callback — writes to DB every 3 steps or 30s
+      let lastCheckpointStep = existingCheckpoint?.steps_completed || 0;
+      let lastCheckpointTime = Date.now();
+      const onCheckpoint = (data: { messages: any[]; stepsCompleted: number }) => {
+        if (data.stepsCompleted - lastCheckpointStep >= 3 || Date.now() - lastCheckpointTime >= 30_000) {
+          lastCheckpointStep = data.stepsCompleted;
+          lastCheckpointTime = Date.now();
+          this.updateConversation(conversationId, {
+            architect_checkpoint: {
+              messages: data.messages,
+              started_at,
+              updated_at: new Date().toISOString(),
+              steps_completed: data.stepsCompleted,
+              team_id: teamId,
+              attempt,
+            },
+          } as any).catch(err => console.error('[ChatEngine] Checkpoint write failed:', err));
+        }
+      };
+
       // Start architect as background promise (non-blocking)
       const architectPromise = runArchitectPhase(context.userMessage, dmDecision, {
         projectId: context.conversation.project_id ?? undefined,
         structuredRequirements: context.conversation.structured_requirements ?? undefined,
         onApprovalRequired,
         blackboard,
+        initialMessages,
+        onCheckpoint,
         logger: async (msg: string) => {
           channel.push({
             type: 'agent_log',
@@ -713,6 +756,13 @@ You have access to tools for searching the web, reading files, and listing direc
           const responseText = `Architect complete. ${result.steps_completed} steps completed, ${result.steps_failed} failed.`;
           this.saveMessage(conversationId, 'assistant', responseText).catch(() => {});
 
+          // Mark completed, store result, clear checkpoint
+          this.updateConversation(conversationId, {
+            architect_phase_status: 'completed',
+            architect_result: result,
+            architect_checkpoint: null,
+          } as any).catch(err => console.error('[ChatEngine] Architect completion update failed:', err));
+
           channel.push({
             type: 'message',
             data: { role: 'assistant', content: responseText },
@@ -723,6 +773,19 @@ You have access to tools for searching the web, reading files, and listing direc
           const errorMsg = `Architect execution failed: ${error.message}`;
           this.saveMessage(conversationId, 'assistant', errorMsg).catch(() => {});
 
+          // Mark failed, keep checkpoint for resume
+          this.updateConversation(conversationId, {
+            architect_phase_status: 'failed',
+          } as any).catch(err => console.error('[ChatEngine] Architect failure update failed:', err));
+
+          channel.push({
+            type: 'architect_failed',
+            data: {
+              message: errorMsg,
+              steps_completed: lastCheckpointStep,
+              attempt,
+            },
+          });
           channel.push({
             type: 'error',
             data: { message: errorMsg },
@@ -785,6 +848,65 @@ You have access to tools for searching the web, reading files, and listing direc
 
     const context: ChatContext = {
       conversation: { ...conversation, dm_approval_status: 'approved' },
+      messages,
+      userMessage,
+      assessment,
+    };
+
+    yield* this.handleArchitectPhase(context);
+
+    yield { type: 'done', data: { conversation_id: conversationId } };
+  }
+
+  /**
+   * Resume a failed/timed-out Architect phase from its last checkpoint.
+   * Validates state, increments attempt, then delegates to handleArchitectPhase.
+   */
+  async *resumeArchitectPhase(conversationId: string): AsyncGenerator<ChatEvent> {
+    const conversation = await this.getOrCreateConversation(conversationId);
+
+    // Validate: must be in failed or timed_out state
+    const status = (conversation as any).architect_phase_status;
+    if (status !== 'failed' && status !== 'timed_out') {
+      yield { type: 'error', data: { message: `Cannot resume: architect phase status is "${status || 'null'}", expected "failed" or "timed_out".` } };
+      yield { type: 'done', data: { conversation_id: conversationId } };
+      return;
+    }
+
+    // Validate: checkpoint must exist with messages
+    const checkpoint = (conversation as any).architect_checkpoint as ArchitectCheckpoint | null;
+    if (!checkpoint || !checkpoint.messages || checkpoint.messages.length === 0) {
+      yield { type: 'error', data: { message: 'No checkpoint data available for resume. Please start over.' } };
+      yield { type: 'done', data: { conversation_id: conversationId } };
+      return;
+    }
+
+    // Limit retries to 3 attempts
+    if (checkpoint.attempt >= 3) {
+      yield { type: 'error', data: { message: `Maximum retry attempts (3) reached. Please start over from Decision Maker.` } };
+      yield { type: 'done', data: { conversation_id: conversationId } };
+      return;
+    }
+
+    yield {
+      type: 'architect_resuming',
+      data: {
+        attempt: checkpoint.attempt + 1,
+        steps_completed: checkpoint.steps_completed,
+      },
+    };
+
+    // Build context and delegate to handleArchitectPhase
+    const messages = await this.getMessages(conversationId);
+    const assessment = conversation.complexity_assessment;
+    const userMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+
+    const context: ChatContext = {
+      conversation: {
+        ...conversation,
+        // Pass checkpoint data via internal property for handleArchitectPhase to detect
+        __architectCheckpoint: checkpoint,
+      } as any,
       messages,
       userMessage,
       assessment,

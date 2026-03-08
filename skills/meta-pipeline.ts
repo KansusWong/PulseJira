@@ -93,6 +93,10 @@ export interface MetaPipelineOptions {
   onApprovalRequired?: AgentContext['onApprovalRequired'];
   /** Shared blackboard for cross-phase state persistence (DM → Architect). */
   blackboard?: Blackboard;
+  /** Pre-seeded conversation history for resuming an incomplete Architect run. */
+  initialMessages?: any[];
+  /** Checkpoint callback — fired after each tool-call batch in the Architect ReAct loop. */
+  onCheckpoint?: (data: { messages: any[]; stepsCompleted: number }) => void;
 }
 
 /**
@@ -264,11 +268,13 @@ export async function runArchitectPhase(
     context: architectInput,
     onApprovalRequired: options.onApprovalRequired,
     blackboard: options.blackboard,
+    initialMessages: options.initialMessages,
   });
 
   const rawArchitectResult = await architect.run(architectInput, {
     logger: messageBus.createLogger('architect'),
     onApprovalRequired: options.onApprovalRequired,
+    onCheckpoint: options.onCheckpoint,
     ...agentCtx,
   });
 
