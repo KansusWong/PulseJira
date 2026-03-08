@@ -18,6 +18,7 @@ import { BaseAgent } from '@/lib/core/base-agent';
 import { createProject } from '@/projects/project-service';
 import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
+import { Blackboard } from '@/lib/blackboard';
 import type {
   Conversation,
   ChatMessage,
@@ -529,10 +530,14 @@ You have access to tools for searching the web, reading files, and listing direc
     };
 
     try {
+      // Create Blackboard scoped to this conversation (persists across DM → Architect)
+      const blackboard = new Blackboard(context.conversation.id, context.conversation.project_id);
+
       // Phase 1: Decision Maker only
       const decision = await runDecisionPhase(context.userMessage, {
         projectId: context.conversation.project_id ?? undefined,
         structuredRequirements: context.conversation.structured_requirements ?? undefined,
+        blackboard,
         logger: async (msg: string) => {
           messageBus.publish({
             from: 'meta-pipeline',
@@ -605,6 +610,35 @@ You have access to tools for searching the web, reading files, and listing direc
     try {
       const dmDecision = context.conversation.dm_decision as DecisionOutput | undefined;
       const conversationId = context.conversation.id;
+      const projectId = context.conversation.project_id;
+
+      // Blackboard: create + hydrate from DB (restores DM-phase writes)
+      const blackboard = new Blackboard(conversationId, projectId);
+      await blackboard.hydrate();
+
+      // Fallback seed: if hydrate didn't find dm.decision (DB write still in-flight), seed from conversation record
+      if (!blackboard.read('dm.decision') && dmDecision) {
+        await blackboard.write({
+          key: 'dm.decision',
+          value: dmDecision,
+          type: 'decision',
+          author: 'decision_maker',
+          tags: ['dm', 'decision', dmDecision.decision.toLowerCase()],
+        });
+      }
+
+      // Fallback seed: structured requirements
+      if (!blackboard.read('pipeline.requirements') && context.conversation.structured_requirements) {
+        await blackboard.write({
+          key: 'pipeline.requirements',
+          value: { structuredRequirements: context.conversation.structured_requirements },
+          type: 'context',
+          author: 'meta-pipeline',
+          tags: ['pipeline', 'requirements'],
+        });
+      }
+
+      channel.push({ type: 'agent_log', data: { message: `Blackboard hydrated: ${blackboard.size} entries` } });
 
       // Define onApprovalRequired callback — pushes event to channel, blocks agent thread
       const onApprovalRequired = async (params: {
@@ -664,6 +698,7 @@ You have access to tools for searching the web, reading files, and listing direc
         projectId: context.conversation.project_id ?? undefined,
         structuredRequirements: context.conversation.structured_requirements ?? undefined,
         onApprovalRequired,
+        blackboard,
         logger: async (msg: string) => {
           channel.push({
             type: 'agent_log',

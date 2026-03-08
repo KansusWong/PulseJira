@@ -16,6 +16,9 @@ import { DiscoverSkillsTool } from '@/lib/tools/discover-skills';
 import type { BaseTool } from '@/lib/core/base-tool';
 import type { AgentContext } from '@/lib/core/types';
 import type { Workspace } from '@/lib/sandbox/types';
+import { BlackboardReadTool } from '@/lib/tools/blackboard-read';
+import { BlackboardWriteTool } from '@/lib/tools/blackboard-write';
+import type { Blackboard } from '@/lib/blackboard/blackboard';
 
 /**
  * Creates an Architect agent — the dynamic execution brain of the system.
@@ -30,6 +33,7 @@ export function createArchitectAgent(options?: {
   workspace?: Workspace;
   extraTools?: BaseTool[];
   onApprovalRequired?: AgentContext['onApprovalRequired'];
+  blackboard?: Blackboard;
 }) {
   const override = loadAgentConfig('architect');
   const soul = override.soul ?? loadSoul('architect');
@@ -49,6 +53,11 @@ export function createArchitectAgent(options?: {
     new FinishArchitectTool(),
     ...getTools('web_search', 'list_files', 'read_file'),
   ];
+
+  if (options?.blackboard) {
+    tools.push(new BlackboardReadTool(options.blackboard));
+    tools.push(new BlackboardWriteTool(options.blackboard, 'architect'));
+  }
 
   return new BaseAgent({
     name: 'architect',

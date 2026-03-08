@@ -22,6 +22,7 @@ import { removeDynamicAgent, getAllDynamicAgents } from '@/lib/tools/create-agen
 import { removeDynamicSkill, getAllDynamicSkills } from '@/lib/tools/create-skill';
 import { messageBus } from '@/connectors/bus/message-bus';
 import type { ArchitectResult, AgentContext, DecisionOutput, StructuredRequirements } from '@/lib/core/types';
+import type { Blackboard } from '@/lib/blackboard/blackboard';
 
 // ---------------------------------------------------------------------------
 // Zod schemas for runtime validation of agent outputs.
@@ -90,6 +91,8 @@ export interface MetaPipelineOptions {
   structuredRequirements?: StructuredRequirements;
   /** Callback for tools that require human approval before execution. */
   onApprovalRequired?: AgentContext['onApprovalRequired'];
+  /** Shared blackboard for cross-phase state persistence (DM → Architect). */
+  blackboard?: Blackboard;
 }
 
 /**
@@ -146,7 +149,22 @@ export async function runDecisionPhase(
 
   await log('[Meta] Starting Decision Maker...');
 
-  const dm = createDecisionMakerAgent();
+  // Seed pipeline requirements to blackboard before DM runs
+  if (options.blackboard) {
+    await options.blackboard.write({
+      key: 'pipeline.requirements',
+      value: {
+        input: inputMessage,
+        structuredRequirements: options.structuredRequirements ?? null,
+        signalIds: options.signalIds ?? [],
+      },
+      type: 'context',
+      author: 'meta-pipeline',
+      tags: ['pipeline', 'requirements'],
+    });
+  }
+
+  const dm = createDecisionMakerAgent({ blackboard: options.blackboard });
   const dmContext = options.signalIds
     ? `\n\n关联信号 IDs: ${options.signalIds.join(', ')}`
     : '';
@@ -186,6 +204,17 @@ export async function runDecisionPhase(
 
   await log(`[Meta] Decision: ${decision.decision} (confidence: ${decision.confidence})`);
 
+  // Write full decision to blackboard (fire-and-forget)
+  if (options.blackboard) {
+    options.blackboard.write({
+      key: 'dm.decision',
+      value: decision,
+      type: 'decision',
+      author: 'decision_maker',
+      tags: ['dm', 'decision', decision.decision.toLowerCase()],
+    }).catch(err => console.error('[Meta] Blackboard dm.decision write failed:', err));
+  }
+
   return decision;
 }
 
@@ -219,13 +248,22 @@ export async function runArchitectPhase(
     ? formatStructuredRequirements(options.structuredRequirements)
     : '';
 
-  const architectInput = decision
-    ? `决策者已批准以下需求 (confidence: ${decision.confidence}):\n\n${decision.summary}\n\n推荐行动:\n${decision.recommended_actions?.join('\n') || 'N/A'}\n\n原始需求:\n${inputMessage}${reqContext}`
-    : `${inputMessage}${reqContext}`;
+  let architectInput: string;
+  if (options.blackboard && options.blackboard.size > 0) {
+    const bbContext = options.blackboard.toContextString();
+    architectInput = decision
+      ? `决策者已批准以下需求 (confidence: ${decision.confidence}):\n\n## Blackboard Context\n${bbContext}\n\n原始需求:\n${inputMessage}${reqContext}`
+      : `${inputMessage}${reqContext}\n\n## Blackboard Context\n${bbContext}`;
+  } else {
+    architectInput = decision
+      ? `决策者已批准以下需求 (confidence: ${decision.confidence}):\n\n${decision.summary}\n\n推荐行动:\n${decision.recommended_actions?.join('\n') || 'N/A'}\n\n原始需求:\n${inputMessage}${reqContext}`
+      : `${inputMessage}${reqContext}`;
+  }
 
   const architect = createArchitectAgent({
     context: architectInput,
     onApprovalRequired: options.onApprovalRequired,
+    blackboard: options.blackboard,
   });
 
   const rawArchitectResult = await architect.run(architectInput, {
