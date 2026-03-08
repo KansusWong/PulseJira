@@ -491,6 +491,8 @@ const en: TranslationDict = {
   'signalDetail.discussing': 'Red-Blue discussing...',
   'signalDetail.discussedProceed': 'Discussed · Recommend proceed',
   'signalDetail.discussedHalt': 'Discussed · Recommend pause',
+  'signalDetail.execute': 'Execute',
+  'signalDetail.executing': 'Launching...',
 
   // ── Prepare Result Card ──
   'prepare.visionAlignment': 'Vision Alignment',

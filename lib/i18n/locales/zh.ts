@@ -491,6 +491,8 @@ const zh: TranslationDict = {
   'signalDetail.discussing': '红蓝军讨论中...',
   'signalDetail.discussedProceed': '已讨论 · 建议推进',
   'signalDetail.discussedHalt': '已讨论 · 建议暂停',
+  'signalDetail.execute': '执行',
+  'signalDetail.executing': '启动中...',
 
   // ── Prepare Result Card ──
   'prepare.visionAlignment': '愿景对齐',

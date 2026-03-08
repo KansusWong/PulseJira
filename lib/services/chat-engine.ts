@@ -255,34 +255,43 @@ export class ChatEngine {
   ): AsyncGenerator<ChatEvent> {
     const conversation = await this.getOrCreateConversation(conversationId);
 
-    // Create full project from requirements
-    yield { type: 'agent_log', data: { message: 'Creating project...' } };
+    let projectId = conversation.project_id;
 
-    const project = await createProject({
-      name: requirements.suggested_name || 'Untitled Project',
-      description: requirements.summary,
-      is_light: false,
-      conversation_id: conversationId,
-    });
+    if (!projectId) {
+      // Normal chat flow: create a new project from requirements
+      yield { type: 'agent_log', data: { message: 'Creating project...' } };
+
+      const project = await createProject({
+        name: requirements.suggested_name || 'Untitled Project',
+        description: requirements.summary,
+        is_light: false,
+        conversation_id: conversationId,
+      });
+
+      projectId = project.id;
+
+      yield {
+        type: 'project_created',
+        data: { project_id: project.id, name: project.name, is_light: false },
+      };
+    } else {
+      // Signal pipeline: project already exists, skip creation
+      yield { type: 'agent_log', data: { message: 'Using existing project...' } };
+    }
 
     // Link conversation to project + store structured requirements
     await this.updateConversation(conversation.id, {
-      project_id: project.id,
+      project_id: projectId,
       status: 'converted',
       structured_requirements: requirements,
     } as any);
-
-    yield {
-      type: 'project_created',
-      data: { project_id: project.id, name: project.name, is_light: false },
-    };
 
     // Build context and execute agent team
     const messages = await this.getMessages(conversationId);
     const assessment = conversation.complexity_assessment;
 
     const context: ChatContext = {
-      conversation: { ...conversation, project_id: project.id, structured_requirements: requirements },
+      conversation: { ...conversation, project_id: projectId, structured_requirements: requirements },
       messages,
       userMessage: requirements.summary,
       assessment,
