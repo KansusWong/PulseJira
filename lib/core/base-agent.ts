@@ -313,7 +313,7 @@ export class BaseAgent {
             accountName: this.accountName,
             signalId: context.signalId ?? null,
             traceId,
-          }).catch(() => {});
+          }).catch((err) => console.error('[BaseAgent] Record LLM usage failed:', err));
         }
       }
 
@@ -484,7 +484,7 @@ export class BaseAgent {
               accountName: this.accountName,
               signalId: context.signalId ?? null,
               traceId,
-            }).catch(() => {});
+            }).catch((err) => console.error('[BaseAgent] Record LLM usage failed:', err));
           }
         }
         const lcMsg = lastChance.choices[0]?.message;

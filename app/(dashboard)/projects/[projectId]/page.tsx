@@ -29,7 +29,7 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     setHasMounted(true);
     // #region agent log
-    fetch('http://127.0.0.1:7891/ingest/308aacb9-3b7c-48db-aea3-6543ee10f294',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'173eed'},body:JSON.stringify({sessionId:'173eed',location:'[projectId]/page.tsx:mount',message:'ProjectDetailPage mounted successfully',data:{projectId},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7891/ingest/308aacb9-3b7c-48db-aea3-6543ee10f294',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'173eed'},body:JSON.stringify({sessionId:'173eed',location:'[projectId]/page.tsx:mount',message:'ProjectDetailPage mounted successfully',data:{projectId},timestamp:Date.now(),hypothesisId:'B'})}).catch(() => { /* debug ingest — non-critical */ });
     // #endregion
   }, []);
 
@@ -114,7 +114,7 @@ export default function ProjectDetailPage() {
         const otherTasks = usePulseStore.getState().tasks.filter((t) => t.projectId !== projectId);
         setTasks([...otherTasks, ...dbTasks]);
       })
-      .catch(() => {});
+      .catch((err) => console.error('[project-page] Fetch tasks failed:', err));
   }, [hasMounted, projectId, fetchStatus, setTasks]);
 
   const agentLogs = usePulseStore((s) => s.agentLogs);
@@ -236,7 +236,7 @@ export default function ProjectDetailPage() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: recoveredStatus }),
-        }).catch(() => {});
+        }).catch((err) => console.error('[project-page] Update project status failed:', err));
       }
     }
 
@@ -621,7 +621,7 @@ export default function ProjectDetailPage() {
           setPreviewStatus(json.data);
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error('[project-page] Fetch preview status failed:', err));
   }, [hasMounted, projectId, implementResult]);
 
   // ── Remote deploy handler ──

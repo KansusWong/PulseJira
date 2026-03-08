@@ -245,8 +245,8 @@ function touchLastUsed(keyId: string): void {
       },
       body: JSON.stringify({ last_used_at: new Date().toISOString() }),
     }
-  ).catch(() => {
-    // Swallow errors — non-critical
+  ).catch((err) => {
+    console.error('[middleware] Track API key usage failed:', err);
   });
 }
 
@@ -272,8 +272,8 @@ function writeAuditLog(entry: {
       Prefer: "return=minimal",
     },
     body: JSON.stringify(entry),
-  }).catch(() => {
-    // Swallow errors — non-critical
+  }).catch((err) => {
+    console.error('[middleware] Write audit log failed:', err);
   });
 }
 

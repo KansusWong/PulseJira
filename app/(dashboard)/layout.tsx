@@ -93,7 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name }),
-        }).catch(() => {});
+        }).catch((err) => console.error('[dashboard] Update project name failed:', err));
       }
     },
     [updateProjectInStore]
@@ -106,7 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!window.confirm(t('dashboard.confirmDelete', { name: label }))) return;
 
       if (!id.startsWith("local-")) {
-        await fetch(`/api/projects/${id}`, { method: "DELETE" }).catch(() => {});
+        await fetch(`/api/projects/${id}`, { method: "DELETE" }).catch((err) => console.error('[dashboard] Delete project failed:', err));
       }
       removeProject(id);
     },

@@ -754,7 +754,7 @@ You have access to tools for searching the web, reading files, and listing direc
       architectPromise
         .then((result) => {
           const responseText = `Architect complete. ${result.steps_completed} steps completed, ${result.steps_failed} failed.`;
-          this.saveMessage(conversationId, 'assistant', responseText).catch(() => {});
+          this.saveMessage(conversationId, 'assistant', responseText).catch((err) => console.error('[ChatEngine] Save architect completion message failed:', err));
 
           // Mark completed, store result, clear checkpoint
           this.updateConversation(conversationId, {
@@ -771,7 +771,7 @@ You have access to tools for searching the web, reading files, and listing direc
         })
         .catch((error: any) => {
           const errorMsg = `Architect execution failed: ${error.message}`;
-          this.saveMessage(conversationId, 'assistant', errorMsg).catch(() => {});
+          this.saveMessage(conversationId, 'assistant', errorMsg).catch((err) => console.error('[ChatEngine] Save architect error message failed:', err));
 
           // Mark failed, keep checkpoint for resume
           this.updateConversation(conversationId, {
@@ -799,7 +799,7 @@ You have access to tools for searching the web, reading files, and listing direc
       }
 
       // Wait for architect promise to settle (should already be done)
-      await architectPromise.catch(() => {});
+      await architectPromise.catch(() => { /* already handled above */ });
 
       // Update team status to idle
       if (supabaseConfigured) {

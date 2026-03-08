@@ -791,14 +791,14 @@ export async function runImplementation(
           type: 'status',
           author: task.agentTemplate,
           tags: [task.id, task.agentTemplate, 'task-result'],
-        }).catch(() => {});
+        }).catch((err) => console.error('[implement-pipeline] Blackboard task-result write failed:', err));
 
         messageBus.agentComplete(task.agentTemplate, output);
         messageBus.taskUpdate(task.id, task.title, 'completed', i + 1, sortedTasks.length);
         const qualityTag = task.validation && !task.validation.passed ? ' (partial — QA gate failed)' : '';
         await log(`[implement] ✓ "${task.title}" completed${qualityTag}.`);
 
-        savePlanToDB(projectId, plan).catch(() => {});
+        savePlanToDB(projectId, plan).catch((err) => console.error('[implement-pipeline] Save plan failed:', err));
 
         extractAndStorePatterns({
           taskId: task.id,
@@ -807,7 +807,7 @@ export async function runImplementation(
           description: task.description,
           filesChanged: output?.files_changed || [],
           summary: output?.summary || '',
-        }).catch(() => {});
+        }).catch((err) => console.error('[implement-pipeline] Extract patterns failed:', err));
       } catch (error: any) {
         const message = error?.message || String(error);
 
@@ -827,7 +827,7 @@ export async function runImplementation(
           await log(`[implement] ⏸ "${task.title}" paused due to quota/rate limit: ${message}`);
           messageBus.agentComplete(task.agentTemplate, { paused: true, reason: 'quota_or_rate_limit', error: message });
 
-          savePlanToDB(projectId, plan).catch(() => {});
+          savePlanToDB(projectId, plan).catch((err) => console.error('[implement-pipeline] Save plan (quota pause) failed:', err));
           break;
         }
 
@@ -838,7 +838,7 @@ export async function runImplementation(
         await log(`[implement] ✗ "${task.title}" failed: ${message}`);
         messageBus.agentComplete(task.agentTemplate, { error: message });
 
-        savePlanToDB(projectId, plan).catch(() => {});
+        savePlanToDB(projectId, plan).catch((err) => console.error('[implement-pipeline] Save plan (task error) failed:', err));
       }
     }
 
