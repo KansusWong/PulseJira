@@ -43,7 +43,7 @@ export function createArchitectAgent(options?: {
   const systemPrompt = mergeSoulWithPrompt(soul, prompt);
 
   const tools = [
-    new SpawnAgentTool(options?.workspace, options?.extraTools, options?.onApprovalRequired),
+    new SpawnAgentTool(options?.workspace, options?.extraTools, options?.onApprovalRequired, options?.blackboard),
     new ListAgentsTool(),
     new CreateAgentTool(),
     new CreateSkillTool(),

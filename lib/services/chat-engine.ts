@@ -533,7 +533,7 @@ You have access to tools for searching the web, reading files, and listing direc
 
     try {
       // Create Blackboard scoped to this conversation (persists across DM → Architect)
-      const blackboard = new Blackboard(context.conversation.id, context.conversation.project_id);
+      const blackboard = new Blackboard(context.conversation.id, context.conversation.project_id, { maxEntries: 200, ttlMs: 2 * 60 * 60 * 1000 });
 
       // Phase 1: Decision Maker only
       const decision = await runDecisionPhase(context.userMessage, {
@@ -615,7 +615,7 @@ You have access to tools for searching the web, reading files, and listing direc
       const projectId = context.conversation.project_id;
 
       // Blackboard: create + hydrate from DB (restores DM-phase writes)
-      const blackboard = new Blackboard(conversationId, projectId);
+      const blackboard = new Blackboard(conversationId, projectId, { maxEntries: 200, ttlMs: 2 * 60 * 60 * 1000 });
       await blackboard.hydrate();
 
       // Fallback seed: if hydrate didn't find dm.decision (DB write still in-flight), seed from conversation record

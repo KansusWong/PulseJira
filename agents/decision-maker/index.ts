@@ -25,7 +25,7 @@ export function createDecisionMakerAgent(options?: { model?: string; context?: s
   const systemPrompt = mergeSoulWithPrompt(soul, prompt);
 
   const tools = [
-    new SpawnAgentTool(),
+    new SpawnAgentTool(undefined, undefined, undefined, options?.blackboard),
     new ListAgentsTool(),
     new FinishDecisionTool(),
     ...getTools('web_search', 'search_vision_knowledge', 'search_decisions'),

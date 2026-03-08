@@ -6,6 +6,7 @@ import { messageBus } from '@/connectors/bus/message-bus';
 import type { BaseTool as BaseToolType } from '../core/base-tool';
 import type { AgentContext } from '../core/types';
 import type { Workspace } from '@/lib/sandbox/types';
+import type { Blackboard } from '@/lib/blackboard/blackboard';
 
 // ---------------------------------------------------------------------------
 // Agent Factory Registry (Map-backed, same pattern as tool-registry)
@@ -79,12 +80,14 @@ export class SpawnAgentTool extends BaseTool<SpawnAgentInput, SpawnAgentOutput> 
   private workspace?: Workspace;
   private extraTools?: BaseToolType[];
   private onApprovalRequired?: AgentContext['onApprovalRequired'];
+  private blackboard?: Blackboard;
 
-  constructor(workspace?: Workspace, extraTools?: BaseToolType[], onApprovalRequired?: AgentContext['onApprovalRequired']) {
+  constructor(workspace?: Workspace, extraTools?: BaseToolType[], onApprovalRequired?: AgentContext['onApprovalRequired'], blackboard?: Blackboard) {
     super();
     this.workspace = workspace;
     this.extraTools = extraTools;
     this.onApprovalRequired = onApprovalRequired;
+    this.blackboard = blackboard;
   }
 
   protected async _run(input: SpawnAgentInput): Promise<SpawnAgentOutput> {
@@ -110,6 +113,9 @@ export class SpawnAgentTool extends BaseTool<SpawnAgentInput, SpawnAgentOutput> 
       factoryOptions.tools = this.extraTools;
       factoryOptions.context = input_data;
       factoryOptions.taskDescription = task_description;
+    }
+    if (this.blackboard) {
+      factoryOptions.blackboard = this.blackboard;
     }
 
     // Create agent

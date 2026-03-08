@@ -8,6 +8,7 @@ import type {
   BlackboardQuery,
   BlackboardChangeEvent,
   BlackboardSnapshot,
+  BlackboardConfig,
 } from './types';
 
 /**
@@ -23,10 +24,14 @@ export class Blackboard {
   private entries: Map<string, BlackboardEntry> = new Map();
   readonly executionId: string;
   readonly projectId: string | null;
+  private readonly maxEntries: number;
+  private readonly ttlMs: number;
 
-  constructor(executionId: string, projectId?: string | null) {
+  constructor(executionId: string, projectId?: string | null, config?: BlackboardConfig) {
     this.executionId = executionId;
     this.projectId = projectId ?? null;
+    this.maxEntries = config?.maxEntries ?? 0;
+    this.ttlMs = config?.ttlMs ?? 0;
   }
 
   // -----------------------------------------------------------------------
@@ -78,7 +83,83 @@ export class Blackboard {
       console.error('[Blackboard] DB persist failed:', err),
     );
 
+    this.cleanup();
+
     return entry;
+  }
+
+  // -----------------------------------------------------------------------
+  // Manual eviction
+  // -----------------------------------------------------------------------
+
+  /** Manually evict an entry by key. Returns true if the entry existed and was removed. */
+  evict(key: string): boolean {
+    const entry = this.entries.get(key);
+    if (!entry) return false;
+
+    this.entries.delete(key);
+
+    const event: BlackboardChangeEvent = {
+      entry,
+      action: 'delete',
+      previousVersion: entry.version,
+    };
+    messageBus.publish({
+      from: 'blackboard',
+      channel: CHANNELS.BLACKBOARD,
+      type: 'blackboard_change',
+      payload: event,
+    });
+
+    return true;
+  }
+
+  // -----------------------------------------------------------------------
+  // Lifecycle cleanup (TTL + capacity eviction)
+  // -----------------------------------------------------------------------
+
+  private cleanup(): void {
+    if (this.ttlMs === 0 && this.maxEntries === 0) return;
+
+    const now = Date.now();
+
+    // Phase 1: TTL eviction
+    if (this.ttlMs > 0) {
+      const cutoff = now - this.ttlMs;
+      for (const [key, entry] of this.entries) {
+        if (new Date(entry.updatedAt).getTime() < cutoff) {
+          this.entries.delete(key);
+          this.publishEviction(entry);
+        }
+      }
+    }
+
+    // Phase 2: Capacity eviction — evict oldest entries when over maxEntries
+    if (this.maxEntries > 0 && this.entries.size > this.maxEntries) {
+      const sorted = Array.from(this.entries.entries()).sort(
+        (a, b) => a[1].updatedAt.localeCompare(b[1].updatedAt),
+      );
+      const excess = this.entries.size - this.maxEntries;
+      for (let i = 0; i < excess; i++) {
+        const [key, entry] = sorted[i];
+        this.entries.delete(key);
+        this.publishEviction(entry);
+      }
+    }
+  }
+
+  private publishEviction(entry: BlackboardEntry): void {
+    const event: BlackboardChangeEvent = {
+      entry,
+      action: 'evict',
+      previousVersion: entry.version,
+    };
+    messageBus.publish({
+      from: 'blackboard',
+      channel: CHANNELS.BLACKBOARD,
+      type: 'blackboard_change',
+      payload: event,
+    });
   }
 
   // -----------------------------------------------------------------------

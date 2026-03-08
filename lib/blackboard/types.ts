@@ -55,7 +55,7 @@ export interface BlackboardQuery {
 
 export interface BlackboardChangeEvent {
   entry: BlackboardEntry;
-  action: 'write' | 'update' | 'delete';
+  action: 'write' | 'update' | 'delete' | 'evict';
   previousVersion?: number;
 }
 
@@ -68,6 +68,17 @@ export interface BlackboardSnapshot {
   projectId: string | null;
   entries: BlackboardEntry[];
   capturedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle configuration
+// ---------------------------------------------------------------------------
+
+export interface BlackboardConfig {
+  /** Maximum number of entries before capacity eviction. 0 = unlimited. */
+  maxEntries?: number;
+  /** Entry time-to-live in milliseconds. 0 = no TTL. */
+  ttlMs?: number;
 }
 
 // ---------------------------------------------------------------------------
