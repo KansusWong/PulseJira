@@ -1,0 +1,8 @@
+{
+  "name": "@pulse/skills-cli",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "skills": "bin/skills.js"
+  }
+}

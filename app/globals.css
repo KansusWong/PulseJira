@@ -7,6 +7,18 @@
   --foreground: #ededed;
   --paper: #09090b; /* Zinc 950 */
   --border: #27272a; /* Zinc 800 */
+
+  /* Agent accent colors */
+  --accent-pm: #a855f7;        /* Purple */
+  --accent-tech-lead: #3b82f6; /* Blue */
+  --accent-critic: #ef4444;    /* Red */
+  --accent-researcher: #22c55e;/* Green */
+  --accent-blue-team: #38bdf8; /* Light Blue */
+  --accent-arbitrator: #f59e0b;/* Amber */
+
+  /* Warm accent */
+  --accent: #f59e0b;
+  --accent-foreground: #000000;
 }
 
 body {
@@ -38,4 +50,67 @@ body {
     backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
+}
+
+/* Bubble floating animation */
+@keyframes bubble-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes bubble-float-alt {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(0.5deg); }
+  66% { transform: translateY(4px) rotate(-0.5deg); }
+}
+
+@keyframes bubble-timer {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@keyframes ambient-pulse {
+  0%, 100% { opacity: 0.03; }
+  50% { opacity: 0.08; }
+}
+
+.bubble-float {
+  animation: bubble-float 6s ease-in-out infinite;
+}
+
+.bubble-float-alt {
+  animation: bubble-float-alt 8s ease-in-out infinite;
+}
+
+.ambient-glow {
+  animation: ambient-pulse 8s ease-in-out infinite;
+}
+
+/* Sci-fi fire icon animation */
+@keyframes fire-pulse {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+    filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.4));
+  }
+  20% {
+    transform: scale(1.15) translateY(-3px);
+    filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.8)) drop-shadow(0 0 24px rgba(239, 68, 68, 0.4));
+  }
+  40% {
+    transform: scale(0.95) translateY(1px);
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
+  }
+  60% {
+    transform: scale(1.1) translateY(-2px);
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.7)) drop-shadow(0 0 20px rgba(239, 68, 68, 0.3));
+  }
+  80% {
+    transform: scale(1.02) translateY(0);
+    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.5));
+  }
+}
+
+.fire-icon {
+  display: inline-block;
+  animation: fire-pulse 2s ease-in-out infinite;
 }

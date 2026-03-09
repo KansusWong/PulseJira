@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import "@/lib/config/env";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PulseJira",
-  description: "AI Native Project Management",
+  title: "RebuilD",
+  description: "AI-Driven Project Management, Rebuilt.",
 };
 
 export default function RootLayout({
@@ -12,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="zh-CN">
       <body className="antialiased">{children}</body>
     </html>
   );

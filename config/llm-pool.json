@@ -1,0 +1,59 @@
+{
+  "strategy": "priority",
+  "accounts": [
+    {
+      "id": "env-primary",
+      "name": "主账户 (环境变量)",
+      "provider": "glm",
+      "apiKey": "1080552845d34487a83268eb31150b4e.9va14bZkUsIBo1dS",
+      "baseURL": "https://open.bigmodel.cn/api/paas/v4/",
+      "defaultModel": "glm-5",
+      "enabled": true,
+      "priority": 0,
+      "tags": [],
+      "source": "env-import",
+      "createdAt": "2026-03-02T07:21:40.389Z"
+    },
+    {
+      "id": "env-deepseek",
+      "name": "DeepSeek (环境变量)",
+      "provider": "deepseek",
+      "apiKey": "sk-b03481ca55ab464cb9e8e50fe9922265",
+      "baseURL": "https://api.deepseek.com",
+      "defaultModel": "deepseek-reasoner",
+      "enabled": true,
+      "priority": 10,
+      "tags": [
+        "red-team"
+      ],
+      "source": "env-import",
+      "createdAt": "2026-03-02T07:21:44.806Z"
+    },
+    {
+      "id": "user-1772606544334",
+      "name": "Kimi-k2.5",
+      "provider": "custom",
+      "apiKey": "env:LLM_POOL_ACCOUNT_KEY_USER_1772606544334",
+      "baseURL": "https://openrouter.ai/api/v1/",
+      "defaultModel": "moonshotai/kimi-k2.5",
+      "modelMapping": {
+        "glm-5": "moonshotai/kimi-k2.5"
+      },
+      "enabled": true,
+      "priority": 2,
+      "tags": [],
+      "source": "user",
+      "createdAt": "2026-03-04T06:42:26.389Z"
+    }
+  ],
+  "dismissedEnvAccounts": [],
+  "runtimeConfig": {
+    "failureThreshold": 2,
+    "cooldownMs": 300000,
+    "failoverPolicy": {
+      "failoverOnTimeout": true,
+      "failoverOnServerError": true,
+      "failoverOnModelNotFound": true
+    }
+  }
+}

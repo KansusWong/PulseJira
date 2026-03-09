@@ -1,0 +1,266 @@
+{
+  "generatedAt": "2026-03-05T08:32:27.239Z",
+  "totalReferencedSkills": 18,
+  "createdCount": 0,
+  "updatedCount": 18,
+  "existingCount": 18,
+  "createdSkills": [],
+  "updatedSkills": [
+    "adaptive-execution",
+    "adversarial-review",
+    "build-case",
+    "code-generation",
+    "code-review",
+    "compose-email",
+    "deploy-pipeline",
+    "generate-prd",
+    "market-scan",
+    "multi-hop-retrieval",
+    "orchestrate",
+    "plan-tasks",
+    "quality-assurance",
+    "quality-gate",
+    "refine-email",
+    "render-verdict",
+    "strategic-decision",
+    "suggest-competitor"
+  ],
+  "existingSkills": [
+    "adaptive-execution",
+    "adversarial-review",
+    "build-case",
+    "code-generation",
+    "code-review",
+    "compose-email",
+    "deploy-pipeline",
+    "generate-prd",
+    "market-scan",
+    "multi-hop-retrieval",
+    "orchestrate",
+    "plan-tasks",
+    "quality-assurance",
+    "quality-gate",
+    "refine-email",
+    "render-verdict",
+    "strategic-decision",
+    "suggest-competitor"
+  ],
+  "details": [
+    {
+      "id": "adaptive-execution",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/adaptive-execution/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "adversarial-review",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/adversarial-review/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": [
+        "agents/critic/skills/adversarial-review.ts"
+      ]
+    },
+    {
+      "id": "build-case",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/build-case/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": [
+        "agents/blue-team/skills/build-case.ts"
+      ]
+    },
+    {
+      "id": "code-generation",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/code-generation/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "code-review",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/code-review/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "compose-email",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/compose-email/SKILL.md",
+      "sources": [
+        "dynamic-registry"
+      ],
+      "owners": [
+        "email-composer"
+      ],
+      "implementationRefs": []
+    },
+    {
+      "id": "deploy-pipeline",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/deploy-pipeline/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "generate-prd",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/generate-prd/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": [
+        "agents/pm/skills/generate-prd.ts"
+      ]
+    },
+    {
+      "id": "market-scan",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/market-scan/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": [
+        "agents/researcher/skills/market-scan.ts"
+      ]
+    },
+    {
+      "id": "multi-hop-retrieval",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/multi-hop-retrieval/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "orchestrate",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/orchestrate/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "plan-tasks",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/plan-tasks/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": [
+        "agents/tech-lead/skills/plan-tasks.ts"
+      ]
+    },
+    {
+      "id": "quality-assurance",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/quality-assurance/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "quality-gate",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/quality-gate/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "refine-email",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/refine-email/SKILL.md",
+      "sources": [
+        "dynamic-registry"
+      ],
+      "owners": [
+        "email-composer"
+      ],
+      "implementationRefs": []
+    },
+    {
+      "id": "render-verdict",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/render-verdict/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": [
+        "agents/arbitrator/skills/render-verdict.ts"
+      ]
+    },
+    {
+      "id": "strategic-decision",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/strategic-decision/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": []
+    },
+    {
+      "id": "suggest-competitor",
+      "created": false,
+      "updated": true,
+      "path": "/Users/kansuswang/Desktop/AI native Jira/skills/suggest-competitor/SKILL.md",
+      "sources": [
+        "builtin-agents"
+      ],
+      "owners": [],
+      "implementationRefs": [
+        "agents/researcher/skills/suggest-competitor.ts"
+      ]
+    }
+  ]
+}

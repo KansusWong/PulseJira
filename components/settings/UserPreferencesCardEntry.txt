@@ -1,0 +1,1 @@
+LEGACY ENTRY FILE. Migrated to UserPreferencesCard.tsx implementation.
