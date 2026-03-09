@@ -178,7 +178,10 @@ export class ChatEngine {
         conversation.complexity_assessment = assessment;
         conversation.execution_mode = assessment.execution_mode;
 
-        yield { type: 'plan_assessment', data: assessment };
+        // L1 skips plan panel — execute directly
+        if (assessment.execution_mode !== 'direct') {
+          yield { type: 'plan_assessment', data: assessment };
+        }
       } catch {
         // Default to direct on assessment failure
         assessment = {
@@ -191,7 +194,6 @@ export class ChatEngine {
           requires_project: false,
           requires_clarification: false,
         };
-        yield { type: 'plan_assessment', data: assessment };
       }
     }
 
