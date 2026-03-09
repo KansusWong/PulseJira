@@ -112,6 +112,40 @@ export class ChatEngine {
   }
 
   /**
+   * Extract a clean text response from agent result.
+   * Handles string results, object results, and __incomplete fallback.
+   */
+  static extractResponse(result: any): string {
+    // Normal string response
+    if (typeof result === 'string') return result;
+
+    // Object with content/response field
+    if (result?.content && typeof result.content === 'string') return result.content;
+    if (result?.response && typeof result.response === 'string') return result.response;
+
+    // Agent hit maxLoops (__incomplete) — extract last assistant text from messages
+    if (result?.__incomplete && Array.isArray(result.__messages)) {
+      // Find the last assistant message with actual text content
+      for (let i = result.__messages.length - 1; i >= 0; i--) {
+        const msg = result.__messages[i];
+        if (msg.role === 'assistant' && msg.content && typeof msg.content === 'string') {
+          return msg.content;
+        }
+      }
+      // No assistant text found — summarize from tool results
+      const toolResults = result.__messages
+        .filter((m: any) => m.role === 'tool' && m.content)
+        .map((m: any) => m.content)
+        .join('\n');
+      if (toolResults) {
+        return `Based on search results, here is what I found:\n\n${toolResults.slice(0, 3000)}`;
+      }
+    }
+
+    return 'Sorry, I was unable to generate a response. Please try again.';
+  }
+
+  /**
    * Main entry point: handle a user message and yield SSE events.
    */
   async *handleMessage(
@@ -359,7 +393,7 @@ When using web_search, craft one precise query and answer based on the results. 
         name: 'chat-assistant',
         systemPrompt,
         tools,
-        maxLoops: 3,
+        maxLoops: 5,
         model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
       });
 
@@ -372,9 +406,7 @@ When using web_search, craft one precise query and answer based on the results. 
         `${historyContext}\n\n[user]: ${context.userMessage}`,
       );
 
-      const responseText = typeof result === 'string'
-        ? result
-        : result?.content || result?.response || JSON.stringify(result);
+      const responseText = ChatEngine.extractResponse(result);
 
       // Save assistant response
       await this.saveMessage(context.conversation.id, 'assistant', responseText);
@@ -448,9 +480,7 @@ You have access to tools for searching the web, reading files, and listing direc
         `${historyContext}\n\n[user]: ${context.userMessage}`,
       );
 
-      const responseText = typeof result === 'string'
-        ? result
-        : result?.content || result?.response || JSON.stringify(result);
+      const responseText = ChatEngine.extractResponse(result);
 
       // Save assistant response
       await this.saveMessage(context.conversation.id, 'assistant', responseText);
