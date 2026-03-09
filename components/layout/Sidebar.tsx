@@ -23,6 +23,7 @@ import {
   Layers,
   MessageSquare,
   Settings2,
+  Bell,
 } from "lucide-react";
 import clsx from "clsx";
 import type { Project } from "@/projects/types";
@@ -565,6 +566,18 @@ export function Sidebar({
                 >
                   <BarChart3 className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{t('sidebar.settings.usage')}</span>
+                </button>
+                <button
+                  onClick={() => router.push("/settings?tab=webhooks")}
+                  className={clsx(
+                    "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
+                    isSettingsActive && activeSettingsTab === "webhooks"
+                      ? "bg-zinc-800/90 text-zinc-200"
+                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
+                  )}
+                >
+                  <Bell className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{t('sidebar.settings.webhooks')}</span>
                 </button>
                 <button
                   onClick={() => router.push("/settings?tab=advanced")}

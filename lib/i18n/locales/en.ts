@@ -50,6 +50,7 @@ const en: TranslationDict = {
   'sidebar.settings.llmPool': 'LLM Pool',
   'sidebar.settings.agentManagement': 'Agent Management',
   'sidebar.settings.usage': 'Usage',
+  'sidebar.settings.webhooks': 'Webhooks',
 
   // ── Time groups ──
   'time.today': 'Today',
@@ -672,6 +673,28 @@ const en: TranslationDict = {
   'advancedSettings.confirmMessage': 'In this mode, each work node will generate agents with specialized skills. This leads to higher token consumption but produces more detailed results. Are you sure you want to switch?',
   'advancedSettings.confirmButton': 'Confirm Switch',
   'sidebar.settings.advancedSettings': 'Advanced Settings',
+
+  // ── Webhook ──
+  'webhook.title': 'Webhooks',
+  'webhook.description': 'Configure webhook notifications for pipeline completion, deploy success/failure events',
+  'webhook.provider': 'Label',
+  'webhook.url': 'Webhook URL',
+  'webhook.events': 'Event Types',
+  'webhook.active': 'Active',
+  'webhook.add': 'Add Webhook',
+  'webhook.test': 'Test',
+  'webhook.testSuccess': 'Test message sent',
+  'webhook.testFailed': 'Test send failed',
+  'webhook.delete': 'Delete',
+  'webhook.deleteConfirm': 'Are you sure you want to delete this webhook?',
+  'webhook.feishu': 'Feishu',
+  'webhook.dingtalk': 'DingTalk',
+  'webhook.slack': 'Slack',
+  'webhook.custom': 'Custom',
+  'webhook.event.pipeline_complete': 'Pipeline Complete',
+  'webhook.event.deploy_complete': 'Deploy Success',
+  'webhook.event.deploy_failed': 'Deploy Failed',
+  'webhook.event.pr_created': 'PR Created',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',

@@ -9,6 +9,7 @@ import { useTranslation } from "@/lib/i18n";
 import { AgentConfigCard } from "@/components/settings/AgentConfigCard";
 import { UserPreferencesCard } from "@/components/settings/UserPreferencesCard";
 import { AdvancedSettingsCard } from "@/components/settings/AdvancedSettingsCard";
+import { WebhookConfigCard } from "@/components/settings/WebhookConfigCard";
 
 // Lazy-load recharts-heavy component — only loaded when "usage" tab is active (#16)
 const UsageSnapshotCard = dynamic(
@@ -57,12 +58,13 @@ type SettingsTab =
   | "llm-pool"
   | "agents"
   | "usage"
-  | "advanced";
+  | "advanced"
+  | "webhooks";
 
 function normalizeTab(rawTab: string | null): SettingsTab {
   if (!rawTab) return "setup";
   if (rawTab === "preferences") return "advanced-topics";
-  if (rawTab === "setup" || rawTab === "advanced-platforms" || rawTab === "advanced-topics" || rawTab === "llm-pool" || rawTab === "agents" || rawTab === "usage" || rawTab === "advanced") {
+  if (rawTab === "setup" || rawTab === "advanced-platforms" || rawTab === "advanced-topics" || rawTab === "llm-pool" || rawTab === "agents" || rawTab === "usage" || rawTab === "advanced" || rawTab === "webhooks") {
     return rawTab;
   }
   return "setup";
@@ -261,6 +263,9 @@ export default function SettingsPage() {
 
           {/* Advanced Settings Tab */}
           {tab === "advanced" && <AdvancedSettingsCard />}
+
+          {/* Webhooks Tab */}
+          {tab === "webhooks" && <WebhookConfigCard />}
 
           {/* Agents Tab */}
           {tab === "agents" && (

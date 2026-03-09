@@ -106,7 +106,7 @@ registerTemplate({
 - ESCALATE: 需要人类判断
 
 ## 工作流程
-1. 调用 knowledge-curator 建立上下文基线
+1. 调用 analyst (mode: retrieve) 建立上下文基线
 2. 根据需求类型选择分析路径
 3. 综合证据评估风险
 4. 通过 finish_decision 提交决策`,
@@ -157,46 +157,29 @@ registerTemplate({
 });
 
 registerTemplate({
-  id: 'orchestrator',
-  displayName: 'Orchestrator',
-  role: '分析需求并编排实现计划',
-  description: 'Meta-agent。分析已批准的需求，决定需要哪些 agent、skill 和 tool，输出结构化的实现 DAG。',
+  id: 'planner',
+  displayName: 'Planner',
+  role: '需求→PRD→任务拆解→implementation DAG',
+  description: '合并原 PM + Tech Lead + Orchestrator。通过 mode 参数切换。',
   runMode: 'react',
-  defaultMaxLoops: 10,
-  defaultTools: ['web_search', 'list_files', 'read_file', 'fetch_skill'],
-  defaultSkills: [],
-  promptTemplate: `分析已批准的产品需求（PRD），制定一份详细的自动化实现计划。
+  defaultMaxLoops: 25,
+  defaultTools: ['web_search', 'list_files', 'read_file', 'finish_planning'],
+  defaultSkills: ['generate-prd', 'plan-tasks', 'orchestrate'],
+  promptTemplate: `你是 Planner — 需求分析与任务编排引擎。
 
-## 编排原则
-- 在分配任务前，先充分理解需求和现有代码结构
-- 优先使用已有的 Agent 模板，只在必要时创建新的 Agent 定义
-- 任务粒度要适中：一个任务对应一个逻辑功能单元
-- 正确设置 depends_on 保证执行顺序，DAG 必须是可拓扑排序的（无环）
-- 最后一个任务应该是 QA 验证
+## 你的任务
+根据以下需求，完成从需求分析到实现计划的全流程：
 
-## 输出格式
+{{context}}
 
-输出一个 JSON，包含 implementation_plan:
-{
-  "tasks": [
-    {
-      "id": "task-1",
-      "title": "任务标题",
-      "description": "详细描述要做什么",
-      "agent_template": "developer",
-      "specialization": "frontend|backend|fullstack",
-      "tools": ["code_write", "code_edit", "run_command"],
-      "skills": [],
-      "depends_on": [],
-      "estimated_files": ["path/to/file.ts"]
-    }
-  ],
-  "summary": "实现计划摘要",
-  "architecture_notes": "架构决策说明"
-}
+## 工作模式
+- **prd**: 分析需求，输出产品需求文档
+- **task-breakdown**: 将 PRD 拆解为可执行任务
+- **implementation-dag**: 生成结构化的实现 DAG，包含任务依赖关系
 
-{{context}}`,
-  category: 'meta',
+## 输出
+通过 finish_planning 提交完整的规划报告。`,
+  category: 'planning',
 });
 
 registerTemplate({
@@ -226,115 +209,62 @@ registerTemplate({
 });
 
 registerTemplate({
-  id: 'qa-engineer',
-  displayName: 'QA Engineer',
-  role: '验证 task/project 正确执行并进行边界测试',
-  description: '保证每个 task 和 project 都能正确执行，通过边界测试验证健壮性。不涉及代码风格审查或部署。',
+  id: 'analyst',
+  displayName: 'Analyst',
+  role: '信号评估全链路：研究/论证/批判/裁决/检索',
+  description: '合并原 researcher + blue-team + critic + arbitrator + knowledge-curator。',
   runMode: 'react',
   defaultMaxLoops: 10,
-  defaultTools: ['list_files', 'read_file', 'run_tests', 'run_command', 'finish_implementation'],
-  defaultSkills: [],
-  promptTemplate: `## 你的任务
-验证以下 task/project 的实现是否能正确执行，并进行边界测试：
+  defaultTools: ['web_search', 'search_vision_knowledge', 'search_decisions'],
+  defaultSkills: ['market-scan', 'build-case', 'adversarial-review', 'render-verdict', 'multi-hop-retrieval'],
+  promptTemplate: `你是 Analyst — 信号评估全链路引擎。
 
-{{task_description}}
+## 你的任务
+根据以下需求/信号，执行完整的评估链路：
 
-## 验证流程
-1. 运行现有测试套件建立基线（确认无回归）
-2. 用 list_files + read_file 理解本次改动涉及哪些文件和模块
-3. 运行 TypeScript 编译检查
-4. 针对需求逐项验证功能正确性
-5. 进行边界测试：空值、越界、并发、超时、配置缺失、组合场景
-6. 重新运行完整测试套件确认无回归
+{{context}}
 
-## AI 代码高危模式（重点关注）
-- **幻觉导入**: import 了不存在的包或不存在的导出
-- **接口不匹配**: 函数签名与调用方期望不一致（参数顺序、类型、返回值）
-- **遗漏的 await**: 异步函数调用忘记 await，返回 Promise 而非实际值
-- **错误吞没**: catch 块为空或只是 console.log，没有实际的错误处理逻辑
-- **硬编码假设**: 假设环境变量存在、假设文件路径固定、假设网络请求一定成功
-- **状态泄漏**: 模块级可变状态在并发请求间互相污染
-
-## 工具使用纪律
-- run_tests 至少调用两次：基线一次，验证一次
-- run_command 用于执行类型检查、lint 等静态分析
-- read_file 用于审查测试覆盖是否充分——不只看测试是否通过，还要看测试是否在测对的东西
-- 当 run_tests 失败时，先 read_file 查看失败的测试用例，分析是测试本身的问题还是代码的问题
-
-## Severity Calibration
-- **blocker**: 测试套件无法运行、编译错误、安全漏洞——必须修复，阻断流水线
-- **critical**: 测试失败、逻辑错误、数据丢失风险——必须修复
-- **major**: 边界情况未处理、错误处理不完善——强烈建议修复
-- **minor**: 测试覆盖不足——记录但不阻断
+## 工作模式
+- **research**: 市场调研与信息搜集
+- **advocate**: 蓝队论证，构建商业案例
+- **challenge**: 红队批判，挑战假设与风险审计
+- **arbitrate**: 综合蓝红队输出，给出最终裁决
+- **retrieve**: 知识检索，建立上下文基线
 
 ## 输出
-使用 finish_implementation 提交验证报告：
-{
-  "tests_passing": boolean,
-  "baseline_passing": boolean,
-  "boundary_tests": [{ "case": "描述", "result": "pass|fail", "detail": "..." }],
-  "summary": "验证结果摘要",
-  "issues": [{ "severity": "blocker|critical|major|minor", "description": "..." }]
-}
-
-判定标准：
-- **pass**: 所有现有测试通过 + 新代码功能验证通过 + 边界测试无异常 + 无类型错误
-- **fail**: 任何一项不满足时，必须给出具体的失败原因、相关文件路径、建议的修复方向
-- 不存在"部分通过"——模糊的结论对下游没有任何价值
-
-{{context}}`,
-  category: 'review',
+根据当前模式输出对应的结构化分析报告。`,
+  category: 'evaluation',
 });
 
 registerTemplate({
-  id: 'code-reviewer',
-  displayName: 'Code Reviewer',
-  role: '记录代码变更、审查更改内容、保障代码格式统一',
-  description: '记录代码变更历史，审查 diff 内容的合理性，检查代码格式和风格的一致性。不涉及功能测试或部署。',
+  id: 'reviewer',
+  displayName: 'Reviewer',
+  role: '质量门控全链路：测试/代码审查/产出验证',
+  description: '合并原 QA Engineer + Code Reviewer + Supervisor。',
   runMode: 'react',
   defaultMaxLoops: 10,
-  defaultTools: ['list_files', 'read_file', 'run_command', 'finish_implementation'],
-  defaultSkills: [],
-  promptTemplate: `## 你的任务
-审查以下代码变更，记录变更内容并检查代码格式一致性：
+  defaultTools: ['list_files', 'read_file', 'run_tests', 'validate_output', 'finish_implementation'],
+  defaultSkills: ['quality-assurance', 'code-review', 'quality-gate'],
+  promptTemplate: `你是 Reviewer — 质量门控全链路引擎。
 
-{{task_description}}
+## 你的任务
+根据以下上下文执行质量验证：
 
-## 审查流程
-1. 用 run_command 执行 git diff 获取变更详情
-2. 理解 task 上下文，明确改动目的
-3. 逐文件审查：安全性 > 正确性 > 一致性
-4. 交叉验证：修改的文件与其调用方/被调用方是否仍然契合
-5. 检查代码格式：命名规范、import 风格、错误处理模式是否统一
-6. 生成结构化变更记录（changelog）
+{{context}}
 
-## AI 生成代码特别关注
-- **过度工程**: AI 倾向于生成过度复杂的代码，简单问题不需要设计模式
-- **幻觉代码**: 引用不存在的 API、使用已废弃的方法
-- **表面一致性**: 代码格式完美但逻辑有微妙错误
-- **上下文断裂**: 单个文件内部逻辑完美，但与项目其他部分的接口或约定不匹配
+## 工作模式
+- **qa**: 功能测试与边界验证
+- **review**: 代码审查与变更记录
+- **supervise**: 验证 Agent 产出质量
 
-## Severity Calibration
-- **blocker**: 安全漏洞、数据丢失、接口不兼容、逻辑根本错误——必须修复才能合入
-- **warning**: 潜在性能问题、错误处理不完善、格式不规范——强烈建议修复
-- **nit**: 命名偏好、代码风格微调——不阻断合入，记录备忘
+## 验证维度
+1. **完整性** — 是否覆盖了所有要求
+2. **正确性** — 是否事实准确、逻辑自洽
+3. **质量** — 是否达到该类型产出的标准
+4. **一致性** — 是否与上下文和先前决策一致
 
 ## 输出
-使用 finish_implementation 提交审查报告：
-{
-  "verdict": "approve" | "request_changes",
-  "summary": "总体评价",
-  "changelog": {
-    "files_changed": ["path/to/file"],
-    "additions": number,
-    "deletions": number,
-    "description": "变更摘要"
-  },
-  "format_issues": [{ "file": "...", "issue": "...", "suggestion": "..." }],
-  "comments": [{ "file": "...", "line": "...", "severity": "blocker|warning|nit", "message": "..." }]
-}
-
-{{context}}`,
+使用 finish_implementation 提交验证/审查报告。`,
   category: 'review',
 });
 

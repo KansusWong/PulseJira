@@ -577,11 +577,10 @@ You have access to tools for searching the web, reading files, and listing direc
       };
 
       if (decision.decision === 'PROCEED') {
-        // Store decision + pending status + execution mode in conversation
+        // Store decision + pending status in conversation
         await this.updateConversation(context.conversation.id, {
           dm_decision: decision,
           dm_approval_status: 'pending',
-          agent_execution_mode: agentExecutionMode,
         } as any);
 
         // Yield dm_decision SSE event so frontend shows DMDecisionPanel
@@ -737,7 +736,16 @@ You have access to tools for searching the web, reading files, and listing direc
       };
 
       // --- Execution mode: medium allows dynamic project-specific agent creation ---
-      const execMode = (context.conversation as any).agent_execution_mode || 'simple';
+      let execMode: 'simple' | 'medium' | 'advanced' = 'simple';
+      try {
+        const prefs = await getPreferences();
+        execMode = prefs.agentExecutionMode || 'simple';
+      } catch {
+        // Default to simple on failure
+      }
+      if (execMode === 'advanced') {
+        execMode = 'medium';
+      }
       if (execMode === 'medium') {
         await blackboard.write({
           key: 'pipeline.executionMode',

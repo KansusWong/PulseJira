@@ -1,19 +1,11 @@
 /**
  * Predefined channels for Agent communication.
  *
- * Prepare pipeline: researcher → blue-team → critic → arbitrator
- * Plan pipeline:    pm → tech-lead
  * Global:           agent-log (broadcast to SSE)
+ * Meta-agent:       decision-maker-log, architect-log, supervisor-log, meta-pipeline
+ * Shared state:     blackboard
  */
 export const CHANNELS = {
-  // Prepare stage
-  RESEARCHER_TO_BLUE_TEAM: 'researcher->blue-team',
-  BLUE_TEAM_TO_CRITIC: 'blue-team->critic',
-  CRITIC_TO_ARBITRATOR: 'critic->arbitrator',
-
-  // Plan stage
-  PM_TO_TECH_LEAD: 'pm->tech-lead',
-
   // Global
   AGENT_LOG: 'agent-log',
 

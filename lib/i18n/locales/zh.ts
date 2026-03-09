@@ -50,6 +50,7 @@ const zh: TranslationDict = {
   'sidebar.settings.llmPool': 'LLM 账户池',
   'sidebar.settings.agentManagement': '智能体管理',
   'sidebar.settings.usage': '用量',
+  'sidebar.settings.webhooks': 'Webhook 通知',
 
   // ── Time groups ──
   'time.today': '今天',
@@ -672,6 +673,28 @@ const zh: TranslationDict = {
   'advancedSettings.confirmMessage': '此模式下每个工作节点会生成具备独立技能的 Agent，会带来更高的 Token 消耗，但反馈结果更加详实。确定切换吗？',
   'advancedSettings.confirmButton': '确认切换',
   'sidebar.settings.advancedSettings': '高级设置',
+
+  // ── Webhook ──
+  'webhook.title': 'Webhook 通知',
+  'webhook.description': '配置流水线完成、部署成功/失败等事件的 Webhook 推送',
+  'webhook.provider': '标签名称',
+  'webhook.url': 'Webhook URL',
+  'webhook.events': '事件类型',
+  'webhook.active': '启用',
+  'webhook.add': '添加 Webhook',
+  'webhook.test': '测试',
+  'webhook.testSuccess': '测试消息已发送',
+  'webhook.testFailed': '测试发送失败',
+  'webhook.delete': '删除',
+  'webhook.deleteConfirm': '确认删除此 Webhook 配置？',
+  'webhook.feishu': '飞书',
+  'webhook.dingtalk': '钉钉',
+  'webhook.slack': 'Slack',
+  'webhook.custom': '自定义',
+  'webhook.event.pipeline_complete': '流水线完成',
+  'webhook.event.deploy_complete': '部署成功',
+  'webhook.event.deploy_failed': '部署失败',
+  'webhook.event.pr_created': 'PR 创建',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',

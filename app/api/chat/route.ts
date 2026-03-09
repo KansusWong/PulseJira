@@ -6,6 +6,10 @@
  */
 
 import { chatEngine } from '@/lib/services/chat-engine';
+import { webhookService } from '@/lib/services/webhook';
+
+// Lazy-init webhook listener (idempotent, safe to call on every cold start)
+webhookService.init();
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
