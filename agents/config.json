@@ -1,20 +1,11 @@
 {
-  "pm": {
+  "planner": {
     "model": "gpt-4o-mini"
   },
-  "researcher": {
+  "analyst": {
     "model": "gpt-4o-mini"
   },
-  "critic": {
-    "model": "gpt-4o-mini"
-  },
-  "blue-team": {
-    "model": "gpt-4o-mini"
-  },
-  "arbitrator": {
-    "model": "gpt-4o-mini"
-  },
-  "knowledge-curator": {
+  "chat-judge": {
     "model": "gpt-4o-mini"
   }
 }

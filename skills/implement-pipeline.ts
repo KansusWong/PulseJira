@@ -19,9 +19,8 @@ import { messageBus } from '@/connectors/bus/message-bus';
 import { workspaceManager } from '@/lib/sandbox/workspace-manager';
 import { GitWorkspace } from '@/lib/sandbox/git-workspace';
 import { supabase } from '@/lib/db/client';
-import { createOrchestratorAgent } from '@/agents/orchestrator';
+import { createPlannerAgent } from '@/agents/planner';
 import { createDeveloperAgent } from '@/agents/developer';
-import { createQAAgent } from '@/agents/qa';
 import { createReviewerAgent } from '@/agents/reviewer';
 import { resolveSkills } from '@/lib/skills/skill-registry';
 import { fetchRemoteSkill } from '@/lib/skills/skill-fetcher';
@@ -484,7 +483,8 @@ export async function runImplementation(
 
       const orchestratorContext = `PRD:\n${JSON.stringify(prd, null, 2)}\n\nPlan Tasks:\n${JSON.stringify(planResult?.tasks || [], null, 2)}${existingFileSummary}`;
 
-      const orchestrator = createOrchestratorAgent({
+      const orchestrator = createPlannerAgent({
+        mode: 'implementation-dag',
         context: orchestratorContext,
         extraTools: [new DiscoverSkillsTool()],
       });
@@ -664,13 +664,14 @@ export async function runImplementation(
           loops: number,
           prevMessages?: OpenAI.Chat.ChatCompletionMessageParam[],
         ): Promise<any> => {
-          const ctx = { projectId, recordUsage, logger: messageBus.createLogger(task.agentTemplate === 'qa-engineer' ? 'qa_engineer' : task.agentTemplate === 'code-reviewer' ? 'code_reviewer' : 'developer', loggerCtx) };
-          if (task.agentTemplate === 'qa-engineer') {
-            return createQAAgent({ taskDescription: enrichedDescription, tools: taskTools, maxLoops: loops, initialMessages: prevMessages })
+          const agentLogName = (task.agentTemplate === 'qa-engineer' || task.agentTemplate === 'qa') ? 'reviewer' : (task.agentTemplate === 'code-reviewer' || task.agentTemplate === 'reviewer') ? 'reviewer' : 'developer';
+          const ctx = { projectId, recordUsage, logger: messageBus.createLogger(agentLogName, loggerCtx) };
+          if (task.agentTemplate === 'qa-engineer' || task.agentTemplate === 'qa') {
+            return createReviewerAgent({ mode: 'qa', taskDescription: enrichedDescription, tools: taskTools, maxLoops: loops, initialMessages: prevMessages })
               .run(enrichedDescription, ctx);
           }
-          if (task.agentTemplate === 'code-reviewer') {
-            return createReviewerAgent({ taskDescription: enrichedDescription, tools: taskTools, maxLoops: loops, initialMessages: prevMessages })
+          if (task.agentTemplate === 'code-reviewer' || task.agentTemplate === 'reviewer') {
+            return createReviewerAgent({ mode: 'review', taskDescription: enrichedDescription, tools: taskTools, maxLoops: loops, initialMessages: prevMessages })
               .run(enrichedDescription, ctx);
           }
           return createDeveloperAgent({
@@ -851,7 +852,8 @@ export async function runImplementation(
       messageBus.agentStart('qa-engineer', dynamicTotal - 1, dynamicTotal);
 
       try {
-        const qaAgent = createQAAgent({
+        const qaAgent = createReviewerAgent({
+          mode: 'qa',
           taskDescription: '验证所有代码变更是否正确，运行测试套件。',
           tools: wsTools,
         });

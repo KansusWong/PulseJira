@@ -9,7 +9,8 @@
  */
 
 import { supabase, supabaseConfigured } from '@/lib/db/client';
-import { assessComplexity } from '@/agents/complexity-assessor';
+import { assessComplexity } from '@/agents/chat-judge';
+import { getPreferences } from '@/lib/services/preferences-store';
 import { messageBus } from '@/connectors/bus/message-bus';
 import { getTools } from '@/lib/tools';
 import { runDecisionPhase, runArchitectPhase } from '@/skills/meta-pipeline';
@@ -528,9 +529,23 @@ You have access to tools for searching the web, reading files, and listing direc
    * Team record creation is deferred to handleArchitectPhase.
    */
   private async *handleAgentTeam(context: ChatContext): AsyncGenerator<ChatEvent> {
+    // Read user's agent execution mode preference
+    let agentExecutionMode: 'simple' | 'medium' | 'advanced' = 'simple';
+    try {
+      const prefs = await getPreferences();
+      agentExecutionMode = prefs.agentExecutionMode || 'simple';
+    } catch {
+      // Default to simple on failure
+    }
+
+    // 'advanced' falls back to 'medium' (not yet implemented)
+    if (agentExecutionMode === 'advanced') {
+      agentExecutionMode = 'medium';
+    }
+
     yield {
       type: 'agent_log',
-      data: { message: 'Running Decision Maker...' },
+      data: { message: `Running Decision Maker... (mode: ${agentExecutionMode})` },
     };
 
     try {
@@ -562,10 +577,11 @@ You have access to tools for searching the web, reading files, and listing direc
       };
 
       if (decision.decision === 'PROCEED') {
-        // Store decision + pending status in conversation
+        // Store decision + pending status + execution mode in conversation
         await this.updateConversation(context.conversation.id, {
           dm_decision: decision,
           dm_approval_status: 'pending',
+          agent_execution_mode: agentExecutionMode,
         } as any);
 
         // Yield dm_decision SSE event so frontend shows DMDecisionPanel
@@ -720,6 +736,18 @@ You have access to tools for searching the web, reading files, and listing direc
         return approved;
       };
 
+      // --- Execution mode: medium allows dynamic project-specific agent creation ---
+      const execMode = (context.conversation as any).agent_execution_mode || 'simple';
+      if (execMode === 'medium') {
+        await blackboard.write({
+          key: 'pipeline.executionMode',
+          value: { mode: 'medium', allowDynamicAgents: true, projectId: context.conversation.project_id },
+          type: 'context',
+          author: 'chat-engine',
+          tags: ['pipeline', 'execution-mode'],
+        });
+      }
+
       // --- Checkpoint state ---
       const existingCheckpoint = (context.conversation as any).__architectCheckpoint as ArchitectCheckpoint | undefined;
       const attempt = existingCheckpoint ? existingCheckpoint.attempt + 1 : 1;
@@ -790,6 +818,18 @@ You have access to tools for searching the web, reading files, and listing direc
 
           // Mark architect agent as completed
           teamCoordinator.updateAgentStatus(teamId, 'architect', 'completed').catch(() => {});
+
+          // Medium mode: notify frontend about dynamic agents created during pipeline
+          if (execMode === 'medium' && result.created_agents && result.created_agents.length > 0) {
+            channel.push({
+              type: 'agent_log',
+              data: {
+                message: `Dynamic agents created: ${result.created_agents.join(', ')}. You can manage them in Settings → Agents.`,
+                dynamic_agents_created: result.created_agents,
+                project_id: projectId,
+              },
+            });
+          }
 
           channel.push({
             type: 'message',
@@ -962,12 +1002,14 @@ You have access to tools for searching the web, reading files, and listing direc
    */
   private async loadAgentFactory(agentName: string): Promise<(() => BaseAgent) | null> {
     const moduleMap: Record<string, () => Promise<any>> = {
-      'pm': () => import('@/agents/pm'),
-      'tech-lead': () => import('@/agents/tech-lead'),
-      'researcher': () => import('@/agents/researcher'),
-      'critic': () => import('@/agents/critic'),
       'architect': () => import('@/agents/architect'),
       'decision-maker': () => import('@/agents/decision-maker'),
+      'developer': () => import('@/agents/developer'),
+      'deployer': () => import('@/agents/deployer'),
+      'planner': () => import('@/agents/planner'),
+      'analyst': () => import('@/agents/analyst'),
+      'reviewer': () => import('@/agents/reviewer'),
+      'chat-judge': () => import('@/agents/chat-judge'),
     };
 
     const loader = moduleMap[agentName];

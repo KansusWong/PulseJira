@@ -182,6 +182,10 @@ export interface DynamicAgentDefinition {
   persistent: boolean;
   /** AI-generated soul content (philosophy, behavior rules, tool discipline). */
   soul?: string;
+  /** Project ID this agent was created for (medium mode only). */
+  projectId?: string;
+  /** Execution mode under which this agent was created. */
+  createdInMode?: 'simple' | 'medium' | 'advanced';
 }
 
 /** Runtime definition for a dynamically-created skill (session-level or persistent). */

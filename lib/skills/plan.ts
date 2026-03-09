@@ -1,5 +1,4 @@
-import { createPMAgent } from '@/agents/pm';
-import { createTechLeadAgent } from '@/agents/tech-lead';
+import { createPlannerAgent } from '@/agents/planner';
 import { retrieveContext, storeDecision } from '../services/rag';
 import { getRecentRejections } from '../services/feedback';
 import { getCodeContext } from '../services/context';
@@ -39,7 +38,7 @@ export async function runPlan(
 
   // --- 2. PM Agent (single LLM call → PRD) ---
   await log('[Plan] Running Product Manager...');
-  const pmAgent = createPMAgent();
+  const pmAgent = createPlannerAgent({ mode: 'prd' });
   const prd = await pmAgent.runOnce(`
 Incoming Signal:
 ${requirementContent}
@@ -61,7 +60,7 @@ Please analyze this signal and output a structured PRD.
 
   // --- 3. Tech Lead Agent (ReAct loop → task plan) ---
   await log('[Plan] Running Tech Lead...');
-  const techAgent = createTechLeadAgent();
+  const techAgent = createPlannerAgent({ mode: 'task-plan' });
   const techResult = await techAgent.run(`
 PRD (Product Requirements Document):
 ${JSON.stringify(prd, null, 2)}

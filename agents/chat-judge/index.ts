@@ -1,15 +1,23 @@
+/**
+ * Chat Judge Agent — renamed and enhanced from complexity-assessor.
+ *
+ * Evaluates user request complexity (L1/L2/L3) and selects execution mode.
+ * Registered in spawn registry so it is visible to the Architect.
+ */
+
 import { BaseAgent } from '@/lib/core/base-agent';
-import { COMPLEXITY_ASSESSOR_PROMPT } from './prompts/system';
+import { CHAT_JUDGE_PROMPT } from './prompts/system';
+import { loadSoul, mergeSoulWithPrompt } from '../utils';
+import { registerAgentFactory } from '@/lib/tools/spawn-agent';
 import type { AgentContext, ComplexityAssessment } from '@/lib/core/types';
 
-/**
- * Creates a Complexity Assessor agent.
- * Uses runOnce() to produce a structured ComplexityAssessment.
- */
-export function createComplexityAssessorAgent(options?: { model?: string }) {
+export function createChatJudgeAgent(options?: { model?: string }) {
+  const soul = loadSoul('chat-judge');
+  const systemPrompt = mergeSoulWithPrompt(soul, CHAT_JUDGE_PROMPT);
+
   return new BaseAgent({
-    name: 'complexity-assessor',
-    systemPrompt: COMPLEXITY_ASSESSOR_PROMPT,
+    name: 'chat-judge',
+    systemPrompt,
     tools: [],
     maxLoops: 1,
     model: options?.model ?? process.env.LLM_MODEL_NAME ?? 'gpt-4o',
@@ -17,14 +25,15 @@ export function createComplexityAssessorAgent(options?: { model?: string }) {
 }
 
 /**
- * Assess the complexity of a user message within a conversation context.
+ * Convenience function: assess complexity of a user message.
+ * Returns a structured ComplexityAssessment.
  */
 export async function assessComplexity(
   userMessage: string,
   conversationHistory?: string,
   context?: AgentContext,
 ): Promise<ComplexityAssessment> {
-  const agent = createComplexityAssessorAgent();
+  const agent = createChatJudgeAgent();
 
   const prompt = conversationHistory
     ? `## Conversation History\n${conversationHistory}\n\n## Current User Message\n${userMessage}`
@@ -44,3 +53,5 @@ export async function assessComplexity(
     requires_clarification: result.requires_clarification ?? false,
   };
 }
+
+registerAgentFactory('chat-judge', createChatJudgeAgent);

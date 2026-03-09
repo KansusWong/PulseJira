@@ -655,6 +655,24 @@ const en: TranslationDict = {
   'trace.payload': 'Payload',
   'trace.loadFailed': 'Failed to load traces',
 
+  // ── Advanced Settings ──
+  'advancedSettings.title': 'Advanced Settings',
+  'advancedSettings.description': 'Configure agent execution mode for your projects',
+  'advancedSettings.mode.simple.title': 'Simple Mode',
+  'advancedSettings.mode.simple.description': 'Fixed 8 core agents, workflow execution. Best for most use cases.',
+  'advancedSettings.mode.simple.features': '8 core agents|Fixed workflow pipeline|Low token consumption|Stable and predictable',
+  'advancedSettings.mode.medium.title': 'Agent Teams Mode',
+  'advancedSettings.mode.medium.description': 'Each work node can dynamically spawn project-specific agents with specialized skills.',
+  'advancedSettings.mode.medium.features': 'Dynamic agent creation|Project-specific agents|Higher token consumption|More detailed results',
+  'advancedSettings.mode.advanced.title': 'Agent Swarm Mode',
+  'advancedSettings.mode.advanced.description': 'Fully autonomous agent swarm with emergent collaboration patterns.',
+  'advancedSettings.mode.advanced.features': 'Autonomous swarm|Emergent patterns|Maximum flexibility|Highest resource usage',
+  'advancedSettings.comingSoon': 'Coming soon',
+  'advancedSettings.confirmTitle': 'Switch to Agent Teams Mode',
+  'advancedSettings.confirmMessage': 'In this mode, each work node will generate agents with specialized skills. This leads to higher token consumption but produces more detailed results. Are you sure you want to switch?',
+  'advancedSettings.confirmButton': 'Confirm Switch',
+  'sidebar.settings.advancedSettings': 'Advanced Settings',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',
   'error.pageLoadFailedGlobal': 'Page load failed',

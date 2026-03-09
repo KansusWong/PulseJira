@@ -1,0 +1,225 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { Settings2, Loader2, Check, AlertTriangle } from "lucide-react";
+import clsx from "clsx";
+import { useTranslation } from "@/lib/i18n";
+
+type ExecutionMode = "simple" | "medium" | "advanced";
+
+interface ModeConfig {
+  key: ExecutionMode;
+  colorClass: string;
+  borderClass: string;
+  bgClass: string;
+  disabled: boolean;
+}
+
+const MODES: ModeConfig[] = [
+  {
+    key: "simple",
+    colorClass: "text-green-400",
+    borderClass: "border-green-500",
+    bgClass: "bg-green-500/10",
+    disabled: false,
+  },
+  {
+    key: "medium",
+    colorClass: "text-yellow-400",
+    borderClass: "border-yellow-500",
+    bgClass: "bg-yellow-500/10",
+    disabled: false,
+  },
+  {
+    key: "advanced",
+    colorClass: "text-gray-500",
+    borderClass: "border-gray-600",
+    bgClass: "bg-gray-500/10",
+    disabled: true,
+  },
+];
+
+export function AdvancedSettingsCard() {
+  const { t } = useTranslation();
+  const [currentMode, setCurrentMode] = useState<ExecutionMode>("simple");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<ExecutionMode | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/preferences")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data?.preferences) {
+          setCurrentMode(json.data.preferences.agentExecutionMode || "simple");
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const saveMode = useCallback(
+    async (mode: ExecutionMode) => {
+      setSaving(true);
+      try {
+        const res = await fetch("/api/settings/preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentExecutionMode: mode }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setCurrentMode(mode);
+        }
+      } catch (e) {
+        console.error("Failed to save execution mode:", e);
+      } finally {
+        setSaving(false);
+        setConfirmModal(null);
+      }
+    },
+    []
+  );
+
+  const handleModeClick = useCallback(
+    (mode: ExecutionMode) => {
+      if (mode === currentMode) return;
+      if (mode === "advanced") return;
+      if (mode === "medium") {
+        setConfirmModal(mode);
+        return;
+      }
+      saveMode(mode);
+    },
+    [currentMode, saveMode]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-6">
+        <Settings2 className="w-6 h-6 text-purple-400" />
+        <div>
+          <h2 className="text-lg font-bold text-zinc-100">
+            {t("advancedSettings.title")}
+          </h2>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {t("advancedSettings.description")}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {MODES.map((mode) => {
+          const isActive = currentMode === mode.key;
+          return (
+            <button
+              key={mode.key}
+              disabled={mode.disabled || saving}
+              onClick={() => handleModeClick(mode.key)}
+              className={clsx(
+                "relative rounded-xl border-2 p-5 text-left transition-all",
+                isActive
+                  ? `${mode.borderClass} ${mode.bgClass}`
+                  : "border-zinc-700/60 hover:border-zinc-600",
+                mode.disabled && "opacity-50 cursor-not-allowed",
+                !mode.disabled && !isActive && "hover:bg-zinc-800/40"
+              )}
+            >
+              {isActive && (
+                <div className="absolute top-3 right-3">
+                  <Check className={clsx("w-5 h-5", mode.colorClass)} />
+                </div>
+              )}
+
+              <h3
+                className={clsx(
+                  "text-sm font-semibold mb-1",
+                  isActive ? mode.colorClass : "text-zinc-300"
+                )}
+              >
+                {t(`advancedSettings.mode.${mode.key}.title`)}
+              </h3>
+
+              <p className="text-xs text-zinc-500 mb-3">
+                {t(`advancedSettings.mode.${mode.key}.description`)}
+              </p>
+
+              <div className="space-y-1">
+                {(
+                  t(`advancedSettings.mode.${mode.key}.features`) as string
+                )
+                  .split("|")
+                  .map((feature, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1.5 text-xs text-zinc-400"
+                    >
+                      <span className={clsx("w-1 h-1 rounded-full", isActive ? mode.colorClass.replace("text-", "bg-") : "bg-zinc-600")} />
+                      {feature}
+                    </div>
+                  ))}
+              </div>
+
+              {mode.disabled && (
+                <div className="mt-3 text-xs text-zinc-600 italic">
+                  {t("advancedSettings.comingSoon")}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Confirm modal for medium mode */}
+      {confirmModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmModal(null);
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl border border-zinc-700/60 bg-zinc-900 shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-800">
+              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+              <h3 className="text-sm font-semibold text-zinc-200">
+                {t("advancedSettings.confirmTitle")}
+              </h3>
+            </div>
+
+            <div className="px-5 py-4">
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                {t("advancedSettings.confirmMessage")}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-zinc-800">
+              <button
+                onClick={() => setConfirmModal(null)}
+                disabled={saving}
+                className="px-3 py-2 text-xs rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors disabled:opacity-40"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={() => saveMode(confirmModal)}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-40"
+              >
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {t("advancedSettings.confirmButton")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

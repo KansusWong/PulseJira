@@ -655,6 +655,24 @@ const zh: TranslationDict = {
   'trace.payload': '负载数据',
   'trace.loadFailed': '加载轨迹失败',
 
+  // ── 高级设置 ──
+  'advancedSettings.title': '高级设置',
+  'advancedSettings.description': '配置项目的 Agent 执行模式',
+  'advancedSettings.mode.simple.title': '简单模式',
+  'advancedSettings.mode.simple.description': '固定 8 个核心 Agent，工作流执行。适用于大多数场景。',
+  'advancedSettings.mode.simple.features': '8 个核心 Agent|固定工作流管线|低 Token 消耗|稳定可预测',
+  'advancedSettings.mode.medium.title': 'Agent Teams 模式',
+  'advancedSettings.mode.medium.description': '每个工作节点可动态生成具备独立技能的项目专属 Agent。',
+  'advancedSettings.mode.medium.features': '动态创建 Agent|项目专属 Agent|较高 Token 消耗|结果更加详实',
+  'advancedSettings.mode.advanced.title': 'Agent Swarm 模式',
+  'advancedSettings.mode.advanced.description': '全自主 Agent 群体，具备涌现式协作模式。',
+  'advancedSettings.mode.advanced.features': '自主群体|涌现模式|最大灵活性|最高资源消耗',
+  'advancedSettings.comingSoon': '即将推出',
+  'advancedSettings.confirmTitle': '切换到 Agent Teams 模式',
+  'advancedSettings.confirmMessage': '此模式下每个工作节点会生成具备独立技能的 Agent，会带来更高的 Token 消耗，但反馈结果更加详实。确定切换吗？',
+  'advancedSettings.confirmButton': '确认切换',
+  'sidebar.settings.advancedSettings': '高级设置',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',
   'error.pageLoadFailedGlobal': '页面加载失败',
