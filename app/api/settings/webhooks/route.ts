@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     return Response.json({ success: false, error: 'provider and webhook_url are required' }, { status: 400 });
   }
 
-  const validProviders = ['feishu', 'dingtalk', 'slack', 'custom'];
+  const validProviders = ['feishu', 'dingtalk', 'slack', 'wecom', 'custom'];
   if (!validProviders.includes(provider)) {
     return Response.json({ success: false, error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` }, { status: 400 });
   }

@@ -1,5 +1,5 @@
 /**
- * Webhook Service — fire-and-forget notifications to Feishu / DingTalk / Slack / Custom.
+ * Webhook Service — fire-and-forget notifications to Feishu / DingTalk / Slack / WeCom / Custom.
  *
  * Subscribes to messageBus 'agent-log' channel and dispatches webhook
  * notifications for pipeline_complete, deploy_complete, deploy_failed events.
@@ -12,7 +12,7 @@ import { messageBus } from '@/connectors/bus/message-bus';
 // Types
 // ---------------------------------------------------------------------------
 
-export type WebhookProvider = 'feishu' | 'dingtalk' | 'slack' | 'custom';
+export type WebhookProvider = 'feishu' | 'dingtalk' | 'slack' | 'wecom' | 'custom';
 export type WebhookEventType =
   | 'pipeline_started'
   | 'pipeline_complete'
@@ -97,6 +97,15 @@ function formatSlack(payload: EventPayload): object {
   };
 }
 
+function formatWecom(payload: EventPayload): object {
+  return {
+    msgtype: 'markdown',
+    markdown: {
+      content: `### [RebuilD] ${payload.title}\n${payload.detail}\n> ${payload.timestamp}`,
+    },
+  };
+}
+
 function formatPayload(provider: WebhookProvider, payload: EventPayload): object {
   switch (provider) {
     case 'feishu':
@@ -105,6 +114,8 @@ function formatPayload(provider: WebhookProvider, payload: EventPayload): object
       return formatDingtalk(payload);
     case 'slack':
       return formatSlack(payload);
+    case 'wecom':
+      return formatWecom(payload);
     case 'custom':
     default:
       return payload;

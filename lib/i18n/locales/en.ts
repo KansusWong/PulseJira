@@ -690,6 +690,7 @@ const en: TranslationDict = {
   'webhook.feishu': 'Feishu',
   'webhook.dingtalk': 'DingTalk',
   'webhook.slack': 'Slack',
+  'webhook.wecom': 'WeCom',
   'webhook.custom': 'Custom',
   'webhook.event.pipeline_complete': 'Pipeline Complete',
   'webhook.event.deploy_complete': 'Deploy Success',

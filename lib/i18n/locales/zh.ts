@@ -690,6 +690,7 @@ const zh: TranslationDict = {
   'webhook.feishu': '飞书',
   'webhook.dingtalk': '钉钉',
   'webhook.slack': 'Slack',
+  'webhook.wecom': '企业微信',
   'webhook.custom': '自定义',
   'webhook.event.pipeline_complete': '流水线完成',
   'webhook.event.deploy_complete': '部署成功',

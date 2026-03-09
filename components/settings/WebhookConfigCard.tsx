@@ -24,7 +24,7 @@ interface WebhookConfig {
   updated_at: string;
 }
 
-const PROVIDERS = ["feishu", "dingtalk", "slack", "custom"] as const;
+const PROVIDERS = ["feishu", "dingtalk", "slack", "wecom", "custom"] as const;
 const ALL_EVENTS = [
   "pipeline_complete",
   "deploy_complete",
@@ -36,6 +36,7 @@ const providerIcons: Record<string, string> = {
   feishu: "🔵",
   dingtalk: "🔶",
   slack: "💬",
+  wecom: "🟢",
   custom: "🔗",
 };
 
