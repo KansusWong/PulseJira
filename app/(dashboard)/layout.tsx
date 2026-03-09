@@ -116,13 +116,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleDeleteConversation = useCallback(
     async (id: string) => {
-      if (!window.confirm(t('conversation.deleteConfirm'))) return;
+      removeConversation(id);
       await fetch(`/api/conversations/${id}`, { method: 'DELETE' }).catch((err) =>
         console.error('[dashboard] Delete conversation failed:', err),
       );
-      removeConversation(id);
     },
-    [removeConversation, t],
+    [removeConversation],
   );
 
   if (!hasMounted) {

@@ -29,12 +29,14 @@ export function ChatView() {
 
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fetchedRef = useRef<string | null>(null);
   const [streamingText, setStreamingText] = useState("");
 
   // Fetch messages from API when switching conversations
   useEffect(() => {
     if (!activeConversationId) return;
-    if (messages.length > 0) return; // Already loaded in this session
+    if (fetchedRef.current === activeConversationId) return;
+    fetchedRef.current = activeConversationId;
 
     fetch(`/api/conversations/${activeConversationId}/messages`)
       .then((r) => r.json())
@@ -44,7 +46,7 @@ export function ChatView() {
         }
       })
       .catch((err) => console.error('[ChatView] Failed to load messages:', err));
-  }, [activeConversationId, messages.length, setMessages]);
+  }, [activeConversationId, setMessages]);
 
   // Auto-scroll to bottom
   useEffect(() => {

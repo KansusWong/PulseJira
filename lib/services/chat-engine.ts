@@ -1112,11 +1112,13 @@ You have access to tools for searching the web, reading files, and listing direc
       if (data) return data as Conversation;
     }
 
-    // Create new conversation
+    // Create new conversation (preserve frontend-provided ID if available)
     if (supabaseConfigured) {
+      const insertPayload: Record<string, any> = { status: 'active' };
+      if (id) insertPayload.id = id;
       const { data, error } = await supabase
         .from('conversations')
-        .insert({ status: 'active' })
+        .insert(insertPayload)
         .select()
         .single();
 
