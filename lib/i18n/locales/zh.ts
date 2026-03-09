@@ -61,6 +61,7 @@ const zh: TranslationDict = {
 
   // ── Dashboard Layout ──
   'dashboard.confirmDelete': '确认删除「{name}」？此操作不可撤销。',
+  'conversation.deleteConfirm': '确认删除此对话？此操作不可撤销。',
   'dashboard.loading': '加载中...',
   'dashboard.newChat': '新建对话',
 

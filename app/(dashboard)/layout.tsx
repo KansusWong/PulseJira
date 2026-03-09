@@ -37,6 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const conversations = usePulseStore((s) => s.conversations);
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
   const setActiveConversationId = usePulseStore((s) => s.setActiveConversationId);
+  const removeConversation = usePulseStore((s) => s.removeConversation);
   const planPanelVisible = usePulseStore((s) => s.planPanel.visible);
   const teamPanelVisible = usePulseStore((s) => s.teamPanel.visible);
   const clarificationVisible = usePulseStore((s) => s.clarificationPanel.visible);
@@ -113,6 +114,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     [removeProject]
   );
 
+  const handleDeleteConversation = useCallback(
+    async (id: string) => {
+      if (!window.confirm(t('conversation.deleteConfirm'))) return;
+      await fetch(`/api/conversations/${id}`, { method: 'DELETE' }).catch((err) =>
+        console.error('[dashboard] Delete conversation failed:', err),
+      );
+      removeConversation(id);
+    },
+    [removeConversation, t],
+  );
+
   if (!hasMounted) {
     return (
       <div className="flex h-screen w-screen bg-background text-foreground items-center justify-center">
@@ -151,6 +163,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           conversations={conversations}
           activeConversationId={activeConversationId}
           onSelectConversation={setActiveConversationId}
+          onDeleteConversation={handleDeleteConversation}
           onNewChat={() => setActiveConversationId(null)}
         />
       }

@@ -27,8 +27,24 @@ export function ChatView() {
   const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
 
+  const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [streamingText, setStreamingText] = useState("");
+
+  // Fetch messages from API when switching conversations
+  useEffect(() => {
+    if (!activeConversationId) return;
+    if (messages.length > 0) return; // Already loaded in this session
+
+    fetch(`/api/conversations/${activeConversationId}/messages`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setMessages(activeConversationId, json.data);
+        }
+      })
+      .catch((err) => console.error('[ChatView] Failed to load messages:', err));
+  }, [activeConversationId, messages.length, setMessages]);
 
   // Auto-scroll to bottom
   useEffect(() => {

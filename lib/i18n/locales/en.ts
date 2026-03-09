@@ -61,6 +61,7 @@ const en: TranslationDict = {
 
   // ── Dashboard Layout ──
   'dashboard.confirmDelete': 'Delete "{name}"? This cannot be undone.',
+  'conversation.deleteConfirm': 'Delete this conversation? This cannot be undone.',
   'dashboard.loading': 'Loading...',
   'dashboard.newChat': 'New Chat',
 

@@ -40,6 +40,7 @@ interface SidebarProps {
   conversations?: Array<{ id: string; title: string | null; updated_at: string; status: string }>;
   activeConversationId?: string | null;
   onSelectConversation?: (id: string | null) => void;
+  onDeleteConversation?: (id: string) => void;
   onNewChat?: () => void;
 }
 
@@ -253,6 +254,7 @@ export function Sidebar({
   conversations = [],
   activeConversationId,
   onSelectConversation,
+  onDeleteConversation,
   onNewChat,
 }: SidebarProps) {
   const router = useRouter();
@@ -338,21 +340,34 @@ export function Sidebar({
         {conversationsFolderOpen && conversations.length > 0 && (
           <div className="mt-1 space-y-0.5 pl-2">
             {conversations.slice(0, 20).map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => {
-                  onSelectConversation?.(conv.id);
-                  router.push("/");
-                }}
-                className={clsx(
-                  "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
-                  activeConversationId === conv.id
-                    ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+              <div key={conv.id} className="group/conv relative">
+                <button
+                  onClick={() => {
+                    onSelectConversation?.(conv.id);
+                    router.push("/");
+                  }}
+                  className={clsx(
+                    "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
+                    activeConversationId === conv.id
+                      ? "bg-zinc-800 text-zinc-100"
+                      : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                  )}
+                >
+                  <span className="truncate flex-1">{conv.title || t('sidebar.newConversation')}</span>
+                </button>
+                {onDeleteConversation && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteConversation(conv.id);
+                    }}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover/conv:opacity-100 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title={t('common.delete')}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 )}
-              >
-                <span className="truncate flex-1">{conv.title || t('sidebar.newConversation')}</span>
-              </button>
+              </div>
             ))}
           </div>
         )}
