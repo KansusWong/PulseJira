@@ -340,8 +340,8 @@ export function WebhookConfigCard() {
               >
                 <span
                   className={clsx(
-                    "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                    wh.active ? "translate-x-4" : "translate-x-0.5",
+                    "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                    wh.active ? "translate-x-4" : "translate-x-0",
                   )}
                 />
               </button>
