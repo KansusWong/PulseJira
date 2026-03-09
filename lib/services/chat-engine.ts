@@ -93,6 +93,25 @@ Guidelines:
 
 export class ChatEngine {
   /**
+   * Build environment context string for agent system prompts.
+   * Provides LLM with real-world facts it cannot infer from training data.
+   */
+  static getEnvironmentContext(): string {
+    const now = new Date();
+    const date = now.toISOString().split('T')[0];
+    const time = now.toTimeString().split(' ')[0];
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'zh-CN';
+    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+    return [
+      `Current date: ${date} (${dayOfWeek})`,
+      `Current time: ${time}`,
+      `Timezone: ${tz}`,
+      `Locale: ${locale}`,
+    ].join('\n');
+  }
+
+  /**
    * Main entry point: handle a user message and yield SSE events.
    */
   async *handleMessage(
@@ -322,6 +341,9 @@ export class ChatEngine {
 
     try {
       const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
+
+${ChatEngine.getEnvironmentContext()}
+
 Answer the user's question or help with their request directly.
 Be concise, professional, and helpful. Use Markdown formatting.
 If the request involves code, provide clear code examples.
@@ -396,6 +418,9 @@ You have access to tools for searching the web, reading files, and listing direc
 
       // Execute with single agent (same as handleDirect but with project context)
       const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
+
+${ChatEngine.getEnvironmentContext()}
+
 You are working on a light project task. Produce the requested deliverable directly.
 Be concise, professional, and helpful. Use Markdown formatting.
 If the request involves code, provide complete, runnable code examples.
