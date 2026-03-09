@@ -350,7 +350,8 @@ Answer the user's question or help with their request directly.
 Be concise, professional, and helpful. Use Markdown formatting.
 If the request involves code, provide clear code examples.
 If the request involves project planning, provide structured plans.
-You have access to tools for searching the web, reading files, and listing directories.`;
+You have access to tools for searching the web, reading files, and listing directories.
+When using web_search, craft one precise query and answer based on the results. Do not retry with rephrased queries unless the first search returned no results at all.`;
 
       const tools = getTools('web_search', 'read_file', 'list_files');
 
@@ -358,7 +359,7 @@ You have access to tools for searching the web, reading files, and listing direc
         name: 'chat-assistant',
         systemPrompt,
         tools,
-        maxLoops: 5,
+        maxLoops: 3,
         model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
       });
 
