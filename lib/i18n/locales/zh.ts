@@ -656,8 +656,8 @@ const zh: TranslationDict = {
   'trace.payload': '负载数据',
   'trace.loadFailed': '加载轨迹失败',
 
-  // ── 高级设置 ──
-  'advancedSettings.title': '高级设置',
+  // ── 开发者模式 ──
+  'advancedSettings.title': '开发者模式',
   'advancedSettings.description': '配置项目的 Agent 执行模式',
   'advancedSettings.mode.simple.title': '简单模式',
   'advancedSettings.mode.simple.description': '固定 8 个核心 Agent，工作流执行。适用于大多数场景。',
@@ -672,7 +672,7 @@ const zh: TranslationDict = {
   'advancedSettings.confirmTitle': '切换到 Agent Teams 模式',
   'advancedSettings.confirmMessage': '此模式下每个工作节点会生成具备独立技能的 Agent，会带来更高的 Token 消耗，但反馈结果更加详实。确定切换吗？',
   'advancedSettings.confirmButton': '确认切换',
-  'sidebar.settings.advancedSettings': '高级设置',
+  'sidebar.settings.advancedSettings': '开发者模式',
 
   // ── Webhook ──
   'webhook.title': 'Webhook 通知',

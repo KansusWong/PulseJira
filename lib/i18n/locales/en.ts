@@ -656,8 +656,8 @@ const en: TranslationDict = {
   'trace.payload': 'Payload',
   'trace.loadFailed': 'Failed to load traces',
 
-  // ── Advanced Settings ──
-  'advancedSettings.title': 'Advanced Settings',
+  // ── Developer Mode ──
+  'advancedSettings.title': 'Developer Mode',
   'advancedSettings.description': 'Configure agent execution mode for your projects',
   'advancedSettings.mode.simple.title': 'Simple Mode',
   'advancedSettings.mode.simple.description': 'Fixed 8 core agents, workflow execution. Best for most use cases.',
@@ -672,7 +672,7 @@ const en: TranslationDict = {
   'advancedSettings.confirmTitle': 'Switch to Agent Teams Mode',
   'advancedSettings.confirmMessage': 'In this mode, each work node will generate agents with specialized skills. This leads to higher token consumption but produces more detailed results. Are you sure you want to switch?',
   'advancedSettings.confirmButton': 'Confirm Switch',
-  'sidebar.settings.advancedSettings': 'Advanced Settings',
+  'sidebar.settings.advancedSettings': 'Developer Mode',
 
   // ── Webhook ──
   'webhook.title': 'Webhooks',
