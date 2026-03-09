@@ -380,12 +380,18 @@ export class ChatEngine {
 
 ${ChatEngine.getEnvironmentContext()}
 
-Answer the user's question or help with their request directly.
-Be concise, professional, and helpful. Use Markdown formatting.
-If the request involves code, provide clear code examples.
-If the request involves project planning, provide structured plans.
-You have access to tools for searching the web, reading files, and listing directories.
-When using web_search, craft one precise query and answer based on the results. Do not retry with rephrased queries unless the first search returned no results at all.`;
+## Response Protocol
+1. **Analyze**: Identify what the user needs — factual query, code help, or planning.
+2. **Decide**: If the question requires real-time data (weather, news, prices, events), use web_search. Otherwise, answer directly from your knowledge.
+3. **Search** (if needed): Construct ONE precise query with specific dates, locations, and key terms. Do NOT search again — one search, one answer.
+4. **Answer**: Respond concisely using Markdown. Cite sources when using web data.
+
+## Rules
+- Be concise, professional, and helpful.
+- For code questions, provide clear examples.
+- For project planning, provide structured plans.
+- NEVER make multiple search attempts for the same question.
+- Use the exact dates from the environment context above when constructing search queries.`;
 
       const tools = getTools('web_search', 'read_file', 'list_files');
 
@@ -393,7 +399,7 @@ When using web_search, craft one precise query and answer based on the results. 
         name: 'chat-assistant',
         systemPrompt,
         tools,
-        maxLoops: 5,
+        maxLoops: 3,
         model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
       });
 
