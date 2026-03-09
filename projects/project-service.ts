@@ -71,6 +71,18 @@ export async function updateProject(
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
+  // Detach conversations that reference this project (no ON DELETE CASCADE in schema)
+  await supabase
+    .from('conversations')
+    .update({ project_id: null })
+    .eq('project_id', projectId);
+
+  // Detach messages linked to this project
+  await supabase
+    .from('messages')
+    .update({ project_id: null })
+    .eq('project_id', projectId);
+
   const { error } = await supabase
     .from('projects')
     .delete()

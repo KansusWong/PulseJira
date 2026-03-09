@@ -28,8 +28,10 @@ export const isRedditConfigured = !!(
 export const isTwitterConfigured = !!process.env.TWITTER_BEARER_TOKEN;
 export const isYouTubeConfigured = !!process.env.YOUTUBE_API_KEY;
 
-// --- Startup logging (server-side only) ---
-if (typeof window === 'undefined') {
+// --- Startup logging (server-side only, print once) ---
+const _envWarningsPrinted = (globalThis as any).__ENV_WARNINGS_PRINTED;
+if (typeof window === 'undefined' && !_envWarningsPrinted) {
+  (globalThis as any).__ENV_WARNINGS_PRINTED = true;
   const warnings: string[] = [];
 
   if (!isDBConfigured) {
