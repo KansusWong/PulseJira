@@ -61,7 +61,7 @@ function getItemMarkdown(item: any): string {
 }
 
 function normalizeResults(payload: any, options: NormalizeOptions = {}): Crawl4AISearchResult[] {
-  const { allowDuckDuckGo = false, markdownLimit = 500 } = options;
+  const { allowDuckDuckGo = false, markdownLimit = 2000 } = options;
   const raw = Array.isArray(payload)
     ? payload
     : Array.isArray(payload?.data)
