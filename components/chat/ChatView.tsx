@@ -40,6 +40,11 @@ export function ChatView() {
       setStreaming(true);
       setStreamingText("");
 
+      const streamTimeout = setTimeout(() => {
+        setStreaming(false);
+        setStreamingText("");
+      }, 5 * 60 * 1000);
+
       let conversationId = activeConversationId;
 
       // If no active conversation, create one
@@ -116,6 +121,7 @@ export function ChatView() {
           created_at: new Date().toISOString(),
         });
       } finally {
+        clearTimeout(streamTimeout);
         setStreaming(false);
         setStreamingText("");
       }
@@ -230,6 +236,11 @@ export function ChatView() {
 
         case "architect_resuming": {
           hideArchitectPanel();
+          break;
+        }
+
+        case "done": {
+          // Explicit stream completion signal
           break;
         }
 

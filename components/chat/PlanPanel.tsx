@@ -43,19 +43,17 @@ export function PlanPanel() {
   if (!assessment) return null;
 
   const handleApprove = async () => {
-    approvePlan();
-
-    // Trigger plan execution
-    if (activeConversationId) {
-      try {
-        await fetch(`/api/conversations/${activeConversationId}/plan`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "approve" }),
-        });
-      } catch {
-        // Error handling in SSE stream
-      }
+    if (!activeConversationId) return;
+    try {
+      const res = await fetch(`/api/conversations/${activeConversationId}/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      if (!res.ok) throw new Error("Plan approval failed");
+      approvePlan(); // Only mark approved after successful API call
+    } catch {
+      // Don't update state — user can retry
     }
   };
 

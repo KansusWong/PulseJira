@@ -21,6 +21,7 @@ import { createArchitectAgent } from '@/agents/architect';
 import { removeDynamicAgent, getAllDynamicAgents } from '@/lib/tools/create-agent';
 import { removeDynamicSkill, getAllDynamicSkills } from '@/lib/tools/create-skill';
 import { messageBus } from '@/connectors/bus/message-bus';
+import { emitWebhookEvent } from '@/lib/services/webhook';
 import type { ArchitectResult, AgentContext, DecisionOutput, StructuredRequirements } from '@/lib/core/types';
 import type { Blackboard } from '@/lib/blackboard/blackboard';
 
@@ -177,10 +178,25 @@ export async function runDecisionPhase(
     ? formatStructuredRequirements(options.structuredRequirements)
     : '';
 
-  const dmResult = await dm.run(inputMessage + dmContext + reqContext, {
-    logger: messageBus.createLogger('decision-maker'),
-    ...agentCtx,
-  });
+  let dmResult: any;
+  try {
+    dmResult = await dm.run(inputMessage + dmContext + reqContext, {
+      logger: messageBus.createLogger('decision-maker'),
+      ...agentCtx,
+    });
+  } catch (err: any) {
+    await log(`[Meta] DM agent.run() failed: ${err.message}`);
+    return {
+      decision: 'HALT',
+      confidence: 0,
+      summary: `DM error: ${err.message}`,
+      rationale: `DM agent threw an exception: ${err.message}`,
+      risk_level: 'critical',
+      risk_factors: ['DM agent runtime failure'],
+      sources: [],
+      recommended_actions: ['Review DM agent configuration and retry'],
+    } as DecisionOutput;
+  }
 
   // Validate DM output with Zod — safe degradation on failure
   const dmValidation = DecisionOutputSchema.safeParse(dmResult);
@@ -358,6 +374,13 @@ export async function runMetaPipeline(
     payload: { input: typeof input === 'string' ? input.slice(0, 200) : `${input.length} signals` },
   });
 
+  emitWebhookEvent({
+    event: 'pipeline_started',
+    title: 'Pipeline Started',
+    detail: `Pipeline started for: ${typeof input === 'string' ? input.slice(0, 200) : `${input.length} signals`}`,
+    from: 'meta-pipeline',
+  });
+
   let decision: DecisionOutput | undefined;
 
   // --- Phase 1: Decision Maker ---
@@ -372,6 +395,13 @@ export async function runMetaPipeline(
         channel: 'meta-pipeline',
         type: 'pipeline_complete',
         payload: { decision: decision.decision },
+      });
+
+      emitWebhookEvent({
+        event: 'pipeline_complete',
+        title: `Pipeline Stopped: ${decision.decision}`,
+        detail: decision.rationale,
+        from: 'meta-pipeline',
       });
 
       return { decision, skippedDecision: false };
@@ -393,6 +423,13 @@ export async function runMetaPipeline(
       stepsCompleted: architectResult.steps_completed,
       stepsFailed: architectResult.steps_failed,
     },
+  });
+
+  emitWebhookEvent({
+    event: 'pipeline_complete',
+    title: 'Pipeline Complete',
+    detail: `Steps: ${architectResult.steps_completed} completed, ${architectResult.steps_failed} failed`,
+    from: 'meta-pipeline',
   });
 
   return {

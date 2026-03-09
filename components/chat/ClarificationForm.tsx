@@ -50,8 +50,9 @@ export function ClarificationForm() {
       }
 
       hideClarificationForm();
-    } catch {
-      // Error will appear in SSE stream
+    } catch (err: any) {
+      console.error('[ClarificationForm] Confirm failed:', err);
+      // Don't hide — user can retry
     } finally {
       setIsSubmitting(false);
     }

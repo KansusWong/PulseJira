@@ -37,6 +37,9 @@ export function DMDecisionPanel() {
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
   const addMessage = usePulseStore((s) => s.addMessage);
   const showTeamPanel = usePulseStore((s) => s.showTeamPanel);
+  const showToolApproval = usePulseStore((s) => s.showToolApproval);
+  const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
+  const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
 
   const { t } = useTranslation();
 
@@ -70,6 +73,21 @@ export function DMDecisionPanel() {
               });
             } else if (event.type === "team_update") {
               showTeamPanel(event.data.team_id, event.data.agents || []);
+            } else if (event.type === "tool_approval_required") {
+              showToolApproval({
+                approvalId: event.data.approval_id,
+                toolName: event.data.tool_name,
+                toolArgs: event.data.tool_args,
+                agentName: event.data.agent_name,
+              });
+            } else if (event.type === "tool_approval_resolved") {
+              hideToolApproval();
+            } else if (event.type === "architect_failed") {
+              showArchitectFailed({
+                errorMessage: event.data.message,
+                stepsCompleted: event.data.steps_completed ?? 0,
+                attempt: event.data.attempt ?? 1,
+              });
             } else if (event.type === "error") {
               addMessage(activeConversationId, {
                 id: crypto.randomUUID(),
@@ -86,7 +104,7 @@ export function DMDecisionPanel() {
         }
       }
     },
-    [activeConversationId, addMessage, showTeamPanel],
+    [activeConversationId, addMessage, showTeamPanel, showToolApproval, hideToolApproval, showArchitectFailed],
   );
 
   const handleApprove = useCallback(async () => {

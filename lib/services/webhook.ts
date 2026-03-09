@@ -13,7 +13,16 @@ import { messageBus } from '@/connectors/bus/message-bus';
 // ---------------------------------------------------------------------------
 
 export type WebhookProvider = 'feishu' | 'dingtalk' | 'slack' | 'custom';
-export type WebhookEventType = 'pipeline_complete' | 'deploy_complete' | 'deploy_failed' | 'pr_created';
+export type WebhookEventType =
+  | 'pipeline_started'
+  | 'pipeline_complete'
+  | 'dm_decision_complete'
+  | 'architect_started'
+  | 'architect_complete'
+  | 'architect_failed'
+  | 'deploy_complete'
+  | 'deploy_failed'
+  | 'pr_created';
 
 export interface WebhookConfig {
   id: string;
@@ -99,6 +108,33 @@ function formatPayload(provider: WebhookProvider, payload: EventPayload): object
     case 'custom':
     default:
       return payload;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// emitWebhookEvent — fire-and-forget helper for pipeline lifecycle events
+// ---------------------------------------------------------------------------
+
+export function emitWebhookEvent(params: {
+  event: WebhookEventType;
+  title: string;
+  detail: string;
+  from?: string;
+}): void {
+  try {
+    messageBus.publish({
+      from: params.from || 'system',
+      channel: 'agent-log',
+      type: 'agent_log',
+      payload: {
+        message: params.detail,
+        webhook_event: params.event,
+        webhook_title: params.title,
+        webhook_detail: params.detail,
+      },
+    });
+  } catch {
+    // Webhook events must never block pipeline
   }
 }
 

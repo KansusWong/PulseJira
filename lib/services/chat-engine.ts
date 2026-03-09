@@ -21,6 +21,7 @@ import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
 import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
 import { Blackboard } from '@/lib/blackboard';
+import { emitWebhookEvent } from '@/lib/services/webhook';
 import { teamCoordinator } from '@/lib/services/team-coordinator';
 import type {
   Conversation,
@@ -567,6 +568,13 @@ You have access to tools for searching the web, reading files, and listing direc
         },
       });
 
+      emitWebhookEvent({
+        event: 'dm_decision_complete',
+        title: `DM Decision: ${decision.decision}`,
+        detail: `Confidence: ${decision.confidence} | Risk: ${decision.risk_level} | ${decision.summary}`,
+        from: 'decision-maker',
+      });
+
       const decisionText = `Decision: ${decision.decision} (confidence: ${decision.confidence})\nRisk: ${decision.risk_level}\n\n${decision.summary}`;
 
       // Save DM summary as chat message
@@ -632,6 +640,13 @@ You have access to tools for searching the web, reading files, and listing direc
         agents: suggestedAgents,
       },
     };
+
+    emitWebhookEvent({
+      event: 'architect_started',
+      title: 'Architect Phase Started',
+      detail: `Architect phase starting for conversation ${context.conversation.id}`,
+      from: 'architect',
+    });
 
     // Mark architect as working
     await teamCoordinator.updateAgentStatus(teamId, 'architect', 'working').catch(() => {});
@@ -814,6 +829,13 @@ You have access to tools for searching the web, reading files, and listing direc
       // When architect finishes (success or error), close the channel
       architectPromise
         .then((result) => {
+          emitWebhookEvent({
+            event: 'architect_complete',
+            title: 'Architect Phase Complete',
+            detail: `Steps: ${result.steps_completed} completed, ${result.steps_failed} failed`,
+            from: 'architect',
+          });
+
           const responseText = `Architect complete. ${result.steps_completed} steps completed, ${result.steps_failed} failed.`;
           this.saveMessage(conversationId, 'assistant', responseText).catch((err) => console.error('[ChatEngine] Save architect completion message failed:', err));
 
@@ -847,6 +869,14 @@ You have access to tools for searching the web, reading files, and listing direc
         })
         .catch((error: any) => {
           const errorMsg = `Architect execution failed: ${error.message}`;
+
+          emitWebhookEvent({
+            event: 'architect_failed',
+            title: 'Architect Phase Failed',
+            detail: errorMsg,
+            from: 'architect',
+          });
+
           this.saveMessage(conversationId, 'assistant', errorMsg).catch((err) => console.error('[ChatEngine] Save architect error message failed:', err));
 
           // Mark failed, keep checkpoint for resume

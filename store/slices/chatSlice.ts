@@ -226,9 +226,13 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     }),
 
   hideDmPanel: () =>
-    set((state) => ({
-      dmPanel: { ...state.dmPanel, visible: false },
-    })),
+    set({
+      dmPanel: {
+        visible: false,
+        decision: null,
+        status: 'idle',
+      },
+    }),
 
   approveDm: () =>
     set((state) => ({
@@ -253,9 +257,16 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     }),
 
   hideToolApproval: () =>
-    set((state) => ({
-      toolApprovalPanel: { ...state.toolApprovalPanel, visible: false },
-    })),
+    set({
+      toolApprovalPanel: {
+        visible: false,
+        approvalId: null,
+        toolName: null,
+        toolArgs: null,
+        agentName: null,
+        status: 'idle',
+      },
+    }),
 
   approveToolExecution: () =>
     set((state) => ({
@@ -279,9 +290,15 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     }),
 
   hideArchitectPanel: () =>
-    set((state) => ({
-      architectPanel: { ...state.architectPanel, visible: false },
-    })),
+    set({
+      architectPanel: {
+        visible: false,
+        status: 'idle',
+        stepsCompleted: 0,
+        errorMessage: null,
+        attempt: 0,
+      },
+    }),
 
   showTeamPanel: (teamId, agents) =>
     set({
