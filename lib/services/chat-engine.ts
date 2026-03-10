@@ -196,7 +196,7 @@ export class ChatEngine {
     const shouldReassess = !assessment || (userMessageCount - assessedAtCount >= REASSESS_MESSAGE_THRESHOLD);
 
     if (shouldReassess) {
-      yield { type: 'agent_log', data: { message: 'Assessing request complexity...' } };
+      yield { type: 'agent_log', data: { message: '正在评估请求复杂度...' } };
       try {
         const historyStr = history
           .slice(0, -1) // exclude current message
@@ -215,8 +215,8 @@ export class ChatEngine {
         conversation.complexity_assessment = assessment;
         conversation.execution_mode = assessment.execution_mode;
 
-        // L1 skips plan panel — execute directly
-        if (assessment.execution_mode !== 'direct') {
+        // Only L3 (agent_team) shows PlanPanel for approval; L2 executes directly
+        if (assessment.execution_mode === 'agent_team') {
           yield { type: 'plan_assessment', data: assessment };
         }
       } catch {
@@ -324,7 +324,7 @@ export class ChatEngine {
 
     if (!projectId) {
       // Normal chat flow: create a new project from requirements
-      yield { type: 'agent_log', data: { message: 'Creating project...' } };
+      yield { type: 'agent_log', data: { message: '正在创建项目...' } };
 
       const project = await createProject({
         name: requirements.suggested_name || 'Untitled Project',
@@ -341,7 +341,7 @@ export class ChatEngine {
       };
     } else {
       // Signal pipeline: project already exists, skip creation
-      yield { type: 'agent_log', data: { message: 'Using existing project...' } };
+      yield { type: 'agent_log', data: { message: '使用已有项目...' } };
     }
 
     // Link conversation to project + store structured requirements
@@ -376,7 +376,7 @@ export class ChatEngine {
    * No project creation.
    */
   private async *handleDirect(context: ChatContext): AsyncGenerator<ChatEvent> {
-    yield { type: 'agent_log', data: { message: 'Processing with direct answer...' } };
+    yield { type: 'agent_log', data: { message: '正在生成回答...' } };
 
     try {
       const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
@@ -433,10 +433,42 @@ ${ChatEngine.getEnvironmentContext()}
   }
 
   /**
+   * Transform internal BaseAgent English log messages into user-friendly Chinese progress text.
+   * Returns null for internal messages that should not be displayed.
+   */
+  private transformAgentLog(message: string): string | null {
+    // "[chat-assistant] Step N: Thinking..." → "正在思考中...（第 N 步）"
+    const stepMatch = message.match(/\[[\w-]+\] Step (\d+): Thinking/);
+    if (stepMatch) return `正在思考中...（第 ${stepMatch[1]} 步）`;
+
+    // "[chat-assistant] Action: toolName(args)" → corresponding Chinese label
+    const actionMatch = message.match(/\[[\w-]+\] Action: (\w+)\(/);
+    if (actionMatch) {
+      const labels: Record<string, string> = {
+        web_search: '正在搜索相关资料...',
+        read_file: '正在读取文件...',
+        list_files: '正在浏览文件目录...',
+        spawn_sub_agent: '正在分派子任务给专家...',
+        list_agents: '正在查看可用智能体...',
+      };
+      return labels[actionMatch[1]] || `正在执行 ${actionMatch[1]}...`;
+    }
+
+    if (message.includes('Completed with text response')) return '正在整理结果...';
+    if (message.includes('Max loops')) return '已达到最大步数，正在收尾...';
+    if (message.includes('Exit tool')) return '任务即将完成...';
+
+    return null; // suppress other internal messages
+  }
+
+  /**
    * L2 Single Agent mode — create light project, then execute with single agent.
    */
   private async *handleSingleAgentWithProject(context: ChatContext): AsyncGenerator<ChatEvent> {
-    yield { type: 'agent_log', data: { message: 'Creating light project...' } };
+    const channel = new EventChannel<ChatEvent>();
+    const conversationId = context.conversation.id;
+
+    channel.push({ type: 'agent_log', data: { message: '正在创建轻量项目...' } });
 
     try {
       // Create light project
@@ -445,22 +477,22 @@ ${ChatEngine.getEnvironmentContext()}
         name: projectName,
         description: context.userMessage,
         is_light: true,
-        conversation_id: context.conversation.id,
+        conversation_id: conversationId,
       });
 
       // Link conversation to project
-      await this.updateConversation(context.conversation.id, {
+      await this.updateConversation(conversationId, {
         project_id: project.id,
       } as any);
 
-      yield {
+      channel.push({
         type: 'project_created',
         data: { project_id: project.id, name: project.name, is_light: true },
-      };
+      });
 
-      yield { type: 'agent_log', data: { message: 'Processing with single agent...' } };
+      channel.push({ type: 'agent_log', data: { message: '正在分析任务...' } });
 
-      // Execute with single agent (same as handleDirect but with project context)
+      // Build system prompt (unchanged)
       const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
 
 ${ChatEngine.getEnvironmentContext()}
@@ -490,9 +522,18 @@ When delegating:
 
       // Sub-agent budget: allow up to 3 spawns, 15 total sub-agent loops
       const subAgentBudget = createDefaultBudget();
+
+      // Channel-based logger: transforms internal English logs to Chinese progress
+      const channelLogger = (msg: string) => {
+        const friendly = this.transformAgentLog(msg);
+        if (friendly) {
+          channel.push({ type: 'agent_log', data: { message: friendly } });
+        }
+      };
+
       const agentContext: import('@/lib/core/types').AgentContext = {
         projectId: project.id,
-        logger: messageBus.createLogger('chat-assistant'),
+        logger: channelLogger,
       };
 
       const tools = [
@@ -514,23 +555,57 @@ When delegating:
         .map(m => `[${m.role}]: ${m.content}`)
         .join('\n\n');
 
-      const result = await agent.run(
+      // Subscribe to sub-agent events on the messageBus
+      const unsubscribe = messageBus.subscribe('single-agent', (message) => {
+        if (message.type === 'sub_agent_start') {
+          channel.push({
+            type: 'agent_log',
+            data: { message: `子智能体「${message.payload?.agent_name || message.to}」启动中...` },
+          });
+        } else if (message.type === 'sub_agent_complete') {
+          const status = message.payload?.status === 'success' ? '已完成' : '执行失败';
+          channel.push({
+            type: 'agent_log',
+            data: { message: `子智能体「${message.payload?.agent_name || message.from}」${status}` },
+          });
+        }
+      });
+
+      // Run agent in background — push result/error to channel when done
+      const agentPromise = agent.run(
         `${historyContext}\n\n[user]: ${context.userMessage}`,
+        agentContext,
       );
 
-      const responseText = ChatEngine.extractResponse(result);
+      agentPromise
+        .then(async (result) => {
+          const responseText = ChatEngine.extractResponse(result);
+          await this.saveMessage(conversationId, 'assistant', responseText).catch((err) =>
+            console.error('[ChatEngine] Save single-agent response failed:', err));
 
-      // Save assistant response
-      await this.saveMessage(context.conversation.id, 'assistant', responseText);
+          channel.push({
+            type: 'message',
+            data: { role: 'assistant', content: responseText },
+          });
+          channel.close();
+          unsubscribe();
+        })
+        .catch(async (error: unknown) => {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          channel.push({ type: 'error', data: { message: errorMsg } });
+          channel.close();
+          unsubscribe();
+        });
 
-      yield {
-        type: 'message',
-        data: {
-          role: 'assistant',
-          content: responseText,
-        },
-      };
+      // Consume events from channel and yield them as SSE
+      for await (const event of channel) {
+        yield event;
+      }
+
+      // Ensure agent promise has settled
+      await agentPromise.catch(() => {});
     } catch (error: any) {
+      channel.close();
       yield { type: 'error', data: { message: error.message } };
     }
   }
@@ -542,7 +617,7 @@ When delegating:
     const round = context.conversation.clarification_round ?? 0;
     const clarCtx = context.conversation.clarification_context ?? { questions: [], answers: [] };
 
-    yield { type: 'agent_log', data: { message: `Clarifying requirements (round ${round + 1}/${MAX_CLARIFICATION_ROUNDS})...` } };
+    yield { type: 'agent_log', data: { message: `正在澄清需求（第 ${round + 1}/${MAX_CLARIFICATION_ROUNDS} 轮）...` } };
 
     try {
       const agent = new BaseAgent({
