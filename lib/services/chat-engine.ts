@@ -10,6 +10,7 @@
 
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { assessComplexity } from '@/agents/chat-judge';
+import { createChatAssistantAgent } from '@/agents/chat-assistant';
 import { getPreferences } from '@/lib/services/preferences-store';
 import { messageBus } from '@/connectors/bus/message-bus';
 import { getTools } from '@/lib/tools';
@@ -26,6 +27,7 @@ import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
 import { Blackboard } from '@/lib/blackboard';
 import { emitWebhookEvent } from '@/lib/services/webhook';
 import { teamCoordinator } from '@/lib/services/team-coordinator';
+import { getEnvironmentContext } from '@/lib/utils/environment';
 import type {
   Conversation,
   ChatMessage,
@@ -97,21 +99,10 @@ Guidelines:
 export class ChatEngine {
   /**
    * Build environment context string for agent system prompts.
-   * Provides LLM with real-world facts it cannot infer from training data.
+   * Delegates to the standalone utility to avoid circular dependencies.
    */
   static getEnvironmentContext(): string {
-    const now = new Date();
-    const date = now.toISOString().split('T')[0];
-    const time = now.toTimeString().split(' ')[0];
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'zh-CN';
-    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
-    return [
-      `Current date: ${date} (${dayOfWeek})`,
-      `Current time: ${time}`,
-      `Timezone: ${tz}`,
-      `Locale: ${locale}`,
-    ].join('\n');
+    return getEnvironmentContext();
   }
 
   /**
@@ -379,25 +370,6 @@ export class ChatEngine {
     const channel = new EventChannel<ChatEvent>();
 
     try {
-      const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
-
-${ChatEngine.getEnvironmentContext()}
-
-## Response Protocol
-1. **Analyze**: Identify what the user needs — factual query, code help, or planning.
-2. **Decide**: If the question requires real-time data (weather, news, prices, events), use web_search. Otherwise, answer directly from your knowledge.
-3. **Search** (if needed): Construct ONE precise query with specific dates, locations, and key terms. Do NOT search again — one search, one answer.
-4. **Answer**: Respond concisely using Markdown. Cite sources when using web data.
-
-## Rules
-- Be concise, professional, and helpful.
-- For code questions, provide clear examples.
-- For project planning, provide structured plans.
-- NEVER make multiple search attempts for the same question.
-- Use the exact dates from the environment context above when constructing search queries.`;
-
-      const tools = getTools('web_search', 'read_file', 'list_files');
-
       const channelLogger = (msg: string) => {
         const friendly = this.transformAgentLog(msg);
         if (friendly) {
@@ -405,13 +377,7 @@ ${ChatEngine.getEnvironmentContext()}
         }
       };
 
-      const agent = new BaseAgent({
-        name: 'chat-assistant',
-        systemPrompt,
-        tools,
-        maxLoops: 3,
-        model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
-      });
+      const agent = createChatAssistantAgent();
 
       const historyContext = context.messages
         .slice(-10)
@@ -541,7 +507,7 @@ ${ChatEngine.getEnvironmentContext()}
       // Build system prompt (unchanged)
       const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
 
-${ChatEngine.getEnvironmentContext()}
+${getEnvironmentContext()}
 
 You are working on a light project task. Produce the requested deliverable directly.
 Be concise, professional, and helpful. Use Markdown formatting.
@@ -1309,6 +1275,7 @@ When delegating:
       'analyst': () => import('@/agents/analyst'),
       'reviewer': () => import('@/agents/reviewer'),
       'chat-judge': () => import('@/agents/chat-judge'),
+      'chat-assistant': () => import('@/agents/chat-assistant'),
     };
 
     const loader = moduleMap[agentName];

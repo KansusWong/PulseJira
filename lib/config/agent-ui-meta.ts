@@ -19,6 +19,16 @@ export interface AgentUIMeta {
 }
 
 export const BUILTIN_AGENT_UI: Record<string, AgentUIMeta> = {
+  'chat-assistant': {
+    label: 'CA',
+    emoji: '\u{1F4AC}',
+    color: 'bg-blue-500',
+    borderColor: 'border-blue-500',
+    badgeClass: 'bg-blue-500/20 text-blue-400',
+    stepCardClass: 'border-l-blue-500 text-blue-400',
+    stage: 'meta',
+    stageOrder: 0,
+  },
   'decision-maker': {
     label: 'DM',
     emoji: '\u{1F9E0}',

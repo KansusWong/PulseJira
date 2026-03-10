@@ -81,7 +81,24 @@ registerAgent({
   ],
 });
 
-// --- Chat Judge (renamed from complexity-assessor) ---
+// --- Chat Assistant (L1 direct conversation handler) ---
+
+registerAgent({
+  id: 'chat-assistant',
+  displayName: 'Chat Assistant',
+  role: '通用对话助手，处理 L1 级别问答和信息查询',
+  runMode: 'react',
+  defaultMaxLoops: 3,
+  defaultPrompt: '',
+  tools: [
+    { name: 'web_search', description: '搜索网络获取实时信息' },
+    { name: 'read_file', description: '读取文件内容' },
+    { name: 'list_files', description: '列出目录结构' },
+  ],
+  skills: [],
+});
+
+// --- Chat Judge (renamed from complexity-assessor) — internal classifier ---
 
 registerAgent({
   id: 'chat-judge',
@@ -92,6 +109,7 @@ registerAgent({
   defaultPrompt: '',
   tools: [],
   skills: [],
+  internal: true,
 });
 
 // --- Preserved agents ---

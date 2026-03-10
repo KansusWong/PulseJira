@@ -21,6 +21,8 @@ export interface AgentMeta {
   createdBy?: string;
   /** Project ID this agent was created for (medium execution mode). */
   projectId?: string;
+  /** Internal agents are hidden from the management UI but remain functional. */
+  internal?: boolean;
 }
 
 const registry = new Map<string, AgentMeta>();

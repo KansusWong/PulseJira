@@ -95,7 +95,9 @@ export function getAgentRegistry(): AgentRegistryEntry[] {
   const agents = getAllAgents();
   const criticModel = resolveRedTeamDefaultModel(DEFAULT_MODEL);
 
-  return agents.map((meta) => {
+  return agents
+    .filter((meta) => !meta.internal)
+    .map((meta) => {
     const override = overrides[meta.id] || {};
     const soul = loadSoul(meta.id);
     const defaultModel = meta.id === 'critic' ? criticModel : (meta.defaultModel || DEFAULT_MODEL);
