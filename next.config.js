@@ -4,13 +4,12 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: [
-      'openai',
-      'zod',
-      'zod-to-json-schema',
-    ],
-  },
+  // Suppress Turbopack TP1004/TP1005 lint warnings for server-side dynamic fs/child_process usage
+  serverExternalPackages: [
+    'openai',
+    'zod',
+    'zod-to-json-schema',
+  ],
 };
 
 nextConfig.headers = async () => [

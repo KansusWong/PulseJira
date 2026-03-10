@@ -69,10 +69,20 @@ export function appendToDynamicRegistry(entry: DynamicAgentEntry): void {
 }
 
 // ---------------------------------------------------------------------------
-// Startup loader
+// Lazy loader — only loads dynamic agents when explicitly requested
 // ---------------------------------------------------------------------------
 
-function loadAll(): void {
+let _loaded = false;
+
+/**
+ * Ensure persisted dynamic agents are registered.
+ * Idempotent — safe to call multiple times, only reads disk on the first call.
+ * Call this before operations that need dynamic agents (list_agents, spawn_agent, L3 agent_team).
+ */
+export function ensureDynamicAgentsLoaded(): void {
+  if (_loaded) return;
+  _loaded = true;
+
   const entries = readDynamicRegistry();
   if (entries.length === 0) return;
 
@@ -109,8 +119,6 @@ function loadAll(): void {
   }
 
   console.log(
-    `[dynamic-agents] Loaded ${entries.length} AI-generated agent(s): ${entries.map((e) => e.id).join(', ')}`,
+    `[dynamic-agents] Lazy-loaded ${entries.length} AI-generated agent(s): ${entries.map((e) => e.id).join(', ')}`,
   );
 }
-
-loadAll();

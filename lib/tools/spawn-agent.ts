@@ -3,6 +3,7 @@ import { BaseTool } from '../core/base-tool';
 import { BaseAgent } from '../core/base-agent';
 import { getAgent } from '@/lib/config/agent-registry';
 import { messageBus } from '@/connectors/bus/message-bus';
+import { ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
 import type { BaseTool as BaseToolType } from '../core/base-tool';
 import type { AgentContext } from '../core/types';
 import type { Workspace } from '@/lib/sandbox/types';
@@ -99,8 +100,12 @@ export class SpawnAgentTool extends BaseTool<SpawnAgentInput, SpawnAgentOutput> 
     const start = Date.now();
     const { agent_name, task_description, input_data, max_loops } = input;
 
-    // Look up factory
-    const factory = agentFactories.get(agent_name);
+    // Look up factory — try in-memory first, then lazy-load persisted dynamic agents
+    let factory = agentFactories.get(agent_name);
+    if (!factory) {
+      ensureDynamicAgentsLoaded();
+      factory = agentFactories.get(agent_name);
+    }
     if (!factory) {
       const available = getAgentFactoryIds().join(', ');
       throw new Error(

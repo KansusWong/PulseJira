@@ -15,6 +15,7 @@ import { messageBus } from '@/connectors/bus/message-bus';
 import { getTools } from '@/lib/tools';
 import { runDecisionPhase, runArchitectPhase } from '@/skills/meta-pipeline';
 import { hasAgentFactory, getAgentFactoryIds } from '@/lib/tools/spawn-agent';
+import { ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
 import { SpawnSubAgentTool, createDefaultBudget } from '@/lib/tools/spawn-sub-agent';
 import { ListAgentsTool } from '@/lib/tools/list-agents';
 import { BaseAgent } from '@/lib/core/base-agent';
@@ -625,6 +626,9 @@ When delegating:
    * Team record creation is deferred to handleArchitectPhase.
    */
   private async *handleAgentTeam(context: ChatContext): AsyncGenerator<ChatEvent> {
+    // Lazy-load persisted dynamic agents — only needed for L3 team execution
+    ensureDynamicAgentsLoaded();
+
     // Read user's agent execution mode preference
     let agentExecutionMode: 'simple' | 'medium' | 'advanced' = 'simple';
     try {

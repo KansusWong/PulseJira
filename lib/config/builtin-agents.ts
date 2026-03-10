@@ -175,5 +175,5 @@ registerAgent({
 });
 
 // --- AI-generated (persisted) agents ---
-// Must come after all built-in registrations to avoid ID conflicts.
-import './dynamic-agents';
+// Dynamic agents are now lazy-loaded via ensureDynamicAgentsLoaded().
+// Only called when L3 agent_team, list_agents, or spawn_agent actually need them.

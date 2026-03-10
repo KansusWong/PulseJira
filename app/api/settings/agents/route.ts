@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { BaseAgent } from '@/lib/core/base-agent';
 import { getAgentRegistry, saveAgentConfig, saveOneAgentConfig } from '@/lib/config/agent-config';
 import { registerAgent, getAgent } from '@/lib/config/agent-registry';
-import { appendToDynamicRegistry, readDynamicRegistry } from '@/lib/config/dynamic-agents';
+import { appendToDynamicRegistry, readDynamicRegistry, ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
 import { registerAgentFactory } from '@/lib/tools/spawn-agent';
 import { loadSoul, mergeSoulWithPrompt } from '@/agents/utils';
 import type { AgentOverride } from '@/lib/config/agent-config';
@@ -45,6 +45,7 @@ function ensureSoulFile(agentId: string, soul: string): void {
 
 export async function GET() {
   try {
+    ensureDynamicAgentsLoaded();
     const registry = getAgentRegistry();
     return NextResponse.json({ success: true, data: registry });
   } catch (e: any) {
