@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { usePulseStore } from '@/store/usePulseStore.new';
 import zh from './locales/zh';
 import en from './locales/en';
@@ -27,6 +28,9 @@ function translate(locale: Locale, key: string, params?: Record<string, string |
 /**
  * React hook – returns a `t()` function bound to the current locale.
  *
+ * The `t` function is memoized per locale so it can be safely used
+ * in useEffect / useCallback / useMemo dependency arrays.
+ *
  * ```tsx
  * const { t, locale } = useTranslation();
  * <h2>{t('settings.agents.title')}</h2>
@@ -35,8 +39,11 @@ function translate(locale: Locale, key: string, params?: Record<string, string |
 export function useTranslation() {
   const locale = usePulseStore((s) => s.locale);
 
-  const t = (key: string, params?: Record<string, string | number>): string =>
-    translate(locale, key, params);
+  const t = useCallback(
+    (key: string, params?: Record<string, string | number>): string =>
+      translate(locale, key, params),
+    [locale],
+  );
 
   return { t, locale } as const;
 }
