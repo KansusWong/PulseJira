@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { registerAgent } from './agent-registry';
+import { loadAgentConfig } from './agent-config';
 import { registerAgentFactory } from '@/lib/tools/spawn-agent';
 import { loadSoul, mergeSoulWithPrompt } from '@/agents/utils';
 import { BaseAgent } from '@/lib/core/base-agent';
@@ -102,16 +103,18 @@ export function ensureDynamicAgentsLoaded(): void {
 
     const captured = entry;
     registerAgentFactory(entry.id, (options?: any) => {
-      const soul = loadSoul(captured.id);
-      const systemPrompt = mergeSoulWithPrompt(soul, captured.defaultPrompt);
+      const override = loadAgentConfig(captured.id);
+      const soul = override.soul ?? loadSoul(captured.id);
+      const basePrompt = override.systemPrompt ?? captured.defaultPrompt;
+      const systemPrompt = mergeSoulWithPrompt(soul, basePrompt);
       const toolNames = captured.tools.map((t) => t.name).filter(Boolean);
 
       return new BaseAgent({
         name: captured.id,
         systemPrompt,
         tools: options?.tools ?? (toolNames.length > 0 ? getTools(...toolNames) : []),
-        maxLoops: options?.maxLoops ?? captured.defaultMaxLoops,
-        model: options?.model,
+        maxLoops: options?.maxLoops ?? override.maxLoops ?? captured.defaultMaxLoops,
+        model: options?.model ?? override.model,
         exitToolName: captured.exitToolName ?? undefined,
         initialMessages: options?.initialMessages,
       });

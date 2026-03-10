@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
 import { BaseAgent } from '@/lib/core/base-agent';
-import { getAgentRegistry, saveAgentConfig, saveOneAgentConfig } from '@/lib/config/agent-config';
+import { getAgentRegistry, loadAgentConfig, saveAgentConfig, saveOneAgentConfig } from '@/lib/config/agent-config';
 import { registerAgent, getAgent } from '@/lib/config/agent-registry';
 import { appendToDynamicRegistry, readDynamicRegistry, ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
 import { registerAgentFactory } from '@/lib/tools/spawn-agent';
@@ -131,13 +131,16 @@ export async function POST(req: Request) {
     });
 
     registerAgentFactory(agentId, () => {
-      const mergedPrompt = mergeSoulWithPrompt(loadSoul(agentId), systemPrompt);
+      const override = loadAgentConfig(agentId);
+      const effectiveSoul = override.soul ?? loadSoul(agentId);
+      const effectivePrompt = override.systemPrompt ?? systemPrompt;
+      const mergedPrompt = mergeSoulWithPrompt(effectiveSoul, effectivePrompt);
       return new BaseAgent({
         name: agentId,
         systemPrompt: mergedPrompt,
         tools: [],
-        maxLoops,
-        model: model || undefined,
+        maxLoops: override.maxLoops ?? maxLoops,
+        model: override.model ?? (model || undefined),
       });
     });
 
