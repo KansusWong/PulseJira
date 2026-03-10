@@ -79,6 +79,7 @@ export function WebhookConfigCard() {
   // Edit template state
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [editTemplateValue, setEditTemplateValue] = useState("");
+  const [editDisplayNameValue, setEditDisplayNameValue] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Delete confirm state
@@ -193,7 +194,10 @@ export function WebhookConfigCard() {
         await fetch(`/api/settings/webhooks/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message_template: editTemplateValue.trim() || null }),
+          body: JSON.stringify({
+            message_template: editTemplateValue.trim() || null,
+            display_name: editDisplayNameValue.trim() || null,
+          }),
         });
         setEditingTemplateId(null);
         fetchWebhooks();
@@ -203,7 +207,7 @@ export function WebhookConfigCard() {
         setSavingTemplate(false);
       }
     },
-    [editTemplateValue, fetchWebhooks],
+    [editTemplateValue, editDisplayNameValue, fetchWebhooks],
   );
 
   const toggleEvent = (event: string) => {
@@ -383,6 +387,17 @@ export function WebhookConfigCard() {
                 {/* Template summary or inline editor */}
                 {editingTemplateId === wh.id ? (
                   <div className="mt-2 space-y-1.5">
+                    <div>
+                      <label className="block text-[10px] text-zinc-500 mb-0.5">
+                        {t("webhook.displayName")}
+                      </label>
+                      <input
+                        value={editDisplayNameValue}
+                        onChange={(e) => setEditDisplayNameValue(e.target.value)}
+                        placeholder={t("webhook.displayNamePlaceholder")}
+                        className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+                      />
+                    </div>
                     <textarea
                       value={editTemplateValue}
                       onChange={(e) => setEditTemplateValue(e.target.value)}
@@ -458,6 +473,7 @@ export function WebhookConfigCard() {
                     setEditingTemplateId(null);
                   } else {
                     setEditTemplateValue(wh.message_template || "");
+                    setEditDisplayNameValue(wh.display_name || "");
                     setEditingTemplateId(wh.id);
                   }
                 }}
