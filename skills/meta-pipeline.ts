@@ -137,11 +137,18 @@ export interface MetaPipelineResult {
  * Run only the Decision Maker phase.
  * Returns a validated DecisionOutput (degrades to HALT on validation failure).
  */
+const MAX_BATCH_SIZE = 20;
+
 export async function runDecisionPhase(
   input: string | string[],
   options: MetaPipelineOptions = {},
 ): Promise<DecisionOutput> {
   const log = options.logger || console.log;
+
+  if (Array.isArray(input) && input.length > MAX_BATCH_SIZE) {
+    await log(`[Meta] Batch size ${input.length} exceeds limit ${MAX_BATCH_SIZE}, truncating.`);
+    input = input.slice(0, MAX_BATCH_SIZE);
+  }
 
   const inputMessage = Array.isArray(input)
     ? `以下是批量信号/需求，请先聚合再决策:\n\n${input.map((s, i) => `[信号 ${i + 1}] ${s}`).join('\n\n')}`
@@ -252,6 +259,11 @@ export async function runArchitectPhase(
   options: MetaPipelineOptions = {},
 ): Promise<ArchitectResult> {
   const log = options.logger || console.log;
+
+  if (Array.isArray(input) && input.length > MAX_BATCH_SIZE) {
+    await log(`[Meta] Batch size ${input.length} exceeds limit ${MAX_BATCH_SIZE}, truncating.`);
+    input = input.slice(0, MAX_BATCH_SIZE);
+  }
 
   const inputMessage = Array.isArray(input)
     ? `以下是批量信号/需求，请先聚合再决策:\n\n${input.map((s, i) => `[信号 ${i + 1}] ${s}`).join('\n\n')}`

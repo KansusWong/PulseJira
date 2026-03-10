@@ -95,7 +95,7 @@ export function WebhookConfigCard() {
 
   const fetchWebhooks = useCallback(() => {
     setLoading(true);
-    fetch("/api/settings/webhooks")
+    fetch("/api/settings/webhooks?limit=200")
       .then((r) => r.json())
       .then((json) => {
         if (json.success) setWebhooks(json.data || []);

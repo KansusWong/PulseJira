@@ -229,10 +229,12 @@ export class TeamCoordinator {
     if (status === 'in_progress' && task.status === 'pending') {
       const blockedBy: string[] = task.blocked_by || [];
       if (blockedBy.length > 0) {
-        const { data: blockers } = await supabase
+        const { data: blockers, error: blockersError } = await supabase
           .from('team_tasks')
           .select('id, status')
           .in('id', blockedBy);
+
+        if (blockersError) throw new Error(`Failed to fetch blocker tasks: ${blockersError.message}`);
 
         const incomplete = (blockers || []).filter(b => b.status !== 'completed');
         if (incomplete.length > 0) {

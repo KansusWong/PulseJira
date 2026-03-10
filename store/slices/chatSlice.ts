@@ -178,15 +178,17 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     })),
 
   addMessage: (conversationId, message) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [conversationId]: [
-          ...(state.messages[conversationId] || []),
-          message,
-        ],
-      },
-    })),
+    set((state) => {
+      const existing = state.messages[conversationId] || [];
+      // Deduplicate by ID (#18)
+      if (existing.some(m => m.id === message.id)) return state;
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: [...existing, message],
+        },
+      };
+    }),
 
   setStreaming: (streaming) => set({ isStreaming: streaming }),
 

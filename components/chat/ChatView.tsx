@@ -38,7 +38,7 @@ export function ChatView() {
     if (fetchedRef.current === activeConversationId) return;
     fetchedRef.current = activeConversationId;
 
-    fetch(`/api/conversations/${activeConversationId}/messages`)
+    fetch(`/api/conversations/${activeConversationId}/messages?limit=200`)
       .then((r) => r.json())
       .then((json) => {
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
@@ -58,7 +58,10 @@ export function ChatView() {
       setStreaming(true);
       setStreamingText("");
 
+      const abortController = new AbortController();
+
       const streamTimeout = setTimeout(() => {
+        abortController.abort();
         setStreaming(false);
         setStreamingText("");
       }, 5 * 60 * 1000);
@@ -101,6 +104,7 @@ export function ChatView() {
             conversation_id: conversationId,
             message: text,
           }),
+          signal: abortController.signal,
         });
 
         if (!res.ok || !res.body) {
@@ -130,14 +134,17 @@ export function ChatView() {
           }
         }
       } catch (error: any) {
-        addMessage(conversationId!, {
-          id: crypto.randomUUID(),
-          conversation_id: conversationId!,
-          role: "system",
-          content: `Error: ${error.message}`,
-          metadata: null,
-          created_at: new Date().toISOString(),
-        });
+        // Don't show error message for intentional aborts (timeout or unmount)
+        if (error?.name !== 'AbortError') {
+          addMessage(conversationId!, {
+            id: crypto.randomUUID(),
+            conversation_id: conversationId!,
+            role: "system",
+            content: `Error: ${error.message}`,
+            metadata: null,
+            created_at: new Date().toISOString(),
+          });
+        }
       } finally {
         clearTimeout(streamTimeout);
         setStreaming(false);
@@ -152,12 +159,12 @@ export function ChatView() {
       switch (event.type) {
         case "message": {
           const msg: ChatMessage = {
-            id: crypto.randomUUID(),
+            id: event.data.id || crypto.randomUUID(),
             conversation_id: conversationId,
             role: event.data.role || "assistant",
             content: event.data.content,
             metadata: event.data.metadata || null,
-            created_at: new Date().toISOString(),
+            created_at: event.data.created_at || new Date().toISOString(),
           };
           addMessage(conversationId, msg);
           break;

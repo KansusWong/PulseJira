@@ -8,13 +8,13 @@ import { buildSkillPromptForAgent } from '@/lib/skills/agent-skill-runtime';
 import { ContextBudget } from './token-budget';
 import type { AgentConfig, AgentContext } from './types';
 
-// --- Context management constants ---
+// --- Context management constants (#14: configurable via env) ---
 /** Maximum number of recent messages to keep (excluding system + initial user). */
-const MAX_CONTEXT_MESSAGES = 40;
+const MAX_CONTEXT_MESSAGES = parseInt(process.env.AGENT_MAX_CONTEXT_MESSAGES || '40', 10);
 /** Per-call timeout for LLM API requests (ms). */
-const LLM_TIMEOUT_MS = 120_000; // 2 minutes
+const LLM_TIMEOUT_MS = parseInt(process.env.AGENT_LLM_TIMEOUT_MS || '120000', 10);
 /** Fixed model for context compression (cheap & fast, independent of agent model). */
-const COMPRESSION_MODEL = 'gpt-4o-mini';
+const COMPRESSION_MODEL = process.env.AGENT_COMPRESSION_MODEL || 'gpt-4o-mini';
 /** Token budget controller — triggers compression based on estimated token count. */
 const contextBudget = new ContextBudget();
 
@@ -284,7 +284,7 @@ export class BaseAgent {
       const message = completion.choices[0]?.message;
       if (!message) throw new Error(`[${name}] No response from LLM`);
 
-      const usage = (completion as any).usage;
+      const usage = completion.usage;
       if (usage) {
         const promptTokens = usage.prompt_tokens ?? 0;
         const completionTokens = usage.completion_tokens ?? 0;
@@ -337,7 +337,7 @@ export class BaseAgent {
           // Exit condition: if this is the exit tool, return its arguments directly
           if (exitToolName && toolName === exitToolName) {
             try {
-              const args = JSON.parse(toolCall.function.arguments);
+              const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
               await log(`[${name}] Exit tool "${exitToolName}" called. Finishing.`);
               return args;
             } catch (parseErr: unknown) {
@@ -356,7 +356,7 @@ export class BaseAgent {
           await log(`[${name}] Action: ${toolName}(${toolCall.function.arguments.slice(0, 100)})`);
           let resultStr = '';
           try {
-            const args = JSON.parse(toolCall.function.arguments);
+            const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
 
             // Approval gate: block on human approval for dangerous tools
             if (tool.requiresApproval && context.onApprovalRequired) {
@@ -465,7 +465,7 @@ export class BaseAgent {
           { projectId: context.projectId, agentName: name, model: model! },
         );
         const lastChanceDurationMs = Date.now() - lastChanceStartAt;
-        const lcUsage = (lastChance as any).usage;
+        const lcUsage = lastChance.usage;
         if (lcUsage) {
           const promptTokens = lcUsage.prompt_tokens ?? 0;
           const completionTokens = lcUsage.completion_tokens ?? 0;

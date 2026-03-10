@@ -49,10 +49,24 @@ import type OpenAI from 'openai';
 // Types
 // ---------------------------------------------------------------------------
 
+export interface PrdSummary {
+  title?: string;
+  score?: number;
+  decision?: string;
+  rationale?: string;
+  [key: string]: unknown;
+}
+
+export interface PlanSummary {
+  tasks?: Array<{ id?: string; title?: string; description?: string; [key: string]: unknown }>;
+  rationale?: string;
+  [key: string]: unknown;
+}
+
 export interface ImplementPipelineInput {
   projectId: string;
-  prd: any;
-  planResult: any;
+  prd: PrdSummary;
+  planResult: PlanSummary;
   repoUrl?: string;
   baseBranch?: string;
   /** Local-only mode: project subfolder name (no git remote). */

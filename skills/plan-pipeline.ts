@@ -4,13 +4,14 @@ import { retrieveContext, storeDecision } from '@/lib/services/rag';
 import { getRecentRejections } from '@/lib/services/feedback';
 import { getCodeContext } from '@/lib/services/context';
 import { messageBus } from '@/connectors/bus/message-bus';
+import type { PrdSummary } from '@/skills/implement-pipeline';
 
 export interface PlanResult {
   featureName: string;
   score: number;
   decision: string;
   rationale: string;
-  prd: any;
+  prd: PrdSummary;
   tasks: any[];
 }
 

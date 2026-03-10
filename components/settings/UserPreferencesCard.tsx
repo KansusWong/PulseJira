@@ -222,7 +222,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
   const loadSignalSources = useCallback(async () => {
     setSourceLoading(true);
     try {
-      const res = await fetch("/api/signals/sources");
+      const res = await fetch("/api/signals/sources?limit=200");
       const json = await res.json();
       if (json.success) {
         setSignalSources(Array.isArray(json.data) ? json.data : []);

@@ -904,15 +904,15 @@ Sprint 7 集中清理三项技术债：(1) 全局 26 处 `.catch(() => {})` sile
 | 7 | **P1** | base-agent 工具执行错误丢失上下文 — catch 只取 message，丢失 stack trace 和错误分类 | `base-agent.ts:382` | [x] |
 | 8 | **P1** | EventChannel 队列无上限 — push 无限增长，长时间执行可能 OOM | `event-channel.ts:25` | [x] |
 | 9 | **P1** | implement-pipeline resume 状态不完整 — 不重置 budgetExtended/qaRetried 标志 | `implement-pipeline.ts:464` | [x] |
-| 10 | **P1** | 前端未适配分页 — 所有列表 API 调用仍是全量拉取 | `ChatView.tsx:41` 等 | [ ] |
-| 11 | **P2** | base-agent 大量 any 类型 — usage / 工具参数 JSON.parse 无类型校验 | `base-agent.ts:287,340` | [ ] |
-| 12 | **P2** | team-coordinator null check 缺失 — DB 查询后不检查 null | `team-coordinator.ts:226,309` | [ ] |
-| 13 | **P2** | implement-pipeline 输入参数 prd/planResult 为 any — 无运行时校验 | `implement-pipeline.ts:52` | [ ] |
-| 14 | **P2** | 硬编码常量不可配置 — MAX_CONTEXT_MESSAGES / LLM_TIMEOUT_MS / COMPRESSION_MODEL | `base-agent.ts:13-17` | [ ] |
-| 15 | **P2** | meta-pipeline 输入无边界检查 — 批量信号数组无长度限制 | `meta-pipeline.ts:140` | [ ] |
-| 16 | **P2** | LLM client cache 无失效机制 — API key 轮换后旧 client 仍缓存 | `llm.ts:9` | [ ] |
-| 17 | **P2** | 前端 ChatView stream 资源泄漏 — reader 在错误路径未关闭 | `ChatView.tsx:61,110` | [ ] |
-| 18 | **P2** | 前端消息去重缺失 — stream 写入和 fetch 都往 store 加消息 | `ChatView.tsx:45,162` | [ ] |
+| 10 | **P1** | 前端未适配分页 — 所有列表 API 调用仍是全量拉取 | `ChatView.tsx:41` 等 | [x] |
+| 11 | **P2** | base-agent 大量 any 类型 — usage / 工具参数 JSON.parse 无类型校验 | `base-agent.ts:287,340` | [x] |
+| 12 | **P2** | team-coordinator null check 缺失 — DB 查询后不检查 null | `team-coordinator.ts:226,309` | [x] |
+| 13 | **P2** | implement-pipeline 输入参数 prd/planResult 为 any — 无运行时校验 | `implement-pipeline.ts:52` | [x] |
+| 14 | **P2** | 硬编码常量不可配置 — MAX_CONTEXT_MESSAGES / LLM_TIMEOUT_MS / COMPRESSION_MODEL | `base-agent.ts:13-17` | [x] |
+| 15 | **P2** | meta-pipeline 输入无边界检查 — 批量信号数组无长度限制 | `meta-pipeline.ts:140` | [x] |
+| 16 | **P2** | LLM client cache 无失效机制 — API key 轮换后旧 client 仍缓存 | `llm.ts:9` | [x] |
+| 17 | **P2** | 前端 ChatView stream 资源泄漏 — reader 在错误路径未关闭 | `ChatView.tsx:61,110` | [x] |
+| 18 | **P2** | 前端消息去重缺失 — stream 写入和 fetch 都往 store 加消息 | `ChatView.tsx:45,162` | [x] |
 
 ### P0 修复方案
 

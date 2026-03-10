@@ -4,17 +4,28 @@ import { recordLlmUsage } from '@/lib/services/usage';
 import { recordLlmFailoverEvent } from '@/lib/services/llm-failover-events';
 import { getLLMPool, type ResolvedClient } from '@/lib/services/llm-pool';
 
-// --- Module-level OpenAI client cache (#14) ---
+// --- Module-level OpenAI client cache (#14, #16 TTL + capacity) ---
 // Avoids creating new OpenAI instances for the same apiKey+baseUrl combination.
-const _clientCache = new Map<string, OpenAI>();
+const CLIENT_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const CLIENT_CACHE_MAX_SIZE = 50;
+
+const _clientCache = new Map<string, { client: OpenAI; createdAt: number }>();
 
 function getCachedClient(apiKey?: string, baseUrl?: string): OpenAI {
   const cacheKey = `${apiKey || '__env__'}::${baseUrl || ''}`;
-  let client = _clientCache.get(cacheKey);
-  if (!client) {
-    client = createOpenAIClient({ apiKey, baseURL: baseUrl });
-    _clientCache.set(cacheKey, client);
+  const cached = _clientCache.get(cacheKey);
+  if (cached && Date.now() - cached.createdAt < CLIENT_CACHE_TTL_MS) {
+    return cached.client;
   }
+  // Evict expired entry
+  if (cached) _clientCache.delete(cacheKey);
+  // Evict oldest if at capacity
+  if (_clientCache.size >= CLIENT_CACHE_MAX_SIZE) {
+    const oldestKey = _clientCache.keys().next().value;
+    if (oldestKey) _clientCache.delete(oldestKey);
+  }
+  const client = createOpenAIClient({ apiKey, baseURL: baseUrl });
+  _clientCache.set(cacheKey, { client, createdAt: Date.now() });
   return client;
 }
 
@@ -424,7 +435,7 @@ async function invokeJSONCall(params: {
       );
     }
 
-    const usage = (completion as any).usage;
+    const usage = completion.usage;
     if (usage) {
       const promptTokens = usage.prompt_tokens ?? 0;
       const completionTokens = usage.completion_tokens ?? 0;
