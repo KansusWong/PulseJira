@@ -301,7 +301,7 @@ export function ChatView() {
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <EmptyState />
+          <EmptyState onSend={handleSend} />
         ) : (
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
             {messages.map((msg) => (
@@ -345,7 +345,7 @@ export function ChatView() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onSend }: { onSend: (text: string) => void }) {
   const { t } = useTranslation();
 
   return (
@@ -368,7 +368,8 @@ function EmptyState() {
           ].map((item) => (
             <button
               key={item.label}
-              className="text-left px-4 py-3 rounded-xl border border-zinc-800/60 bg-zinc-900/30 hover:bg-zinc-800/40 hover:border-zinc-700/60 transition-all group"
+              onClick={() => onSend(item.example)}
+              className="text-left px-4 py-3 rounded-xl border border-zinc-800/60 bg-zinc-900/30 hover:bg-zinc-800/40 hover:border-zinc-700/60 transition-all group cursor-pointer"
             >
               <div className="text-xs font-medium text-zinc-500 mb-1">{item.label}</div>
               <div className="text-xs text-zinc-600 group-hover:text-zinc-400 transition-colors line-clamp-2">
