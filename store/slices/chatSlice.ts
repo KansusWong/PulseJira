@@ -159,11 +159,18 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   setActiveConversationId: (id) => set({ activeConversationId: id }),
 
   removeConversation: (id) =>
-    set((state) => ({
-      conversations: state.conversations.filter((c) => c.id !== id),
-      activeConversationId:
-        state.activeConversationId === id ? null : state.activeConversationId,
-    })),
+    set((state) => {
+      const isActive = state.activeConversationId === id;
+      // Clean up messages cache for deleted conversation
+      const { [id]: _removed, ...remainingMessages } = state.messages;
+      return {
+        conversations: state.conversations.filter((c) => c.id !== id),
+        activeConversationId: isActive ? null : state.activeConversationId,
+        messages: remainingMessages,
+        // Reset streaming state if the deleted conversation was actively streaming
+        ...(isActive && state.isStreaming ? { isStreaming: false } : {}),
+      };
+    }),
 
   updateConversation: (id, updates) =>
     set((state) => ({

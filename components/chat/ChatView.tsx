@@ -30,7 +30,16 @@ export function ChatView() {
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [streamingText, setStreamingText] = useState("");
+
+  // Abort active stream if conversation changes or is deleted
+  useEffect(() => {
+    if (!activeConversationId && abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+  }, [activeConversationId]);
 
   // Fetch messages from API when switching conversations
   useEffect(() => {
@@ -59,6 +68,7 @@ export function ChatView() {
       setStreamingText("");
 
       const abortController = new AbortController();
+      abortRef.current = abortController;
 
       const streamTimeout = setTimeout(() => {
         abortController.abort();
@@ -147,6 +157,7 @@ export function ChatView() {
         }
       } finally {
         clearTimeout(streamTimeout);
+        abortRef.current = null;
         setStreaming(false);
         setStreamingText("");
       }
