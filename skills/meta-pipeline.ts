@@ -224,9 +224,9 @@ export async function runDecisionPhase(
 
   await log(`[Meta] Decision: ${decision.decision} (confidence: ${decision.confidence})`);
 
-  // Write full decision to blackboard (fire-and-forget)
+  // Write full decision to blackboard (awaited for resume reliability)
   if (options.blackboard) {
-    options.blackboard.write({
+    await options.blackboard.write({
       key: 'dm.decision',
       value: decision,
       type: 'decision',

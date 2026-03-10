@@ -882,3 +882,66 @@ Sprint 7 集中清理三项技术债：(1) 全局 26 处 `.catch(() => {})` sile
 > 2. ChatEngine L2/L3 端到端实战验证 — 在真实 LLM 调用下跑通完整流程，修复潜在集成问题
 >
 > **暂不建议投入**：动态 Agent 创建（B3）、Agent Swarm、定价模型（C4）、Multimodal Input
+
+---
+
+## 二十、Sprint 16：系统级深度审计修复计划（2026-03-10）
+
+> 基于全面代码审计（agent 系统、pipeline、skill、前端），发现 18 个问题，按优先级分 P0/P1/P2。
+> API 层 P0（Zod 校验 + 分页 + race condition）已在 `11b8def` 中修复。
+> 本轮聚焦 pipeline / agent / skill 层面的系统级问题。
+
+### 修复状态追踪
+
+| # | 优先级 | 问题 | 位置 | 状态 |
+|---|--------|------|------|------|
+| 1 | **P0** | implement-pipeline 任务依赖 race condition — blackboard 写是 fire-and-forget，下游任务立即读可能读到空值 | `implement-pipeline.ts:782,641` | [x] |
+| 2 | **P0** | chat-engine 对话状态并发写入 — checkpoint 用 `.catch()` 不 await，快速操作导致 checkpoint 不一致 | `chat-engine.ts:845,864` | [x] |
+| 3 | **P0** | deploy-pipeline `hc` 变量作用域错误 — rollback 路径中引用了可能未定义的 `hc.status` | `deploy-pipeline.ts:165` | [x] |
+| 4 | **P0** | skill-registry 初始化 race — `initialized` 在 `embedAllSkills()` 完成前就设为 true | `skill-registry.ts:67` | [x] |
+| 5 | **P1** | plan-pipeline 无降级策略 — PM Agent / Tech Lead 失败直接 throw，整条管线停掉 | `plan-pipeline.ts:96,139` | [ ] |
+| 6 | **P1** | deploy-pipeline rollback 空实现 — `attemptRollback()` 只打日志不做实际回滚，但状态标记 "rolled_back" | `deploy-pipeline.ts:307` | [ ] |
+| 7 | **P1** | base-agent 工具执行错误丢失上下文 — catch 只取 message，丢失 stack trace 和错误分类 | `base-agent.ts:382` | [ ] |
+| 8 | **P1** | EventChannel 队列无上限 — push 无限增长，长时间执行可能 OOM | `event-channel.ts:25` | [ ] |
+| 9 | **P1** | implement-pipeline resume 状态不完整 — 不重置 budgetExtended/qaRetried 标志 | `implement-pipeline.ts:464` | [ ] |
+| 10 | **P1** | 前端未适配分页 — 所有列表 API 调用仍是全量拉取 | `ChatView.tsx:41` 等 | [ ] |
+| 11 | **P2** | base-agent 大量 any 类型 — usage / 工具参数 JSON.parse 无类型校验 | `base-agent.ts:287,340` | [ ] |
+| 12 | **P2** | team-coordinator null check 缺失 — DB 查询后不检查 null | `team-coordinator.ts:226,309` | [ ] |
+| 13 | **P2** | implement-pipeline 输入参数 prd/planResult 为 any — 无运行时校验 | `implement-pipeline.ts:52` | [ ] |
+| 14 | **P2** | 硬编码常量不可配置 — MAX_CONTEXT_MESSAGES / LLM_TIMEOUT_MS / COMPRESSION_MODEL | `base-agent.ts:13-17` | [ ] |
+| 15 | **P2** | meta-pipeline 输入无边界检查 — 批量信号数组无长度限制 | `meta-pipeline.ts:140` | [ ] |
+| 16 | **P2** | LLM client cache 无失效机制 — API key 轮换后旧 client 仍缓存 | `llm.ts:9` | [ ] |
+| 17 | **P2** | 前端 ChatView stream 资源泄漏 — reader 在错误路径未关闭 | `ChatView.tsx:61,110` | [ ] |
+| 18 | **P2** | 前端消息去重缺失 — stream 写入和 fetch 都往 store 加消息 | `ChatView.tsx:45,162` | [ ] |
+
+### P0 修复方案
+
+#### P0-1. implement-pipeline 任务依赖 race condition
+
+**问题**：`blackboard.write()` 在 L782 是 fire-and-forget，但 Blackboard 的 `write()` 方法先同步更新内存 Map（L66），再异步持久化到 DB。因此同进程内的 `read()` 实际上可以立即读到。
+
+**结论**：同进程场景无 race condition（内存 Map 是同步写入的），DB 持久化的 fire-and-forget 只影响 resume 场景。但 `blackboard.write()` 的 Promise 返回值被忽略会吞掉 DB 写入错误，影响 resume 可靠性。
+
+**修复**：
+- `implement-pipeline.ts:782` — await blackboard.write()，确保 resume 时 DB 数据完整
+- `implement-pipeline.ts:802` — await savePlanToDB()，确保 plan 状态持久化
+
+#### P0-2. chat-engine checkpoint 并发写入
+
+**问题**：多处 `updateConversation()` 用 `.catch()` 不 await，如果 DB 写入顺序乱序可能导致 checkpoint 状态不一致。
+
+**修复**：
+- `chat-engine.ts:845` — await 初始状态标记（architect_phase_status: running）
+- `chat-engine.ts:864` — checkpoint 回调本身不能 await（在 agent loop 热路径上），但改为串行队列保证顺序
+
+#### P0-3. deploy-pipeline `hc` 未定义访问
+
+**问题**：L165 的 error 字段引用 `hc.status`，但 `hc` 只在 L133 定义，如果代码路径跳过健康检查，hc 未定义导致 TypeError。
+
+**修复**：将 error 信息改为使用已有的 `healthResult` 变量（L134-139 中赋值），它始终在 hc 定义后才赋值。
+
+#### P0-4. skill-registry 初始化 race condition
+
+**问题**：`initialized = true` 在 L69，但 `embedAllSkills()` 在 L90 是 fire-and-forget。第二次调用 `initializeSkillRegistry()` 直接返回，但嵌入未完成。
+
+**修复**：将 `initialized` 改为 Promise 模式，允许并发调用者 await 同一个初始化 Promise。技能注册（registry.set）是同步的不受影响，只有语义嵌入需要等待。

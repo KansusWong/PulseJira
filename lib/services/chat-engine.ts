@@ -841,8 +841,8 @@ You have access to tools for searching the web, reading files, and listing direc
       const started_at = existingCheckpoint?.started_at || new Date().toISOString();
       const initialMessages = existingCheckpoint?.messages;
 
-      // Mark architect as running
-      this.updateConversation(conversationId, {
+      // Mark architect as running (awaited to guarantee state before execution starts)
+      await this.updateConversation(conversationId, {
         architect_phase_status: 'running',
         architect_checkpoint: {
           messages: initialMessages || [],
@@ -854,23 +854,28 @@ You have access to tools for searching the web, reading files, and listing direc
         },
       } as any).catch(err => console.error('[ChatEngine] Status update failed:', err));
 
-      // Debounced checkpoint callback — writes to DB every 3 steps or 30s
+      // Debounced checkpoint callback — writes to DB every 3 steps or 30s.
+      // Uses a serial queue to guarantee checkpoint write ordering.
       let lastCheckpointStep = existingCheckpoint?.steps_completed || 0;
       let lastCheckpointTime = Date.now();
+      let checkpointQueue: Promise<void> = Promise.resolve();
       const onCheckpoint = (data: { messages: any[]; stepsCompleted: number }) => {
         if (data.stepsCompleted - lastCheckpointStep >= 3 || Date.now() - lastCheckpointTime >= 30_000) {
           lastCheckpointStep = data.stepsCompleted;
           lastCheckpointTime = Date.now();
-          this.updateConversation(conversationId, {
-            architect_checkpoint: {
-              messages: data.messages,
-              started_at,
-              updated_at: new Date().toISOString(),
-              steps_completed: data.stepsCompleted,
-              team_id: teamId,
-              attempt,
-            },
-          } as any).catch(err => console.error('[ChatEngine] Checkpoint write failed:', err));
+          // Chain writes serially to prevent out-of-order DB updates
+          checkpointQueue = checkpointQueue.then(() =>
+            this.updateConversation(conversationId, {
+              architect_checkpoint: {
+                messages: data.messages,
+                started_at,
+                updated_at: new Date().toISOString(),
+                steps_completed: data.stepsCompleted,
+                team_id: teamId,
+                attempt,
+              },
+            } as any).catch(err => console.error('[ChatEngine] Checkpoint write failed:', err))
+          );
         }
       };
 
@@ -892,7 +897,7 @@ You have access to tools for searching the web, reading files, and listing direc
 
       // When architect finishes (success or error), close the channel
       architectPromise
-        .then((result) => {
+        .then(async (result) => {
           emitWebhookEvent({
             event: 'architect_complete',
             title: 'Architect Phase Complete',
@@ -901,10 +906,13 @@ You have access to tools for searching the web, reading files, and listing direc
           });
 
           const responseText = `Architect complete. ${result.steps_completed} steps completed, ${result.steps_failed} failed.`;
-          this.saveMessage(conversationId, 'assistant', responseText).catch((err) => console.error('[ChatEngine] Save architect completion message failed:', err));
+          await this.saveMessage(conversationId, 'assistant', responseText).catch((err) => console.error('[ChatEngine] Save architect completion message failed:', err));
+
+          // Drain pending checkpoint writes before marking complete
+          await checkpointQueue;
 
           // Mark completed, store result, clear checkpoint
-          this.updateConversation(conversationId, {
+          await this.updateConversation(conversationId, {
             architect_phase_status: 'completed',
             architect_result: result,
             architect_checkpoint: null,
@@ -931,8 +939,8 @@ You have access to tools for searching the web, reading files, and listing direc
           });
           channel.close();
         })
-        .catch((error: any) => {
-          const errorMsg = `Architect execution failed: ${error.message}`;
+        .catch(async (error: unknown) => {
+          const errorMsg = `Architect execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
 
           emitWebhookEvent({
             event: 'architect_failed',
@@ -941,10 +949,13 @@ You have access to tools for searching the web, reading files, and listing direc
             from: 'architect',
           });
 
-          this.saveMessage(conversationId, 'assistant', errorMsg).catch((err) => console.error('[ChatEngine] Save architect error message failed:', err));
+          await this.saveMessage(conversationId, 'assistant', errorMsg).catch((err) => console.error('[ChatEngine] Save architect error message failed:', err));
+
+          // Drain pending checkpoint writes before marking failed
+          await checkpointQueue;
 
           // Mark failed, keep checkpoint for resume
-          this.updateConversation(conversationId, {
+          await this.updateConversation(conversationId, {
             architect_phase_status: 'failed',
           } as any).catch(err => console.error('[ChatEngine] Architect failure update failed:', err));
 

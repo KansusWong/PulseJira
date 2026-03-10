@@ -778,8 +778,8 @@ export async function runImplementation(
         task.completedAt = new Date().toISOString();
         completedTasks.add(task.id);
 
-        // Write task result to shared blackboard
-        blackboard.write({
+        // Write task result to shared blackboard (awaited to ensure DB persistence for resume)
+        await blackboard.write({
           key: `task.${task.id}.result`,
           value: {
             title: task.title,
@@ -799,7 +799,7 @@ export async function runImplementation(
         const qualityTag = task.validation && !task.validation.passed ? ' (partial — QA gate failed)' : '';
         await log(`[implement] ✓ "${task.title}" completed${qualityTag}.`);
 
-        savePlanToDB(projectId, plan).catch((err) => console.error('[implement-pipeline] Save plan failed:', err));
+        await savePlanToDB(projectId, plan).catch((err) => console.error('[implement-pipeline] Save plan failed:', err));
 
         extractAndStorePatterns({
           taskId: task.id,

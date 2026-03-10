@@ -49,7 +49,7 @@ export function searchSkills(query: string): SkillDefinition[] {
 // Initialization
 // ---------------------------------------------------------------------------
 
-let initialized = false;
+let initPromise: Promise<void> | null = null;
 
 function getSkillBaseDirs(): string[] {
   const projectSkills = path.join(process.cwd(), 'skills');
@@ -62,33 +62,39 @@ function getSkillBaseDirs(): string[] {
 
 /**
  * Scan the project `skills/` directory for SKILL.md files and register them.
- * Idempotent — subsequent calls are no-ops.
+ * Idempotent — concurrent calls share the same initialization Promise.
+ * Skills are registered synchronously (available immediately for lookup).
+ * Embedding completes asynchronously — callers needing semantic search
+ * should await the returned promise.
  */
-export function initializeSkillRegistry(): void {
-  if (initialized) return;
-  initialized = true;
+export function initializeSkillRegistry(): Promise<void> {
+  if (initPromise) return initPromise;
 
-  const locals: SkillDefinition[] = [];
-  const loadedByDir: string[] = [];
-  for (const baseDir of getSkillBaseDirs()) {
-    const entries = loadLocalSkills(baseDir);
-    if (entries.length === 0) continue;
-    loadedByDir.push(`${baseDir}(${entries.length})`);
-    locals.push(...entries);
-  }
+  initPromise = (async () => {
+    const locals: SkillDefinition[] = [];
+    const loadedByDir: string[] = [];
+    for (const baseDir of getSkillBaseDirs()) {
+      const entries = loadLocalSkills(baseDir);
+      if (entries.length === 0) continue;
+      loadedByDir.push(`${baseDir}(${entries.length})`);
+      locals.push(...entries);
+    }
 
-  for (const skill of locals) {
-    // local skill wins by ID, later dirs can override older ones by same id
-    registerSkill(skill);
-  }
+    for (const skill of locals) {
+      // Synchronous registration — skill available for lookup immediately
+      registry.set(skill.id, skill);
+    }
 
-  if (locals.length > 0) {
-    console.log(
-      `[skill-registry] Loaded ${locals.length} local skill(s) from ${loadedByDir.join(', ')}: ${locals.map((s) => s.id).join(', ')}`,
-    );
-    // Fire-and-forget: embed all loaded skills for semantic discovery
-    embedAllSkills(locals).catch((err) => console.error('[skill-registry] Embed all skills failed:', err));
-  }
+    if (locals.length > 0) {
+      console.log(
+        `[skill-registry] Loaded ${locals.length} local skill(s) from ${loadedByDir.join(', ')}: ${locals.map((s) => s.id).join(', ')}`,
+      );
+      // Await embedding so semantic discovery is ready when init completes
+      await embedAllSkills(locals).catch((err) => console.error('[skill-registry] Embed all skills failed:', err));
+    }
+  })();
+
+  return initPromise;
 }
 
 // ---------------------------------------------------------------------------

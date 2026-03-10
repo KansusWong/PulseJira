@@ -162,16 +162,17 @@ export async function runDeployment(
       deploymentUrl: state === 'success' ? deploymentUrl : null,
       mergedAt,
       healthCheck: healthResult,
-      error: state === 'success' ? null : `Health check failed (status=${hc.status})`,
+      error: state === 'success' ? null : `Health check failed (status=${healthResult?.status ?? 'unknown'})`,
     };
-  } catch (error: any) {
-    await log(`[deploy] Pipeline error: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown deploy error';
+    await log(`[deploy] Pipeline error: ${message}`);
     return {
       state: 'failed',
       deploymentUrl,
       mergedAt,
       healthCheck: healthResult,
-      error: error.message,
+      error: message,
     };
   }
 }
