@@ -113,11 +113,11 @@ export async function runDeployment(
       if (autoRollback) {
         await log('[deploy] Attempting rollback via revert...');
         await attemptRollback(repoOwner, repoName, mergeResult.sha || '', prNumber, log);
-        state = 'rolled_back';
+        state = 'rollback_pending';
       }
 
-      messageBus.agentComplete('deployer', { state, error: 'Deployment failed' });
-      return { state, deploymentUrl: null, mergedAt, healthCheck: null, error: 'Deployment failed' };
+      messageBus.agentComplete('deployer', { state, error: 'Deployment failed — manual rollback required' });
+      return { state, deploymentUrl: null, mergedAt, healthCheck: null, error: 'Deployment failed — manual rollback required' };
     }
 
     await log(`[deploy] Deployment live at: ${deploymentUrl}`);
@@ -147,7 +147,7 @@ export async function runDeployment(
       if (autoRollback) {
         await log('[deploy] Attempting rollback via revert...');
         await attemptRollback(repoOwner, repoName, mergeResult.sha || '', prNumber, log);
-        state = 'rolled_back';
+        state = 'rollback_pending';
       } else {
         state = 'failed';
       }
@@ -302,8 +302,11 @@ async function pollGitHubDeployment(
 }
 
 /**
- * Attempt rollback by creating a revert commit.
- * We use GitHub's API to create a revert PR, then auto-merge it.
+ * Log rollback guidance for manual intervention.
+ *
+ * NOTE: Automated rollback is not yet implemented — GitHub's API does not
+ * expose a direct "revert commit" endpoint. The caller sets state to
+ * 'rollback_pending' (not 'rolled_back') to honestly reflect this.
  */
 async function attemptRollback(
   owner: string,
@@ -313,14 +316,11 @@ async function attemptRollback(
   log: (msg: string) => Promise<void> | void
 ): Promise<void> {
   try {
-    // GitHub doesn't have a direct "revert commit" API endpoint.
-    // The cleanest approach: use the createPullRequest to document what happened,
-    // but actual revert requires git operations. For now, log the guidance.
-    await log(`[deploy] ROLLBACK: Merge SHA ${mergedSha} from PR #${originalPR} should be reverted.`);
-    await log(`[deploy] Recommended: run "git revert ${mergedSha}" locally, push, and create a revert PR.`);
-    await log(`[deploy] Automated revert via API is planned for a future iteration.`);
-  } catch (error: any) {
-    await log(`[deploy] Rollback attempt failed: ${error.message}`);
+    await log(`[deploy] ROLLBACK PENDING: Merge SHA ${mergedSha} from PR #${originalPR} needs manual revert.`);
+    await log(`[deploy] Action required: run "git revert ${mergedSha}" locally, push, and create a revert PR.`);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    await log(`[deploy] Rollback guidance failed: ${msg}`);
   }
 }
 

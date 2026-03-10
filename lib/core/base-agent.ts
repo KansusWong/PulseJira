@@ -340,12 +340,13 @@ export class BaseAgent {
               const args = JSON.parse(toolCall.function.arguments);
               await log(`[${name}] Exit tool "${exitToolName}" called. Finishing.`);
               return args;
-            } catch (parseErr: any) {
-              await log(`[${name}] Failed to parse exit tool arguments: ${parseErr.message}. Continuing loop.`);
+            } catch (parseErr: unknown) {
+              const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+              await log(`[${name}] Failed to parse exit tool arguments: ${parseMsg}. Continuing loop.`);
               messages.push({
                 role: 'tool',
                 tool_call_id: toolCall.id,
-                content: `Error: Failed to parse arguments as JSON: ${parseErr.message}. Please retry with valid JSON.`,
+                content: `Error: Failed to parse arguments as JSON: ${parseMsg}. Please retry with valid JSON.`,
               });
               continue;
             }
@@ -379,8 +380,13 @@ export class BaseAgent {
             resultStr = result.success
               ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))
               : `Error: ${result.error}`;
-          } catch (e: any) {
-            resultStr = `Error executing tool: ${e.message}`;
+          } catch (e: unknown) {
+            const isTimeout = e instanceof Error && (e.message.includes('timeout') || e.message.includes('ETIMEDOUT'));
+            const isRateLimit = e instanceof Error && (e.message.includes('429') || e.message.includes('rate limit'));
+            const errorType = isTimeout ? 'TIMEOUT' : isRateLimit ? 'RATE_LIMIT' : 'EXECUTION_ERROR';
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            console.error(`[${name}] Tool "${toolName}" ${errorType}:`, e);
+            resultStr = `Error executing tool (${errorType}): ${errorMsg}`;
           }
 
           messages.push({
@@ -492,8 +498,9 @@ export class BaseAgent {
           try {
             extractedResult = JSON.parse(lcMsg.tool_calls[0].function.arguments);
             await log(`[${name}] Extracted result via forced exit tool call.`);
-          } catch (parseErr: any) {
-            await log(`[${name}] Failed to parse last-chance exit tool arguments: ${parseErr.message}`);
+          } catch (parseErr: unknown) {
+            const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+            await log(`[${name}] Failed to parse last-chance exit tool arguments: ${parseMsg}`);
             // Fall through to text extraction
           }
         }

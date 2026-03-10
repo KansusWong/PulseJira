@@ -460,13 +460,16 @@ export async function runImplementation(
     if (isResume) {
       await log(`[implement] Resuming previous plan — ${pendingTasks.length} tasks remaining (${previousPlan!.tasks.length - pendingTasks.length} already completed).`);
 
-      // Reset failed/running tasks to pending for retry
+      // Reset failed/running tasks to pending for retry, including retry flags
       const tasks: ImplementationTask[] = previousPlan!.tasks.map((t) => ({
         ...t,
         status: t.status === 'completed' ? 'completed' as const : 'pending' as const,
         output: t.status === 'completed' ? t.output : undefined,
         startedAt: t.status === 'completed' ? t.startedAt : undefined,
         completedAt: t.status === 'completed' ? t.completedAt : undefined,
+        // Reset retry flags for non-completed tasks so they can be retried on resume
+        budgetExtended: t.status === 'completed' ? t.budgetExtended : undefined,
+        qaRetried: t.status === 'completed' ? t.qaRetried : undefined,
       }));
 
       plan = {

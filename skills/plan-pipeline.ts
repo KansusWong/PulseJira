@@ -63,8 +63,8 @@ export async function runPlan(
       codeArtifacts = curatorResult.code_artifacts || '';
       await log(`[Plan] Knowledge Curator completed (confidence: ${curatorResult.confidence || 'unknown'})`);
     }
-  } catch (e: any) {
-    await log(`[Plan] Knowledge Curator failed: ${(e as Error).message}. Falling back to basic retrieval.`);
+  } catch (e: unknown) {
+    await log(`[Plan] Knowledge Curator failed: ${e instanceof Error ? e.message : String(e)}. Falling back to basic retrieval.`);
     const ragContext = await retrieveContext(requirementContent);
     visionContext = ragContext.visionContext;
     pastDecisions = ragContext.pastDecisions;
@@ -77,8 +77,7 @@ export async function runPlan(
   messageBus.agentStart('pm', 1, 2);
   const pmAgent = createPlannerAgent({ mode: 'prd' });
   let prd: any;
-  try {
-    prd = await pmAgent.runOnce(`
+  const pmPrompt = `
 Incoming Signal:
 ${requirementContent}
 
@@ -92,11 +91,22 @@ Code Patterns (existing architectural patterns):
 ${codePatterns}
 
 Please analyze this signal and output a structured PRD.
-`, agentCtx);
-  } catch (e: any) {
-    const errMsg = `PM Agent failed to generate PRD: ${e.message}`;
-    await log(`[Plan] ${errMsg}`);
-    throw new Error(errMsg);
+`;
+  // Retry once on failure before giving up
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      prd = await pmAgent.runOnce(pmPrompt, agentCtx);
+      break;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (attempt < 2) {
+        await log(`[Plan] PM Agent attempt ${attempt} failed: ${msg}. Retrying...`);
+      } else {
+        const errMsg = `PM Agent failed after ${attempt} attempts: ${msg}`;
+        await log(`[Plan] ${errMsg}`);
+        throw new Error(errMsg);
+      }
+    }
   }
 
   if (context.signalId) {
@@ -111,8 +121,7 @@ Please analyze this signal and output a structured PRD.
   messageBus.agentStart('tech-lead', 2, 2);
   const techAgent = createPlannerAgent({ mode: 'task-plan' });
   let techResult: any;
-  try {
-    techResult = await techAgent.run(`
+  const techPrompt = `
 PRD (Product Requirements Document):
 ${JSON.stringify(prd, null, 2)}
 
@@ -135,11 +144,22 @@ Initial Code Context:
 ${codeContext}
 
 Please analyze the codebase and generate development tasks.
-`, agentCtx);
-  } catch (e: any) {
-    const errMsg = `Tech Lead failed: ${e.message}`;
-    await log(`[Plan] ${errMsg}`);
-    throw new Error(errMsg);
+`;
+  // Retry once on failure before giving up
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      techResult = await techAgent.run(techPrompt, agentCtx);
+      break;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (attempt < 2) {
+        await log(`[Plan] Tech Lead attempt ${attempt} failed: ${msg}. Retrying...`);
+      } else {
+        const errMsg = `Tech Lead failed after ${attempt} attempts: ${msg}`;
+        await log(`[Plan] ${errMsg}`);
+        throw new Error(errMsg);
+      }
+    }
   }
 
   if (!techResult || !techResult.tasks) {

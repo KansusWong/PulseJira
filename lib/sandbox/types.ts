@@ -96,8 +96,9 @@ export type DeployState =
   | 'deploying'     // deployment triggered, building
   | 'verifying'     // health check in progress
   | 'success'       // deployment live and healthy
-  | 'failed'        // deployment or health check failed
-  | 'rolled_back';  // rolled back after failure
+  | 'failed'            // deployment or health check failed
+  | 'rolled_back'       // fully rolled back after failure
+  | 'rollback_pending'; // rollback needed but not yet automated
 
 export interface DeploymentRecord {
   id: string;

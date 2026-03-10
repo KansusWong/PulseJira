@@ -9,10 +9,19 @@ interface Waiter<T> {
   resolve: (result: IteratorResult<T>) => void;
 }
 
+/** Default max queue size — prevents unbounded memory growth if consumer stalls. */
+const DEFAULT_MAX_QUEUE_SIZE = 10_000;
+
 export class EventChannel<T> implements AsyncIterable<T> {
   private queue: T[] = [];
   private waiters: Waiter<T>[] = [];
   private closed = false;
+  private readonly maxQueueSize: number;
+  private overflowWarned = false;
+
+  constructor(maxQueueSize: number = DEFAULT_MAX_QUEUE_SIZE) {
+    this.maxQueueSize = maxQueueSize;
+  }
 
   /** Producer pushes an event into the channel. */
   push(event: T): void {
@@ -22,6 +31,14 @@ export class EventChannel<T> implements AsyncIterable<T> {
       const waiter = this.waiters.shift()!;
       waiter.resolve({ value: event, done: false });
     } else {
+      // Drop oldest events when queue exceeds capacity to prevent OOM
+      if (this.queue.length >= this.maxQueueSize) {
+        this.queue.shift();
+        if (!this.overflowWarned) {
+          this.overflowWarned = true;
+          console.warn(`[EventChannel] Queue overflow — dropping oldest events (max ${this.maxQueueSize})`);
+        }
+      }
       this.queue.push(event);
     }
   }

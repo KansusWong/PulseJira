@@ -899,11 +899,11 @@ Sprint 7 集中清理三项技术债：(1) 全局 26 处 `.catch(() => {})` sile
 | 2 | **P0** | chat-engine 对话状态并发写入 — checkpoint 用 `.catch()` 不 await，快速操作导致 checkpoint 不一致 | `chat-engine.ts:845,864` | [x] |
 | 3 | **P0** | deploy-pipeline `hc` 变量作用域错误 — rollback 路径中引用了可能未定义的 `hc.status` | `deploy-pipeline.ts:165` | [x] |
 | 4 | **P0** | skill-registry 初始化 race — `initialized` 在 `embedAllSkills()` 完成前就设为 true | `skill-registry.ts:67` | [x] |
-| 5 | **P1** | plan-pipeline 无降级策略 — PM Agent / Tech Lead 失败直接 throw，整条管线停掉 | `plan-pipeline.ts:96,139` | [ ] |
-| 6 | **P1** | deploy-pipeline rollback 空实现 — `attemptRollback()` 只打日志不做实际回滚，但状态标记 "rolled_back" | `deploy-pipeline.ts:307` | [ ] |
-| 7 | **P1** | base-agent 工具执行错误丢失上下文 — catch 只取 message，丢失 stack trace 和错误分类 | `base-agent.ts:382` | [ ] |
-| 8 | **P1** | EventChannel 队列无上限 — push 无限增长，长时间执行可能 OOM | `event-channel.ts:25` | [ ] |
-| 9 | **P1** | implement-pipeline resume 状态不完整 — 不重置 budgetExtended/qaRetried 标志 | `implement-pipeline.ts:464` | [ ] |
+| 5 | **P1** | plan-pipeline 无降级策略 — PM Agent / Tech Lead 失败直接 throw，整条管线停掉 | `plan-pipeline.ts:96,139` | [x] |
+| 6 | **P1** | deploy-pipeline rollback 空实现 — `attemptRollback()` 只打日志不做实际回滚，但状态标记 "rolled_back" | `deploy-pipeline.ts:307` | [x] |
+| 7 | **P1** | base-agent 工具执行错误丢失上下文 — catch 只取 message，丢失 stack trace 和错误分类 | `base-agent.ts:382` | [x] |
+| 8 | **P1** | EventChannel 队列无上限 — push 无限增长，长时间执行可能 OOM | `event-channel.ts:25` | [x] |
+| 9 | **P1** | implement-pipeline resume 状态不完整 — 不重置 budgetExtended/qaRetried 标志 | `implement-pipeline.ts:464` | [x] |
 | 10 | **P1** | 前端未适配分页 — 所有列表 API 调用仍是全量拉取 | `ChatView.tsx:41` 等 | [ ] |
 | 11 | **P2** | base-agent 大量 any 类型 — usage / 工具参数 JSON.parse 无类型校验 | `base-agent.ts:287,340` | [ ] |
 | 12 | **P2** | team-coordinator null check 缺失 — DB 查询后不检查 null | `team-coordinator.ts:226,309` | [ ] |
