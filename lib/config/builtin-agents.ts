@@ -86,7 +86,7 @@ registerAgent({
 registerAgent({
   id: 'chat-assistant',
   displayName: 'Chat Assistant',
-  role: '通用对话助手，处理 L1 级别问答和信息查询',
+  role: '通用对话助手，处理 L1 直接问答和 L2 轻量项目任务',
   runMode: 'react',
   defaultMaxLoops: 3,
   defaultPrompt: '',
