@@ -3,63 +3,61 @@
  * POST /api/settings/webhooks — create a new webhook config
  */
 
+import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { webhookService } from '@/lib/services/webhook';
+import { errorResponse, withErrorHandler } from '@/lib/utils/api-error';
+import { parsePagination } from '@/lib/utils/pagination';
+import { createWebhookSchema } from '@/lib/validations/api-schemas';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withErrorHandler(async (req: Request) => {
   if (!supabaseConfigured) {
-    return Response.json({ success: true, data: [] });
+    return NextResponse.json({ success: true, data: [], pagination: { total: 0, limit: 50, offset: 0 } });
   }
 
-  const { data, error } = await supabase
+  const { limit, offset } = parsePagination(req.url);
+
+  const { data, error, count } = await supabase
     .from('webhook_configs')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) {
-    return Response.json({ success: false, error: error.message }, { status: 500 });
+    return errorResponse(error.message, 500);
   }
 
-  return Response.json({ success: true, data });
-}
+  return NextResponse.json({ success: true, data, pagination: { total: count ?? 0, limit, offset } });
+});
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: Request) => {
   if (!supabaseConfigured) {
-    return Response.json({ success: false, error: 'Database not configured' }, { status: 503 });
+    return errorResponse('Database not configured', 503);
   }
 
   const body = await req.json();
-  const { provider, label, webhook_url, events, message_template, display_name } = body;
-
-  if (!provider || !webhook_url) {
-    return Response.json({ success: false, error: 'provider and webhook_url are required' }, { status: 400 });
-  }
-
-  const validProviders = ['feishu', 'dingtalk', 'slack', 'wecom', 'custom'];
-  if (!validProviders.includes(provider)) {
-    return Response.json({ success: false, error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` }, { status: 400 });
-  }
+  const parsed = createWebhookSchema.parse(body);
 
   const { data, error } = await supabase
     .from('webhook_configs')
     .insert({
-      provider,
-      label: label || '',
-      webhook_url,
-      events: events || ['pipeline_complete', 'deploy_complete', 'deploy_failed'],
-      message_template: message_template || null,
-      display_name: display_name || null,
+      provider: parsed.provider,
+      label: parsed.label,
+      webhook_url: parsed.webhook_url,
+      events: parsed.events,
+      message_template: parsed.message_template,
+      display_name: parsed.display_name,
     })
     .select()
     .single();
 
   if (error) {
-    return Response.json({ success: false, error: error.message }, { status: 500 });
+    return errorResponse(error.message, 500);
   }
 
   webhookService.invalidateCache();
-  return Response.json({ success: true, data });
-}
+  return NextResponse.json({ success: true, data });
+});

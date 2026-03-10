@@ -5,8 +5,17 @@
 
 import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
+import { errorResponse, withErrorHandler } from '@/lib/utils/api-error';
+import { systemConfigPatchSchema } from '@/lib/validations/api-schemas';
 
-export async function GET() {
+const ALLOWED_CONFIG_KEYS = new Set([
+  'signal_collection_enabled',
+  'signal_fetch_interval_hours',
+  'signal_max_per_platform',
+  'auto_process_signals',
+]);
+
+export const GET = withErrorHandler(async () => {
   if (!supabaseConfigured) {
     return NextResponse.json({
       success: true,
@@ -20,14 +29,15 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('system_config')
-    .select('*');
+    .select('*')
+    .limit(100);
 
   if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return errorResponse(error.message, 500);
   }
 
   // Transform array of {key, value} into a config object
-  const config: Record<string, any> = {};
+  const config: Record<string, unknown> = {};
   for (const row of data || []) {
     try {
       config[row.key] = JSON.parse(row.value);
@@ -37,17 +47,24 @@ export async function GET() {
   }
 
   return NextResponse.json({ success: true, data: config });
-}
+});
 
-export async function PATCH(req: Request) {
+export const PATCH = withErrorHandler(async (req: Request) => {
   if (!supabaseConfigured) {
-    return NextResponse.json({ success: false, error: 'Database not configured' }, { status: 503 });
+    return errorResponse('Database not configured', 503);
   }
 
   const body = await req.json();
+  const parsed = systemConfigPatchSchema.parse(body);
+
+  // Validate keys against whitelist
+  const invalidKeys = Object.keys(parsed).filter(k => !ALLOWED_CONFIG_KEYS.has(k));
+  if (invalidKeys.length > 0) {
+    return errorResponse(`Invalid config keys: ${invalidKeys.join(', ')}`, 400);
+  }
 
   // Upsert each key-value pair
-  const updates = Object.entries(body).map(([key, value]) => ({
+  const updates = Object.entries(parsed).map(([key, value]) => ({
     key,
     value: JSON.stringify(value),
     updated_at: new Date().toISOString(),
@@ -59,5 +76,5 @@ export async function PATCH(req: Request) {
       .upsert(update, { onConflict: 'key' });
   }
 
-  return NextResponse.json({ success: true, data: body });
-}
+  return NextResponse.json({ success: true, data: parsed });
+});

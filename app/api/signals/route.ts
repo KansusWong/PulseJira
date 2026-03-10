@@ -2,12 +2,15 @@ import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/connectors/external/supabase';
 import { updateSignalStatus } from '@/lib/services/signal';
 import { isDemoMode, demoSignalStore, ensureDemoStore } from '@/lib/services/demo-signals';
+import { errorResponse, withErrorHandler } from '@/lib/utils/api-error';
+import { parsePagination } from '@/lib/utils/pagination';
+import { signalActionSchema } from '@/lib/validations/api-schemas';
 
 /**
  * GET /api/signals — List signals
  * POST /api/signals — Update signal status (approve/reject)
  */
-export async function GET() {
+export const GET = withErrorHandler(async (req: Request) => {
   const demoMode = isDemoMode();
 
   // Skip pointless placeholder query when Supabase is not configured
@@ -27,17 +30,20 @@ export async function GET() {
     });
   }
 
+  const { limit, offset } = parsePagination(req.url, { limit: 50, maxLimit: 200 });
+
   // Try DB first
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from('signals')
-    .select('id, source_url, content, status, platform, metadata, received_at')
+    .select('id, source_url, content, status, platform, metadata, received_at', { count: 'exact' })
     .order('received_at', { ascending: false })
-    .limit(50);
+    .range(offset, offset + limit - 1);
 
   if (!error && data && data.length > 0) {
     return NextResponse.json({
       success: true,
       data,
+      pagination: { total: count ?? 0, limit, offset },
       meta: {
         mode: 'live',
         is_demo: false,
@@ -65,6 +71,7 @@ export async function GET() {
   return NextResponse.json({
     success: true,
     data: [],
+    pagination: { total: 0, limit, offset },
     meta: {
       mode: 'live',
       is_demo: false,
@@ -73,20 +80,17 @@ export async function GET() {
         : 'No live signals found yet. Configure sources and run collection.',
     },
   });
-}
+});
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: Request) => {
   let body;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    return errorResponse('Invalid JSON body', 400);
   }
 
-  const { signalId, action, refinedContent } = body;
-  if (!signalId || !action) {
-    return NextResponse.json({ success: false, error: 'signalId and action are required' }, { status: 400 });
-  }
+  const parsed = signalActionSchema.parse(body);
 
   const statusMap: Record<string, 'DRAFT' | 'ANALYZED' | 'APPROVED' | 'REJECTED'> = {
     approve: 'APPROVED',
@@ -94,15 +98,8 @@ export async function POST(req: Request) {
     restore: 'DRAFT',
   };
 
-  const status = statusMap[action];
-  if (!status) {
-    return NextResponse.json({ success: false, error: 'action must be approve, reject, or restore' }, { status: 400 });
-  }
+  const status = statusMap[parsed.action];
 
-  try {
-    await updateSignalStatus(signalId, status, refinedContent);
-    return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
-  }
-}
+  await updateSignalStatus(parsed.signalId, status, parsed.refinedContent);
+  return NextResponse.json({ success: true });
+});

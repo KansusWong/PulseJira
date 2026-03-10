@@ -5,25 +5,31 @@
 
 import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
+import { errorResponse, withErrorHandler } from '@/lib/utils/api-error';
+import { parsePagination } from '@/lib/utils/pagination';
+import { createConversationSchema } from '@/lib/validations/api-schemas';
 
-export async function GET() {
+export const GET = withErrorHandler(async (req: Request) => {
   if (!supabaseConfigured) {
-    return NextResponse.json({ success: true, data: [] });
+    return NextResponse.json({ success: true, data: [], pagination: { total: 0, limit: 50, offset: 0 } });
   }
 
-  const { data, error } = await supabase
+  const { limit, offset } = parsePagination(req.url);
+
+  const { data, error, count } = await supabase
     .from('conversations')
-    .select('*')
-    .order('updated_at', { ascending: false });
+    .select('*', { count: 'exact' })
+    .order('updated_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return errorResponse(error.message, 500);
   }
 
-  return NextResponse.json({ success: true, data });
-}
+  return NextResponse.json({ success: true, data, pagination: { total: count ?? 0, limit, offset } });
+});
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: Request) => {
   if (!supabaseConfigured) {
     return NextResponse.json({
       success: true,
@@ -36,20 +42,23 @@ export async function POST(req: Request) {
     });
   }
 
-  const body = await req.json().catch(() => ({}));
+  let body;
+  try { body = await req.json(); } catch { body = {}; }
+
+  const parsed = createConversationSchema.parse(body);
 
   const { data, error } = await supabase
     .from('conversations')
     .insert({
-      title: body.title || null,
+      title: parsed.title || null,
       status: 'active',
     })
     .select()
     .single();
 
   if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return errorResponse(error.message, 500);
   }
 
   return NextResponse.json({ success: true, data });
-}
+});

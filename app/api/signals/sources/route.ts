@@ -7,87 +7,81 @@
 
 import { NextResponse } from 'next/server';
 import { supabase, assertSupabase } from '@/lib/db/client';
-import { errorResponse } from '@/lib/utils/api-error';
+import { errorResponse, withErrorHandler } from '@/lib/utils/api-error';
+import { parsePagination } from '@/lib/utils/pagination';
+import { createSignalSourceSchema } from '@/lib/validations/api-schemas';
 import {
   getSignalPlatformDefinition,
   listSignalPlatformsForClient,
 } from '@/lib/services/signal-platform-registry';
 
-export async function GET() {
-  try {
-    assertSupabase();
-    const { data, error } = await supabase
-      .from('signal_sources')
-      .select('*')
-      .order('created_at', { ascending: false });
+export const GET = withErrorHandler(async (req: Request) => {
+  assertSupabase();
 
-    if (error) {
-      return errorResponse(error.message, 500);
-    }
+  const { limit, offset } = parsePagination(req.url);
 
-    return NextResponse.json({
-      success: true,
-      data,
-      meta: {
-        platformCatalog: listSignalPlatformsForClient(),
-      },
-    });
-  } catch (e: any) {
-    console.error('[API Error] GET /api/signals/sources:', e);
-    return errorResponse(e.message || 'Internal Server Error');
+  const { data, error, count } = await supabase
+    .from('signal_sources')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    return errorResponse(error.message, 500);
   }
-}
 
-export async function POST(req: Request) {
+  return NextResponse.json({
+    success: true,
+    data,
+    pagination: { total: count ?? 0, limit, offset },
+    meta: {
+      platformCatalog: listSignalPlatformsForClient(),
+    },
+  });
+});
+
+export const POST = withErrorHandler(async (req: Request) => {
+  assertSupabase();
+
+  let body;
   try {
-    assertSupabase();
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return errorResponse('Invalid JSON body', 400);
-    }
-
-    const { platform, identifier, label, keywords, interval_minutes, active, config } = body;
-
-    if (!platform || !identifier || !label) {
-      return errorResponse('platform, identifier, and label are required', 400);
-    }
-
-    const definition = getSignalPlatformDefinition(String(platform));
-    if (!definition) {
-      return errorResponse(
-        `Unsupported platform: ${platform}. Add a platform adapter or use generic-web.`,
-        400
-      );
-    }
-
-    const payload: Record<string, any> = {
-      platform,
-      identifier,
-      label,
-      keywords: keywords || [],
-      interval_minutes: interval_minutes || 60,
-      active: active !== false,
-    };
-
-    if (config && typeof config === 'object') {
-      payload.config = config;
-    }
-
-    const { data, error } = await supabase
-      .from('signal_sources')
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) {
-      return errorResponse(error.message, 500);
-    }
-
-    return NextResponse.json({ success: true, data }, { status: 201 });
-  } catch (e: any) {
-    console.error('[API Error] POST /api/signals/sources:', e);
-    return errorResponse(e.message || 'Internal Server Error');
+    body = await req.json();
+  } catch {
+    return errorResponse('Invalid JSON body', 400);
   }
-}
+
+  const parsed = createSignalSourceSchema.parse(body);
+
+  const definition = getSignalPlatformDefinition(parsed.platform);
+  if (!definition) {
+    return errorResponse(
+      `Unsupported platform: ${parsed.platform}. Add a platform adapter or use generic-web.`,
+      400
+    );
+  }
+
+  const payload: Record<string, unknown> = {
+    platform: parsed.platform,
+    identifier: parsed.identifier,
+    label: parsed.label,
+    keywords: parsed.keywords,
+    interval_minutes: parsed.interval_minutes,
+    active: parsed.active,
+  };
+
+  if (parsed.config && typeof parsed.config === 'object') {
+    payload.config = parsed.config;
+  }
+
+  const { data, error } = await supabase
+    .from('signal_sources')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    return errorResponse(error.message, 500);
+  }
+
+  return NextResponse.json({ success: true, data }, { status: 201 });
+});

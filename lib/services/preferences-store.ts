@@ -65,6 +65,7 @@ const USER_ID = 'default';
 // ---------------------------------------------------------------------------
 
 let cache: UserPreferences | null = null;
+let cachePromise: Promise<UserPreferences> | null = null;
 
 // ---------------------------------------------------------------------------
 // DB helpers
@@ -138,9 +139,11 @@ async function saveToDB(prefs: UserPreferences): Promise<void> {
 
 export async function getPreferences(): Promise<UserPreferences> {
   if (cache) return { ...cache };
-
-  cache = await loadFromDB();
-  return { ...cache };
+  if (!cachePromise) {
+    cachePromise = loadFromDB().then(data => { cache = data; cachePromise = null; return data; });
+  }
+  const result = await cachePromise;
+  return { ...result };
 }
 
 export async function setPreferences(patch: Partial<UserPreferences>): Promise<UserPreferences> {
@@ -163,8 +166,8 @@ export async function setPreferences(patch: Partial<UserPreferences>): Promise<U
     updatedAt: new Date().toISOString(),
   };
 
-  cache = updated;
-  await saveToDB(updated);
+  await saveToDB(updated);  // Write to DB first
+  cache = updated;          // Update cache only after DB succeeds
 
   return { ...updated };
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ZodError } from 'zod';
 import { AuthError } from '@/lib/auth';
 
 /** Unified JSON error response */
@@ -13,12 +14,16 @@ export function withErrorHandler(
   return async (req: Request, ctx: any) => {
     try {
       return await handler(req, ctx);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      if (e instanceof ZodError) {
+        return errorResponse(e.errors.map(err => `${err.path.join('.')}: ${err.message}`).join('; '), 400);
+      }
       if (e instanceof AuthError) {
         return errorResponse(e.message, e.status);
       }
+      const message = e instanceof Error ? e.message : 'Internal Server Error';
       console.error(`[API Error] ${req.method} ${new URL(req.url).pathname}:`, e);
-      return errorResponse(e.message || 'Internal Server Error');
+      return errorResponse(message, 500);
     }
   };
 }
@@ -111,10 +116,11 @@ export function makeSSEResponse(
       if (!clientDisconnected) {
         await safe.write({ type: 'result', data });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[SSE Error]', e);
       if (!clientDisconnected) {
-        await safe.write({ type: 'error', error: e.message });
+        const message = e instanceof Error ? e.message : 'Internal Server Error';
+        await safe.write({ type: 'error', error: message });
       }
     } finally {
       if (timeoutId) clearTimeout(timeoutId);

@@ -22,6 +22,8 @@ interface RoutePermission {
 /**
  * Ordered permission rules — first match wins.
  * More specific rules should come before general ones.
+ *
+ * SYNC: This rule table MUST be kept in sync with middleware.ts (Edge inlined copy)
  */
 const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ── Public ──────────────────────────────────────────────────────────

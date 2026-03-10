@@ -77,6 +77,10 @@ export async function POST(req: Request) {
       });
     }
 
+    if (claimedSignals.length < candidateIds.length) {
+      console.warn(`[cron/process-signals] Skipped ${candidateIds.length - claimedSignals.length} signals (claimed by concurrent worker)`);
+    }
+
     claimedSignalIds = claimedSignals.map((s) => s.id);
 
     const cronRecordUsage = (u: {
@@ -125,7 +129,7 @@ export async function POST(req: Request) {
         architectSteps: result.architect?.steps_completed || 0,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[cron/process-signals] Error:', error);
 
     // Reset in-flight rows so they can be retried by the next cron run.
@@ -137,7 +141,8 @@ export async function POST(req: Request) {
         .eq('status', 'PROCESSING');
     }
 
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 

@@ -4,35 +4,33 @@
 
 import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
+import { errorResponse, withErrorHandler } from '@/lib/utils/api-error';
+import { createTeamSchema } from '@/lib/validations/api-schemas';
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: Request) => {
   if (!supabaseConfigured) {
-    return NextResponse.json({ success: false, error: 'Database not configured' }, { status: 503 });
+    return errorResponse('Database not configured', 503);
   }
 
   const body = await req.json();
-  const { conversation_id, project_id, team_name, lead_agent, config } = body;
-
-  if (!team_name || !lead_agent) {
-    return NextResponse.json({ success: false, error: 'team_name and lead_agent are required' }, { status: 400 });
-  }
+  const parsed = createTeamSchema.parse(body);
 
   const { data, error } = await supabase
     .from('agent_teams')
     .insert({
-      conversation_id: conversation_id || null,
-      project_id: project_id || null,
-      team_name,
-      lead_agent,
+      conversation_id: parsed.conversation_id || null,
+      project_id: parsed.project_id || null,
+      team_name: parsed.team_name,
+      lead_agent: parsed.lead_agent,
       status: 'forming',
-      config: config || null,
+      config: parsed.config || null,
     })
     .select()
     .single();
 
   if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return errorResponse(error.message, 500);
   }
 
   return NextResponse.json({ success: true, data });
-}
+});

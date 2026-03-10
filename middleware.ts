@@ -24,6 +24,7 @@ const REDACTED_BODY_PATHS = ["/api/settings/env", "/api/auth/keys", "/api/auth/b
 const AUDIT_BODY_MAX_LENGTH = 1_000;
 
 // ── Route permissions (inlined for Edge — mirrors lib/auth/route-permissions.ts) ──
+// SYNC: This rule table MUST be kept in sync with lib/auth/route-permissions.ts
 interface RouteRule {
   pattern: string;
   method: string;
@@ -146,6 +147,9 @@ function jsonResponse(body: Record<string, unknown>, status: number): NextRespon
 }
 
 // ── In-memory key cache ─────────────────────────────────────────────────
+// TTL correctness is guaranteed by getCachedKey (checks cachedAt + TTL on read).
+// The 10K size limit in setCachedKey only prevents unbounded memory growth and
+// does not affect cache correctness — stale entries are always rejected on read.
 
 interface CachedKey {
   id: string;
