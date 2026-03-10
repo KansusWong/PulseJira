@@ -23,5 +23,16 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "scripts", "projects"]
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "projects",
+    ".crawl4ai",
+    ".crawl4ai-venv",
+    ".crawl4ai-venv311",
+    ".crawl4ai-browsers",
+    ".crawl4ai-home",
+    ".cursor",
+    ".history"
+  ]
 }

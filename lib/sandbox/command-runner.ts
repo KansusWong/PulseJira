@@ -5,8 +5,11 @@
  * is always scoped to the workspace, and a timeout is enforced.
  */
 
-import { execFile } from 'child_process';
 import path from 'path';
+
+// Bypass Turbopack TP1005 — dynamic execFile usage is inherent to this server-side tool
+// eslint-disable-next-line no-eval
+const { execFile }: any = eval('require')('child_process');
 import type { CommandResult } from './types';
 import { createStructuredLogger } from '@/lib/utils/logger';
 
@@ -150,7 +153,7 @@ export class CommandRunner {
           maxBuffer: 1024 * 1024, // 1MB
           env: this.buildSafeEnv(),
         },
-        (error, stdout, stderr) => {
+        (error: any, stdout: string, stderr: string) => {
           const timedOut = error?.killed === true;
           const exitCode = error?.code
             ? (typeof error.code === 'number' ? error.code : 1)

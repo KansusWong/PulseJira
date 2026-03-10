@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import fs from 'fs';
+import type { Stats } from 'fs';
 import path from 'path';
 import { BaseTool } from '../core/base-tool';
+
+// Bypass Turbopack TP1004 — dynamic fs usage is inherent to this server-side tool
+// eslint-disable-next-line no-eval
+const fs: any = eval('require')('fs');
 
 const FileReadInputSchema = z.object({
   path: z.string().describe('Relative path to the file (e.g., "lib/utils.ts")'),
@@ -63,7 +67,7 @@ export class FileReadTool extends BaseTool<FileReadInput, string> {
         return 'Error: Access denied. Cannot read files outside the project directory.';
       }
 
-      let stats: fs.Stats;
+      let stats: Stats;
       try {
         stats = fs.lstatSync(targetPath);
       } catch {

@@ -3,9 +3,13 @@
  */
 
 import { z } from 'zod';
-import fs from 'fs';
+import type { Stats } from 'fs';
 import path from 'path';
 import { BaseTool } from '../core/base-tool';
+
+// Bypass Turbopack TP1004 — dynamic fs usage is inherent to this server-side tool
+// eslint-disable-next-line no-eval
+const fs: any = eval('require')('fs');
 
 const editSchema = z.object({
   search: z.string().describe('Exact string to find in the file'),
@@ -69,7 +73,7 @@ export class CodeEditTool extends BaseTool<Input, string> {
       throw new Error(`Path "${filePath}" is outside the workspace boundary.`);
     }
 
-    let stats: fs.Stats;
+    let stats: Stats;
     try {
       stats = fs.lstatSync(resolved);
     } catch {

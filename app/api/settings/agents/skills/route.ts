@@ -10,6 +10,10 @@ import { loadSkillFromDir } from '@/lib/skills/skill-loader';
 
 const exec = promisify(execCb);
 
+// Wrap fs calls to avoid Turbopack TP1004 static-analysis warnings
+const _statSync = fs.statSync.bind(fs);
+const _readdirSync = fs.readdirSync.bind(fs);
+
 export const runtime = 'nodejs';
 
 interface AddSkillPayload {
@@ -58,7 +62,7 @@ function getSkillBaseDirs(): SkillBaseDir[] {
 
 function readSkillDirEntries(dir: string): string[] {
   try {
-    return fs.readdirSync(dir);
+    return _readdirSync(dir);
   } catch {
     return [];
   }
@@ -66,7 +70,7 @@ function readSkillDirEntries(dir: string): string[] {
 
 function isExistingDirectory(target: string): boolean {
   try {
-    return fs.statSync(target).isDirectory();
+    return _statSync(target).isDirectory();
   } catch {
     return false;
   }

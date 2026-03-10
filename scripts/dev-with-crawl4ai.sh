@@ -13,4 +13,4 @@ if ! "$SCRIPT_DIR/start-crawl4ai.sh"; then
   echo "[crawl4ai] start failed, continuing with app-only dev mode." >&2
 fi
 
-WATCHPACK_POLLING=true next dev --turbo "$@"
+next dev --turbo "$@"

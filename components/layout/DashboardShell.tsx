@@ -1,6 +1,6 @@
 "use client";
 
-import { PanelLeft, SquarePen } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
 
@@ -38,25 +38,21 @@ export function DashboardShell({
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 min-w-0 flex flex-col overflow-y-auto relative">
+        <main
+          className={clsx(
+            "flex-1 min-w-0 flex flex-col overflow-y-auto relative transition-[padding] duration-300",
+            !sidebarOpen && onToggleSidebar && "pl-14"
+          )}
+        >
           {/* Floating sidebar toggle when collapsed */}
           {!sidebarOpen && onToggleSidebar && (
-            <div className="absolute top-3 left-3 z-50 flex items-center gap-1">
+            <div className="absolute top-3 left-3 z-50 flex items-center">
               <button
                 onClick={onToggleSidebar}
-                className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                className="p-2 text-zinc-300 bg-zinc-900/85 border border-zinc-700/60 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg shadow-sm backdrop-blur-sm transition-colors"
                 title={t('shell.openSidebar')}
               >
                 <PanelLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => {
-                  window.location.href = "/";
-                }}
-                className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
-                title={t('shell.newChat')}
-              >
-                <SquarePen className="w-5 h-5" />
               </button>
             </div>
           )}

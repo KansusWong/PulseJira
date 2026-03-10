@@ -300,7 +300,7 @@ function AgentEditModal({
     >
       <div className="relative w-full max-w-2xl max-h-[85vh] bg-zinc-900 border border-zinc-700/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Modal header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{uiMeta?.emoji ?? "🤖"}</span>
             <div>
@@ -345,7 +345,7 @@ function AgentEditModal({
         </div>
 
         {/* Modal body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
           {/* Model */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -597,7 +597,7 @@ function AgentEditModal({
 
         {/* Modal footer */}
         {anyChanged && (
-          <div className="flex items-center gap-3 px-6 py-4 border-t border-zinc-800">
+          <div className="flex items-center gap-3 px-6 py-4 border-t border-zinc-800 shrink-0">
             <button
               onClick={handleSave}
               disabled={saveStatus === "saving"}
