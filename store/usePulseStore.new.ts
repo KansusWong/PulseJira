@@ -138,9 +138,9 @@ export const usePulseStore = create<PulseStore>()(
         context: state.context,
         prepareResult: state.prepareResult,
         analysisResult: state.analysisResult,
-        // Chat state
+        // Chat state — only persist conversation list; activeConversationId
+        // is intentionally excluded so the app always starts on "new chat" page
         conversations: state.conversations,
-        activeConversationId: state.activeConversationId,
         // i18n
         locale: state.locale,
       }),
