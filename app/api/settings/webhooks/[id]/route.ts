@@ -26,6 +26,7 @@ export async function PATCH(
   if (body.label !== undefined) updates.label = body.label;
   if (body.webhook_url !== undefined) updates.webhook_url = body.webhook_url;
   if (body.provider !== undefined) updates.provider = body.provider;
+  if (body.message_template !== undefined) updates.message_template = body.message_template || null;
 
   const { data, error } = await supabase
     .from('webhook_configs')

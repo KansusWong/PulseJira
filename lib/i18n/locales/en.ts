@@ -697,6 +697,11 @@ const en: TranslationDict = {
   'webhook.event.deploy_complete': 'Deploy Success',
   'webhook.event.deploy_failed': 'Deploy Failed',
   'webhook.event.pr_created': 'PR Created',
+  'webhook.messageTemplate': 'Message Template',
+  'webhook.templatePlaceholder': '[{{event}}] {{title}} - {{detail}}',
+  'webhook.templateHint': 'Available variables: {{event}}, {{title}}, {{detail}}, {{timestamp}}. Leave empty for default format.',
+  'webhook.templateLabel': 'Template',
+  'webhook.edit': 'Edit Template',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',

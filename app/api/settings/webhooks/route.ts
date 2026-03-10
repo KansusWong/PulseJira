@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { provider, label, webhook_url, events } = body;
+  const { provider, label, webhook_url, events, message_template } = body;
 
   if (!provider || !webhook_url) {
     return Response.json({ success: false, error: 'provider and webhook_url are required' }, { status: 400 });
@@ -50,6 +50,7 @@ export async function POST(req: Request) {
       label: label || '',
       webhook_url,
       events: events || ['pipeline_complete', 'deploy_complete', 'deploy_failed'],
+      message_template: message_template || null,
     })
     .select()
     .single();

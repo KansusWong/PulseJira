@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Send,
+  Pencil,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
@@ -20,6 +21,7 @@ interface WebhookConfig {
   webhook_url: string;
   events: string[];
   active: boolean;
+  message_template: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,7 +71,13 @@ export function WebhookConfigCard() {
     "deploy_complete",
     "deploy_failed",
   ]);
+  const [formTemplate, setFormTemplate] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // Edit template state
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editTemplateValue, setEditTemplateValue] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Test / delete state
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -106,6 +114,7 @@ export function WebhookConfigCard() {
           label: formLabel.trim(),
           webhook_url: formUrl.trim(),
           events: formEvents,
+          message_template: formTemplate.trim() || null,
         }),
       });
       const json = await res.json();
@@ -114,6 +123,7 @@ export function WebhookConfigCard() {
         setFormLabel("");
         setFormUrl("");
         setFormEvents(["pipeline_complete", "deploy_complete", "deploy_failed"]);
+        setFormTemplate("");
         fetchWebhooks();
       }
     } catch {
@@ -121,7 +131,7 @@ export function WebhookConfigCard() {
     } finally {
       setCreating(false);
     }
-  }, [formProvider, formLabel, formUrl, formEvents, fetchWebhooks]);
+  }, [formProvider, formLabel, formUrl, formEvents, formTemplate, fetchWebhooks]);
 
   const handleToggleActive = useCallback(
     async (id: string, active: boolean) => {
@@ -167,6 +177,26 @@ export function WebhookConfigCard() {
       }
     },
     [t],
+  );
+
+  const handleSaveTemplate = useCallback(
+    async (id: string) => {
+      setSavingTemplate(true);
+      try {
+        await fetch(`/api/settings/webhooks/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message_template: editTemplateValue.trim() || null }),
+        });
+        setEditingTemplateId(null);
+        fetchWebhooks();
+      } catch {
+        // silently fail
+      } finally {
+        setSavingTemplate(false);
+      }
+    },
+    [editTemplateValue, fetchWebhooks],
   );
 
   const toggleEvent = (event: string) => {
@@ -242,6 +272,21 @@ export function WebhookConfigCard() {
               </button>
             ))}
           </div>
+          <div>
+            <label className="block text-xs text-zinc-400 mb-1">
+              {t("webhook.messageTemplate")}
+            </label>
+            <textarea
+              value={formTemplate}
+              onChange={(e) => setFormTemplate(e.target.value)}
+              placeholder={t("webhook.templatePlaceholder")}
+              rows={2}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono resize-none"
+            />
+            <p className="text-[10px] text-zinc-600 mt-1">
+              {t("webhook.templateHint")}
+            </p>
+          </div>
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowForm(false)}
@@ -309,6 +354,40 @@ export function WebhookConfigCard() {
                     </span>
                   ))}
                 </div>
+                {/* Template summary or inline editor */}
+                {editingTemplateId === wh.id ? (
+                  <div className="mt-2 space-y-1.5">
+                    <textarea
+                      value={editTemplateValue}
+                      onChange={(e) => setEditTemplateValue(e.target.value)}
+                      placeholder={t("webhook.templatePlaceholder")}
+                      rows={2}
+                      className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono resize-none"
+                    />
+                    <p className="text-[10px] text-zinc-600">
+                      {t("webhook.templateHint")}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSaveTemplate(wh.id)}
+                        disabled={savingTemplate}
+                        className="px-2 py-1 text-[10px] font-medium rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-40"
+                      >
+                        {savingTemplate ? t("common.saving") : t("common.save")}
+                      </button>
+                      <button
+                        onClick={() => setEditingTemplateId(null)}
+                        className="px-2 py-1 text-[10px] rounded text-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
+                        {t("common.cancel")}
+                      </button>
+                    </div>
+                  </div>
+                ) : wh.message_template ? (
+                  <p className="text-[10px] text-zinc-500 font-mono mt-1 truncate">
+                    {t("webhook.templateLabel")}: {wh.message_template}
+                  </p>
+                ) : null}
               </div>
 
               {/* Test result */}
@@ -344,6 +423,22 @@ export function WebhookConfigCard() {
                     wh.active ? "translate-x-4" : "translate-x-0",
                   )}
                 />
+              </button>
+
+              {/* Edit template button */}
+              <button
+                onClick={() => {
+                  if (editingTemplateId === wh.id) {
+                    setEditingTemplateId(null);
+                  } else {
+                    setEditTemplateValue(wh.message_template || "");
+                    setEditingTemplateId(wh.id);
+                  }
+                }}
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                title={t("webhook.edit")}
+              >
+                <Pencil className="w-4 h-4" />
               </button>
 
               {/* Test button */}

@@ -697,6 +697,11 @@ const zh: TranslationDict = {
   'webhook.event.deploy_complete': '部署成功',
   'webhook.event.deploy_failed': '部署失败',
   'webhook.event.pr_created': 'PR 创建',
+  'webhook.messageTemplate': '消息模板',
+  'webhook.templatePlaceholder': '[{{event}}] {{title}} - {{detail}}',
+  'webhook.templateHint': '可用变量: {{event}}, {{title}}, {{detail}}, {{timestamp}}。留空则使用默认格式。',
+  'webhook.templateLabel': '模板',
+  'webhook.edit': '编辑模板',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',

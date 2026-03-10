@@ -31,6 +31,7 @@ export interface WebhookConfig {
   webhook_url: string;
   events: WebhookEventType[];
   active: boolean;
+  message_template: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,18 +47,31 @@ interface EventPayload {
   timestamp: string;
 }
 
-function formatFeishu(payload: EventPayload): object {
+/**
+ * Render a user-defined message template by replacing {{var}} placeholders.
+ * Returns null when template is empty/null so callers fall back to defaults.
+ */
+function renderTemplate(template: string | null | undefined, payload: EventPayload): string | null {
+  if (!template) return null;
+  return template
+    .replace(/\{\{event\}\}/g, payload.event)
+    .replace(/\{\{title\}\}/g, payload.title)
+    .replace(/\{\{detail\}\}/g, payload.detail)
+    .replace(/\{\{timestamp\}\}/g, payload.timestamp);
+}
+
+function formatFeishu(payload: EventPayload, rendered: string | null): object {
   return {
     msg_type: 'interactive',
     card: {
       header: {
-        title: { tag: 'plain_text', content: `[RebuilD] ${payload.title}` },
+        title: { tag: 'plain_text', content: rendered ?? `[RebuilD] ${payload.title}` },
         template: payload.event.includes('failed') ? 'red' : 'green',
       },
       elements: [
         {
           tag: 'div',
-          text: { tag: 'lark_md', content: payload.detail },
+          text: { tag: 'lark_md', content: rendered ?? payload.detail },
         },
         {
           tag: 'note',
@@ -68,26 +82,26 @@ function formatFeishu(payload: EventPayload): object {
   };
 }
 
-function formatDingtalk(payload: EventPayload): object {
+function formatDingtalk(payload: EventPayload, rendered: string | null): object {
   return {
     msgtype: 'markdown',
     markdown: {
-      title: `[RebuilD] ${payload.title}`,
-      text: `### ${payload.title}\n\n${payload.detail}\n\n---\n*${payload.timestamp}*`,
+      title: rendered ?? `[RebuilD] ${payload.title}`,
+      text: rendered ?? `### ${payload.title}\n\n${payload.detail}\n\n---\n*${payload.timestamp}*`,
     },
   };
 }
 
-function formatSlack(payload: EventPayload): object {
+function formatSlack(payload: EventPayload, rendered: string | null): object {
   return {
     blocks: [
       {
         type: 'header',
-        text: { type: 'plain_text', text: `[RebuilD] ${payload.title}` },
+        text: { type: 'plain_text', text: rendered ?? `[RebuilD] ${payload.title}` },
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: payload.detail },
+        text: { type: 'mrkdwn', text: rendered ?? payload.detail },
       },
       {
         type: 'context',
@@ -97,28 +111,29 @@ function formatSlack(payload: EventPayload): object {
   };
 }
 
-function formatWecom(payload: EventPayload): object {
+function formatWecom(payload: EventPayload, rendered: string | null): object {
   return {
     msgtype: 'markdown',
     markdown: {
-      content: `### [RebuilD] ${payload.title}\n${payload.detail}\n> ${payload.timestamp}`,
+      content: rendered ?? `### [RebuilD] ${payload.title}\n${payload.detail}\n> ${payload.timestamp}`,
     },
   };
 }
 
-function formatPayload(provider: WebhookProvider, payload: EventPayload): object {
+function formatPayload(provider: WebhookProvider, payload: EventPayload, messageTemplate?: string | null): object {
+  const rendered = renderTemplate(messageTemplate, payload);
   switch (provider) {
     case 'feishu':
-      return formatFeishu(payload);
+      return formatFeishu(payload, rendered);
     case 'dingtalk':
-      return formatDingtalk(payload);
+      return formatDingtalk(payload, rendered);
     case 'slack':
-      return formatSlack(payload);
+      return formatSlack(payload, rendered);
     case 'wecom':
-      return formatWecom(payload);
+      return formatWecom(payload, rendered);
     case 'custom':
     default:
-      return payload;
+      return rendered ? { ...payload, rendered } : payload;
   }
 }
 
@@ -204,7 +219,7 @@ class WebhookService {
    * Send a single webhook.
    */
   async send(config: WebhookConfig, payload: EventPayload): Promise<void> {
-    const body = formatPayload(config.provider, payload);
+    const body = formatPayload(config.provider, payload, config.message_template);
 
     const response = await fetch(config.webhook_url, {
       method: 'POST',
@@ -223,7 +238,7 @@ class WebhookService {
   /**
    * Send a test message to a specific webhook config.
    */
-  async sendTest(config: Pick<WebhookConfig, 'provider' | 'webhook_url'>): Promise<{ ok: boolean; status?: number; error?: string }> {
+  async sendTest(config: Pick<WebhookConfig, 'provider' | 'webhook_url' | 'message_template'>): Promise<{ ok: boolean; status?: number; error?: string }> {
     const payload: EventPayload = {
       event: 'pipeline_complete',
       title: 'Test Notification',
@@ -232,7 +247,7 @@ class WebhookService {
     };
 
     try {
-      const body = formatPayload(config.provider, payload);
+      const body = formatPayload(config.provider, payload, config.message_template);
       const response = await fetch(config.webhook_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
