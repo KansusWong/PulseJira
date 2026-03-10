@@ -4,9 +4,11 @@ import type { Project } from '@/projects/types';
 export interface ProjectSlice {
   projects: Project[];
   activeProjectId: string | null;
+  activeDeliverableId: string | null;
   setProjects: (projects: Project[]) => void;
   addProject: (project: Project) => void;
   setActiveProject: (id: string | null) => void;
+  setActiveDeliverable: (id: string | null) => void;
   updateProjectInStore: (id: string, updates: Partial<Project>) => void;
   removeProject: (id: string) => void;
 }
@@ -14,6 +16,7 @@ export interface ProjectSlice {
 export const createProjectSlice: StateCreator<ProjectSlice> = (set) => ({
   projects: [],
   activeProjectId: null,
+  activeDeliverableId: null,
 
   setProjects: (projects) => set({ projects }),
 
@@ -21,6 +24,8 @@ export const createProjectSlice: StateCreator<ProjectSlice> = (set) => ({
     set((state) => ({ projects: [project, ...state.projects] })),
 
   setActiveProject: (id) => set({ activeProjectId: id }),
+
+  setActiveDeliverable: (id) => set({ activeDeliverableId: id }),
 
   updateProjectInStore: (id, updates) =>
     set((state) => ({

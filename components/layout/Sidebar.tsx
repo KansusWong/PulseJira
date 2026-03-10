@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Settings2,
   Bell,
+  FileText,
 } from "lucide-react";
 import clsx from "clsx";
 import type { Project } from "@/projects/types";
@@ -42,6 +43,8 @@ interface SidebarProps {
   onSelectConversation?: (id: string | null) => void;
   onDeleteConversation?: (id: string) => void;
   onNewChat?: () => void;
+  activeDeliverableId?: string | null;
+  onSelectDeliverable?: (id: string) => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -256,14 +259,17 @@ export function Sidebar({
   onSelectConversation,
   onDeleteConversation,
   onNewChat,
+  activeDeliverableId,
+  onSelectDeliverable,
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [projectsFolderOpen, setProjectsFolderOpen] = useState(true);
-  const [conversationsFolderOpen, setConversationsFolderOpen] = useState(true);
+  const [projectsFolderOpen, setProjectsFolderOpen] = useState(false);
+  const [conversationsFolderOpen, setConversationsFolderOpen] = useState(false);
+  const [deliverablesFolderOpen, setDeliverablesFolderOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(pathname === "/settings");
 
   const currentTab = searchParams.get("tab");
@@ -274,13 +280,23 @@ export function Sidebar({
     ? "advanced-topics"
     : currentTab;
 
+  const fullProjects = projects.filter(p => !p.is_light);
+  const lightProjects = projects.filter(p => p.is_light);
+
   const filteredProjects = searchQuery
-    ? projects.filter((p) =>
+    ? fullProjects.filter((p) =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : projects;
+    : fullProjects;
+
+  const filteredDeliverables = searchQuery
+    ? lightProjects.filter((p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : lightProjects;
 
   const groups = groupByTime(filteredProjects, t);
+  const deliverableGroups = groupByTime(filteredDeliverables, t);
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -288,6 +304,14 @@ export function Sidebar({
       router.push(`/projects/${id}`);
     },
     [onSelectProject, router]
+  );
+
+  const handleSelectDeliverable = useCallback(
+    (id: string) => {
+      onSelectDeliverable?.(id);
+      router.push(`/deliverables/${id}`);
+    },
+    [onSelectDeliverable, router]
   );
 
   return (
@@ -373,6 +397,78 @@ export function Sidebar({
         )}
       </div>
 
+      {/* Deliverables Folder */}
+      <div className="px-2 mb-1">
+        <button
+          onClick={() => setDeliverablesFolderOpen(!deliverablesFolderOpen)}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+        >
+          <ChevronRight
+            className={clsx(
+              "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
+              deliverablesFolderOpen && "rotate-90"
+            )}
+          />
+          <FileText className="w-4 h-4 flex-shrink-0" />
+          <span className="font-medium">{t('sidebar.deliverables')}</span>
+          <span className="ml-auto text-[10px] text-zinc-600 font-mono">
+            {lightProjects.length}
+          </span>
+        </button>
+
+        {deliverablesFolderOpen && (
+          <div className="mt-1 pl-2">
+            {deliverableGroups.length === 0 ? (
+              <div className="px-3 py-4 text-center">
+                <p className="text-xs text-zinc-600">
+                  {searchQuery ? t('sidebar.noMatches') : t('sidebar.noDeliverables')}
+                </p>
+              </div>
+            ) : (
+              deliverableGroups.map((group) => (
+                <div key={group.label} className="mb-2">
+                  <div className="px-3 py-1">
+                    <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
+                      {group.label}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {group.projects.map((project) => (
+                      <div key={project.id} className="group/deliv relative">
+                        <button
+                          onClick={() => handleSelectDeliverable(project.id)}
+                          className={clsx(
+                            "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
+                            activeDeliverableId === project.id
+                              ? "bg-zinc-800 text-zinc-100"
+                              : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                          )}
+                        >
+                          <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate flex-1">{project.name}</span>
+                        </button>
+                        {onDeleteProject && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteProject(project.id);
+                            }}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover/deliv:opacity-100 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            title={t('common.delete')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Projects Folder */}
       <div className="flex-1 flex flex-col min-h-0">
         {/* Folder header */}
@@ -389,7 +485,7 @@ export function Sidebar({
           <FolderOpen className="w-4 h-4 flex-shrink-0" />
           <span className="font-medium">{t('sidebar.projects')}</span>
           <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-            {projects.length}
+            {fullProjects.length}
           </span>
         </button>
 

@@ -19,7 +19,7 @@ import { ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
 import { SpawnSubAgentTool, createDefaultBudget } from '@/lib/tools/spawn-sub-agent';
 import { ListAgentsTool } from '@/lib/tools/list-agents';
 import { BaseAgent } from '@/lib/core/base-agent';
-import { createProject } from '@/projects/project-service';
+import { createProject, getProject } from '@/projects/project-service';
 import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
 import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
@@ -376,7 +376,7 @@ export class ChatEngine {
    * No project creation.
    */
   private async *handleDirect(context: ChatContext): AsyncGenerator<ChatEvent> {
-    yield { type: 'agent_log', data: { message: '正在生成回答...' } };
+    const channel = new EventChannel<ChatEvent>();
 
     try {
       const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
@@ -398,6 +398,13 @@ ${ChatEngine.getEnvironmentContext()}
 
       const tools = getTools('web_search', 'read_file', 'list_files');
 
+      const channelLogger = (msg: string) => {
+        const friendly = this.transformAgentLog(msg);
+        if (friendly) {
+          channel.push({ type: 'agent_log', data: { message: friendly } });
+        }
+      };
+
       const agent = new BaseAgent({
         name: 'chat-assistant',
         systemPrompt,
@@ -411,23 +418,32 @@ ${ChatEngine.getEnvironmentContext()}
         .map(m => `[${m.role}]: ${m.content}`)
         .join('\n\n');
 
-      const result = await agent.run(
+      const agentPromise = agent.run(
         `${historyContext}\n\n[user]: ${context.userMessage}`,
+        { logger: channelLogger },
       );
 
-      const responseText = ChatEngine.extractResponse(result);
+      agentPromise
+        .then(async (result) => {
+          const responseText = ChatEngine.extractResponse(result);
+          await this.saveMessage(context.conversation.id, 'assistant', responseText).catch((err) =>
+            console.error('[ChatEngine] Save direct response failed:', err));
+          channel.push({ type: 'message', data: { role: 'assistant', content: responseText } });
+          channel.close();
+        })
+        .catch(async (error: unknown) => {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          channel.push({ type: 'error', data: { message: errorMsg } });
+          channel.close();
+        });
 
-      // Save assistant response
-      await this.saveMessage(context.conversation.id, 'assistant', responseText);
+      for await (const event of channel) {
+        yield event;
+      }
 
-      yield {
-        type: 'message',
-        data: {
-          role: 'assistant',
-          content: responseText,
-        },
-      };
+      await agentPromise.catch(() => {});
     } catch (error: any) {
+      channel.close();
       yield { type: 'error', data: { message: error.message } };
     }
   }
@@ -437,21 +453,42 @@ ${ChatEngine.getEnvironmentContext()}
    * Returns null for internal messages that should not be displayed.
    */
   private transformAgentLog(message: string): string | null {
-    // "[chat-assistant] Step N: Thinking..." → "正在思考中...（第 N 步）"
+    // "[chat-assistant] Step N: Thinking..." → "思考中...（第 N 步）"
     const stepMatch = message.match(/\[[\w-]+\] Step (\d+): Thinking/);
-    if (stepMatch) return `正在思考中...（第 ${stepMatch[1]} 步）`;
+    if (stepMatch) return `思考中...（第 ${stepMatch[1]} 步）`;
 
-    // "[chat-assistant] Action: toolName(args)" → corresponding Chinese label
-    const actionMatch = message.match(/\[[\w-]+\] Action: (\w+)\(/);
+    // "[chat-assistant] Action: toolName({...args})" → Chinese label + key argument
+    const actionMatch = message.match(/\[[\w-]+\] Action: (\w+)\(([\s\S]*)\)\s*$/);
     if (actionMatch) {
+      const toolName = actionMatch[1];
+      const rawArgs = actionMatch[2];
+
+      // Try to extract a short human-readable summary from tool args
+      let argSummary = '';
+      try {
+        const parsed = JSON.parse(rawArgs);
+        if (toolName === 'web_search' && parsed.query) {
+          argSummary = parsed.query;
+        } else if (toolName === 'read_file' && parsed.path) {
+          argSummary = parsed.path.split('/').pop() || parsed.path;
+        } else if (toolName === 'list_files' && parsed.path) {
+          argSummary = parsed.path;
+        } else if (toolName === 'spawn_sub_agent' && parsed.agent_name) {
+          argSummary = parsed.agent_name;
+        }
+      } catch {
+        // args not valid JSON, ignore
+      }
+
       const labels: Record<string, string> = {
-        web_search: '正在搜索相关资料...',
-        read_file: '正在读取文件...',
-        list_files: '正在浏览文件目录...',
-        spawn_sub_agent: '正在分派子任务给专家...',
-        list_agents: '正在查看可用智能体...',
+        web_search: '搜索',
+        read_file: '读取文件',
+        list_files: '浏览目录',
+        spawn_sub_agent: '分派子任务',
+        list_agents: '查看可用智能体',
       };
-      return labels[actionMatch[1]] || `正在执行 ${actionMatch[1]}...`;
+      const label = labels[toolName] || toolName;
+      return argSummary ? `${label}：${argSummary}` : `${label}...`;
     }
 
     if (message.includes('Completed with text response')) return '正在整理结果...';
@@ -468,27 +505,36 @@ ${ChatEngine.getEnvironmentContext()}
     const channel = new EventChannel<ChatEvent>();
     const conversationId = context.conversation.id;
 
-    channel.push({ type: 'agent_log', data: { message: '正在创建轻量项目...' } });
-
     try {
-      // Create light project
-      const projectName = context.userMessage.slice(0, 60).replace(/[^\w\s\u4e00-\u9fff-]/g, '').trim() || 'Light Task';
-      const project = await createProject({
-        name: projectName,
-        description: context.userMessage,
-        is_light: true,
-        conversation_id: conversationId,
-      });
+      // Reuse existing light project if conversation already has one
+      let project: Awaited<ReturnType<typeof createProject>> | null = null;
+      if (context.conversation.project_id) {
+        const existing = await getProject(context.conversation.project_id);
+        if (existing?.is_light) {
+          project = existing;
+        }
+      }
 
-      // Link conversation to project
-      await this.updateConversation(conversationId, {
-        project_id: project.id,
-      } as any);
+      if (!project) {
+        channel.push({ type: 'agent_log', data: { message: '正在创建轻量项目...' } });
+        const projectName = context.userMessage.slice(0, 60).replace(/[^\w\s\u4e00-\u9fff-]/g, '').trim() || 'Light Task';
+        project = await createProject({
+          name: projectName,
+          description: context.userMessage,
+          is_light: true,
+          conversation_id: conversationId,
+        });
 
-      channel.push({
-        type: 'project_created',
-        data: { project_id: project.id, name: project.name, is_light: true },
-      });
+        // Link conversation to project
+        await this.updateConversation(conversationId, {
+          project_id: project.id,
+        } as any);
+
+        channel.push({
+          type: 'project_created',
+          data: { project_id: project.id, name: project.name, is_light: true },
+        });
+      }
 
       channel.push({ type: 'agent_log', data: { message: '正在分析任务...' } });
 
@@ -718,66 +764,83 @@ When delegating:
       agentExecutionMode = 'medium';
     }
 
-    yield {
-      type: 'agent_log',
-      data: { message: `Running Decision Maker... (mode: ${agentExecutionMode})` },
-    };
+    const channel = new EventChannel<ChatEvent>();
+
+    // Subscribe to messageBus agent-log to capture BaseAgent tool-call details
+    const unsubLog = messageBus.onLog((message) => {
+      if (message.type === 'agent_log' && message.payload?.message) {
+        const friendly = this.transformAgentLog(message.payload.message);
+        if (friendly) {
+          channel.push({ type: 'agent_log', data: { message: friendly } });
+        }
+      }
+    });
 
     try {
       // Create Blackboard scoped to this conversation (persists across DM → Architect)
       const blackboard = new Blackboard(context.conversation.id, context.conversation.project_id, { maxEntries: 200, ttlMs: 2 * 60 * 60 * 1000 });
 
-      // Phase 1: Decision Maker only
-      const decision = await runDecisionPhase(context.userMessage, {
+      // Phase 1: Decision Maker only (background promise)
+      const dmPromise = runDecisionPhase(context.userMessage, {
         projectId: context.conversation.project_id ?? undefined,
         structuredRequirements: context.conversation.structured_requirements ?? undefined,
         blackboard,
         logger: async (msg: string) => {
-          messageBus.publish({
-            from: 'meta-pipeline',
-            channel: 'agent-log',
-            type: 'agent_log',
-            payload: { message: msg },
-          });
+          const friendly = this.transformAgentLog(msg);
+          channel.push({ type: 'agent_log', data: { message: friendly || msg } });
         },
       });
 
-      emitWebhookEvent({
-        event: 'dm_decision_complete',
-        title: `DM Decision: ${decision.decision}`,
-        detail: `Confidence: ${decision.confidence} | Risk: ${decision.risk_level} | ${decision.summary}`,
-        from: 'decision-maker',
-      });
+      dmPromise
+        .then(async (decision) => {
+          emitWebhookEvent({
+            event: 'dm_decision_complete',
+            title: `DM Decision: ${decision.decision}`,
+            detail: `Confidence: ${decision.confidence} | Risk: ${decision.risk_level} | ${decision.summary}`,
+            from: 'decision-maker',
+          });
 
-      const decisionText = `Decision: ${decision.decision} (confidence: ${decision.confidence})\nRisk: ${decision.risk_level}\n\n${decision.summary}`;
+          const decisionText = `Decision: ${decision.decision} (confidence: ${decision.confidence})\nRisk: ${decision.risk_level}\n\n${decision.summary}`;
 
-      // Save DM summary as chat message
-      await this.saveMessage(context.conversation.id, 'assistant', decisionText);
-      yield {
-        type: 'message',
-        data: { role: 'assistant', content: decisionText },
-      };
+          // Save DM summary as chat message
+          await this.saveMessage(context.conversation.id, 'assistant', decisionText).catch((err) =>
+            console.error('[ChatEngine] Save DM response failed:', err));
 
-      if (decision.decision === 'PROCEED') {
-        // Store decision + pending status in conversation
-        await this.updateConversation(context.conversation.id, {
-          dm_decision: decision,
-          dm_approval_status: 'pending',
-        } as any);
+          channel.push({ type: 'message', data: { role: 'assistant', content: decisionText } });
 
-        // Yield dm_decision SSE event so frontend shows DMDecisionPanel
-        yield {
-          type: 'dm_decision',
-          data: decision,
-        };
-      } else {
-        // HALT / DEFER / ESCALATE — no approval needed, flow ends
-        await this.updateConversation(context.conversation.id, {
-          dm_decision: decision,
-          dm_approval_status: null,
-        } as any);
+          if (decision.decision === 'PROCEED') {
+            await this.updateConversation(context.conversation.id, {
+              dm_decision: decision,
+              dm_approval_status: 'pending',
+            } as any);
+            channel.push({ type: 'dm_decision', data: decision });
+          } else {
+            await this.updateConversation(context.conversation.id, {
+              dm_decision: decision,
+              dm_approval_status: null,
+            } as any);
+          }
+
+          channel.close();
+          unsubLog();
+        })
+        .catch(async (error: unknown) => {
+          const errorMsg = `Decision Maker failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          await this.saveMessage(context.conversation.id, 'assistant', errorMsg).catch((err) =>
+            console.error('[ChatEngine] Save DM error failed:', err));
+          channel.push({ type: 'error', data: { message: errorMsg } });
+          channel.close();
+          unsubLog();
+        });
+
+      for await (const event of channel) {
+        yield event;
       }
+
+      await dmPromise.catch(() => {});
     } catch (error: any) {
+      unsubLog();
+      channel.close();
       const errorMsg = `Decision Maker failed: ${error.message}`;
       await this.saveMessage(context.conversation.id, 'assistant', errorMsg);
       yield { type: 'error', data: { message: errorMsg } };
@@ -826,6 +889,16 @@ When delegating:
     await teamCoordinator.updateAgentStatus(teamId, 'architect', 'working').catch(() => {});
 
     const channel = new EventChannel<ChatEvent>();
+
+    // Subscribe to messageBus agent-log to capture BaseAgent tool-call details
+    const unsubLog = messageBus.onLog((message) => {
+      if (message.type === 'agent_log' && message.payload?.message) {
+        const friendly = this.transformAgentLog(message.payload.message);
+        if (friendly) {
+          channel.push({ type: 'agent_log', data: { message: friendly } });
+        }
+      }
+    });
 
     try {
       const dmDecision = context.conversation.dm_decision as DecisionOutput | undefined;
@@ -998,9 +1071,10 @@ When delegating:
         initialMessages,
         onCheckpoint,
         logger: async (msg: string) => {
+          const friendly = this.transformAgentLog(msg);
           channel.push({
             type: 'agent_log',
-            data: { message: msg },
+            data: { message: friendly || msg },
           });
         },
       });
@@ -1047,6 +1121,7 @@ When delegating:
             type: 'message',
             data: { role: 'assistant', content: responseText },
           });
+          unsubLog();
           channel.close();
         })
         .catch(async (error: unknown) => {
@@ -1084,6 +1159,7 @@ When delegating:
             type: 'error',
             data: { message: errorMsg },
           });
+          unsubLog();
           channel.close();
         });
 

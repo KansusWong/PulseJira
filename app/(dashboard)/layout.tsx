@@ -32,6 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const setActiveProject = usePulseStore((s) => s.setActiveProject);
   const updateProjectInStore = usePulseStore((s) => s.updateProjectInStore);
   const removeProject = usePulseStore((s) => s.removeProject);
+  const activeDeliverableId = usePulseStore((s) => s.activeDeliverableId);
+  const setActiveDeliverable = usePulseStore((s) => s.setActiveDeliverable);
   const sidebarOpen = usePulseStore((s) => s.sidebarOpen);
   const toggleSidebar = usePulseStore((s) => s.toggleSidebar);
   const conversations = usePulseStore((s) => s.conversations);
@@ -164,6 +166,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onSelectConversation={setActiveConversationId}
           onDeleteConversation={handleDeleteConversation}
           onNewChat={() => setActiveConversationId(null)}
+          activeDeliverableId={activeDeliverableId}
+          onSelectDeliverable={setActiveDeliverable}
         />
       }
       main={children}
