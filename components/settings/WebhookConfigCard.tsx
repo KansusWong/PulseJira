@@ -22,6 +22,7 @@ interface WebhookConfig {
   events: string[];
   active: boolean;
   message_template: string | null;
+  display_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +73,7 @@ export function WebhookConfigCard() {
     "deploy_failed",
   ]);
   const [formTemplate, setFormTemplate] = useState("");
+  const [formDisplayName, setFormDisplayName] = useState("");
   const [creating, setCreating] = useState(false);
 
   // Edit template state
@@ -118,6 +120,7 @@ export function WebhookConfigCard() {
           webhook_url: formUrl.trim(),
           events: formEvents,
           message_template: formTemplate.trim() || null,
+          display_name: formDisplayName.trim() || null,
         }),
       });
       const json = await res.json();
@@ -127,6 +130,7 @@ export function WebhookConfigCard() {
         setFormUrl("");
         setFormEvents(["pipeline_complete", "deploy_complete", "deploy_failed"]);
         setFormTemplate("");
+        setFormDisplayName("");
         fetchWebhooks();
       }
     } catch {
@@ -134,7 +138,7 @@ export function WebhookConfigCard() {
     } finally {
       setCreating(false);
     }
-  }, [formProvider, formLabel, formUrl, formEvents, formTemplate, fetchWebhooks]);
+  }, [formProvider, formLabel, formUrl, formEvents, formTemplate, formDisplayName, fetchWebhooks]);
 
   const handleToggleActive = useCallback(
     async (id: string, active: boolean) => {
@@ -259,6 +263,20 @@ export function WebhookConfigCard() {
             placeholder={t("webhook.url")}
             className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
           />
+          <div>
+            <label className="block text-xs text-zinc-400 mb-1">
+              {t("webhook.displayName")}
+            </label>
+            <input
+              value={formDisplayName}
+              onChange={(e) => setFormDisplayName(e.target.value)}
+              placeholder={t("webhook.displayNamePlaceholder")}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+            />
+            <p className="text-[10px] text-zinc-600 mt-1">
+              {t("webhook.displayNameHint")}
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             {ALL_EVENTS.map((event) => (
               <button
@@ -343,6 +361,11 @@ export function WebhookConfigCard() {
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 font-mono">
                     {wh.provider}
                   </span>
+                  {wh.display_name && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                      {wh.display_name}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-zinc-500 font-mono mt-0.5 truncate">
                   {maskUrl(wh.webhook_url)}

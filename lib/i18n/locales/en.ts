@@ -699,9 +699,12 @@ const en: TranslationDict = {
   'webhook.event.pr_created': 'PR Created',
   'webhook.messageTemplate': 'Message Template',
   'webhook.templatePlaceholder': '[{{event}}] {{title}} - {{detail}}',
-  'webhook.templateHint': 'Available variables: {{event}}, {{title}}, {{detail}}, {{timestamp}}. Leave empty for default format.',
+  'webhook.templateHint': 'Available variables: {{event}}, {{title}}, {{detail}}, {{timestamp}}, {{username}}. Leave empty for default format.',
   'webhook.templateLabel': 'Template',
   'webhook.edit': 'Edit Template',
+  'webhook.displayName': 'Display Name',
+  'webhook.displayNamePlaceholder': 'e.g. John',
+  'webhook.displayNameHint': 'Personalized greeting in messages, e.g. "Hello, John"',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',

@@ -32,6 +32,7 @@ export interface WebhookConfig {
   events: WebhookEventType[];
   active: boolean;
   message_template: string | null;
+  display_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -51,16 +52,22 @@ interface EventPayload {
  * Render a user-defined message template by replacing {{var}} placeholders.
  * Returns null when template is empty/null so callers fall back to defaults.
  */
-function renderTemplate(template: string | null | undefined, payload: EventPayload): string | null {
+function renderTemplate(template: string | null | undefined, payload: EventPayload, displayName?: string | null): string | null {
   if (!template) return null;
   return template
     .replace(/\{\{event\}\}/g, payload.event)
     .replace(/\{\{title\}\}/g, payload.title)
     .replace(/\{\{detail\}\}/g, payload.detail)
-    .replace(/\{\{timestamp\}\}/g, payload.timestamp);
+    .replace(/\{\{timestamp\}\}/g, payload.timestamp)
+    .replace(/\{\{username\}\}/g, displayName || '');
 }
 
-function formatFeishu(payload: EventPayload, rendered: string | null): object {
+function greetingPrefix(displayName: string | null | undefined): string {
+  return displayName ? `Hello, ${displayName}\n\n` : '';
+}
+
+function formatFeishu(payload: EventPayload, rendered: string | null, displayName?: string | null): object {
+  const greeting = greetingPrefix(displayName);
   return {
     msg_type: 'interactive',
     card: {
@@ -71,7 +78,7 @@ function formatFeishu(payload: EventPayload, rendered: string | null): object {
       elements: [
         {
           tag: 'div',
-          text: { tag: 'lark_md', content: rendered ?? payload.detail },
+          text: { tag: 'lark_md', content: rendered ?? `${greeting}${payload.detail}` },
         },
         {
           tag: 'note',
@@ -82,17 +89,19 @@ function formatFeishu(payload: EventPayload, rendered: string | null): object {
   };
 }
 
-function formatDingtalk(payload: EventPayload, rendered: string | null): object {
+function formatDingtalk(payload: EventPayload, rendered: string | null, displayName?: string | null): object {
+  const greeting = greetingPrefix(displayName);
   return {
     msgtype: 'markdown',
     markdown: {
       title: rendered ?? `[RebuilD] ${payload.title}`,
-      text: rendered ?? `### ${payload.title}\n\n${payload.detail}\n\n---\n*${payload.timestamp}*`,
+      text: rendered ?? `### ${payload.title}\n\n${greeting}${payload.detail}\n\n---\n*${payload.timestamp}*`,
     },
   };
 }
 
-function formatSlack(payload: EventPayload, rendered: string | null): object {
+function formatSlack(payload: EventPayload, rendered: string | null, displayName?: string | null): object {
+  const greeting = greetingPrefix(displayName);
   return {
     blocks: [
       {
@@ -101,7 +110,7 @@ function formatSlack(payload: EventPayload, rendered: string | null): object {
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: rendered ?? payload.detail },
+        text: { type: 'mrkdwn', text: rendered ?? `${greeting}${payload.detail}` },
       },
       {
         type: 'context',
@@ -111,26 +120,27 @@ function formatSlack(payload: EventPayload, rendered: string | null): object {
   };
 }
 
-function formatWecom(payload: EventPayload, rendered: string | null): object {
+function formatWecom(payload: EventPayload, rendered: string | null, displayName?: string | null): object {
+  const greeting = greetingPrefix(displayName);
   return {
     msgtype: 'markdown',
     markdown: {
-      content: rendered ?? `### [RebuilD] ${payload.title}\n${payload.detail}\n> ${payload.timestamp}`,
+      content: rendered ?? `### [RebuilD] ${payload.title}\n${greeting}${payload.detail}\n> ${payload.timestamp}`,
     },
   };
 }
 
-function formatPayload(provider: WebhookProvider, payload: EventPayload, messageTemplate?: string | null): object {
-  const rendered = renderTemplate(messageTemplate, payload);
+function formatPayload(provider: WebhookProvider, payload: EventPayload, messageTemplate?: string | null, displayName?: string | null): object {
+  const rendered = renderTemplate(messageTemplate, payload, displayName);
   switch (provider) {
     case 'feishu':
-      return formatFeishu(payload, rendered);
+      return formatFeishu(payload, rendered, displayName);
     case 'dingtalk':
-      return formatDingtalk(payload, rendered);
+      return formatDingtalk(payload, rendered, displayName);
     case 'slack':
-      return formatSlack(payload, rendered);
+      return formatSlack(payload, rendered, displayName);
     case 'wecom':
-      return formatWecom(payload, rendered);
+      return formatWecom(payload, rendered, displayName);
     case 'custom':
     default:
       return rendered ? { ...payload, rendered } : payload;
@@ -219,7 +229,7 @@ class WebhookService {
    * Send a single webhook.
    */
   async send(config: WebhookConfig, payload: EventPayload): Promise<void> {
-    const body = formatPayload(config.provider, payload, config.message_template);
+    const body = formatPayload(config.provider, payload, config.message_template, config.display_name);
 
     const response = await fetch(config.webhook_url, {
       method: 'POST',
@@ -238,7 +248,7 @@ class WebhookService {
   /**
    * Send a test message to a specific webhook config.
    */
-  async sendTest(config: Pick<WebhookConfig, 'provider' | 'webhook_url' | 'message_template'>): Promise<{ ok: boolean; status?: number; error?: string }> {
+  async sendTest(config: Pick<WebhookConfig, 'provider' | 'webhook_url' | 'message_template' | 'display_name'>): Promise<{ ok: boolean; status?: number; error?: string }> {
     const payload: EventPayload = {
       event: 'pipeline_complete',
       title: 'Test Notification',
@@ -247,7 +257,7 @@ class WebhookService {
     };
 
     try {
-      const body = formatPayload(config.provider, payload, config.message_template);
+      const body = formatPayload(config.provider, payload, config.message_template, config.display_name);
       const response = await fetch(config.webhook_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

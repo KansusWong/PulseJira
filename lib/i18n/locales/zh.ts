@@ -699,9 +699,12 @@ const zh: TranslationDict = {
   'webhook.event.pr_created': 'PR 创建',
   'webhook.messageTemplate': '消息模板',
   'webhook.templatePlaceholder': '[{{event}}] {{title}} - {{detail}}',
-  'webhook.templateHint': '可用变量: {{event}}, {{title}}, {{detail}}, {{timestamp}}。留空则使用默认格式。',
+  'webhook.templateHint': '可用变量: {{event}}, {{title}}, {{detail}}, {{timestamp}}, {{username}}。留空则使用默认格式。',
   'webhook.templateLabel': '模板',
   'webhook.edit': '编辑模板',
+  'webhook.displayName': '个性化称呼',
+  'webhook.displayNamePlaceholder': '如: 张三',
+  'webhook.displayNameHint': '消息中的个性化问候，如 "Hello, 张三"',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',
