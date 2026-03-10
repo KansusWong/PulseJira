@@ -36,6 +36,11 @@ export function getAgentFactoryIds(): string[] {
   return Array.from(agentFactories.keys());
 }
 
+/** Retrieve an agent factory by ID (returns undefined if not found). */
+export function getFactory(id: string): AgentFactory | undefined {
+  return agentFactories.get(id);
+}
+
 // ---------------------------------------------------------------------------
 // SpawnAgentTool
 // ---------------------------------------------------------------------------

@@ -30,7 +30,10 @@ export interface AgentMessage {
     | 'plan_update'
     | 'team_comms'
     | 'team_task_update'
-    | 'intervention_ack';
+    | 'intervention_ack'
+    // Sub-agent events (L2 single_agent mode)
+    | 'sub_agent_start'
+    | 'sub_agent_complete';
   payload: any;
   timestamp: number;
   scope?: MessageScope;

@@ -15,6 +15,8 @@ import { messageBus } from '@/connectors/bus/message-bus';
 import { getTools } from '@/lib/tools';
 import { runDecisionPhase, runArchitectPhase } from '@/skills/meta-pipeline';
 import { hasAgentFactory, getAgentFactoryIds } from '@/lib/tools/spawn-agent';
+import { SpawnSubAgentTool, createDefaultBudget } from '@/lib/tools/spawn-sub-agent';
+import { ListAgentsTool } from '@/lib/tools/list-agents';
 import { BaseAgent } from '@/lib/core/base-agent';
 import { createProject } from '@/projects/project-service';
 import { EventChannel } from '@/lib/utils/event-channel';
@@ -465,15 +467,44 @@ ${ChatEngine.getEnvironmentContext()}
 You are working on a light project task. Produce the requested deliverable directly.
 Be concise, professional, and helpful. Use Markdown formatting.
 If the request involves code, provide complete, runnable code examples.
-You have access to tools for searching the web, reading files, and listing directories.`;
+You have access to tools for searching the web, reading files, and listing directories.
 
-      const tools = getTools('web_search', 'read_file', 'list_files');
+## Sub-Agent Delegation
+
+You have access to \`spawn_sub_agent\` and \`list_agents\` tools. Use them when:
+- A subtask requires specialist focus (e.g., research via analyst, code review via reviewer)
+- The task can be cleanly decomposed into independent pieces
+- You need to gather information from multiple angles
+
+Do NOT use sub-agents for:
+- Simple, single-step operations you can handle directly
+- Tasks that require your full conversation context to execute
+- When the overhead of delegation exceeds the benefit
+
+When delegating:
+1. Use list_agents first to see what specialists are available
+2. Provide a clear, self-contained task description (the sub-agent cannot see your conversation)
+3. Include all necessary context in input_data
+4. After receiving results, synthesize and present a unified response to the user`;
+
+      // Sub-agent budget: allow up to 3 spawns, 15 total sub-agent loops
+      const subAgentBudget = createDefaultBudget();
+      const agentContext: import('@/lib/core/types').AgentContext = {
+        projectId: project.id,
+        logger: messageBus.createLogger('chat-assistant'),
+      };
+
+      const tools = [
+        ...getTools('web_search', 'read_file', 'list_files'),
+        new ListAgentsTool(),
+        new SpawnSubAgentTool(subAgentBudget, agentContext),
+      ];
 
       const agent = new BaseAgent({
         name: 'chat-assistant',
         systemPrompt,
         tools,
-        maxLoops: 5,
+        maxLoops: 10,
         model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
       });
 
