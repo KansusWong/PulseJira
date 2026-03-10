@@ -4,7 +4,7 @@
  * POST /api/cron/collect-signals
  *
  * Can be called by:
- * - Vercel Cron (vercel.json schedule: every 5 hours)
+ * - Vercel Cron (vercel.json schedule: every hour; internally skips if interval not reached)
  * - External scheduler (e.g. GitHub Actions, cron job)
  * - Manual trigger from the UI
  *
@@ -41,6 +41,71 @@ async function isCollectionEnabled(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Read a single system_config value by key. Returns undefined if not found.
+ */
+async function getConfigValue(key: string): Promise<unknown | undefined> {
+  if (!supabaseConfigured) return undefined;
+  try {
+    const { data } = await supabase
+      .from('system_config')
+      .select('value')
+      .eq('key', key)
+      .single();
+    if (data) return JSON.parse(data.value);
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+/**
+ * Write a single system_config value by key (upsert).
+ */
+async function setConfigValue(key: string, value: unknown): Promise<void> {
+  if (!supabaseConfigured) return;
+  await supabase
+    .from('system_config')
+    .upsert(
+      { key, value: JSON.stringify(value), updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+}
+
+/**
+ * Check whether enough time has elapsed since the last collection.
+ * Returns { due: true } if collection should proceed, or { due: false, ... } with skip info.
+ */
+async function isCollectionDue(): Promise<
+  | { due: true }
+  | { due: false; intervalHours: number; lastCollectedAt: string; nextDueAt: string }
+> {
+  const intervalRaw = await getConfigValue('signal_fetch_interval_hours');
+  const intervalHours = typeof intervalRaw === 'number' && intervalRaw >= 1 ? intervalRaw : 5;
+
+  const lastRaw = await getConfigValue('signal_last_collected_at');
+  if (typeof lastRaw !== 'string' || !lastRaw) {
+    return { due: true }; // Never collected before
+  }
+
+  const lastTime = new Date(lastRaw).getTime();
+  if (Number.isNaN(lastTime)) {
+    return { due: true }; // Invalid date, treat as never collected
+  }
+
+  const nextDue = lastTime + intervalHours * 3600_000;
+  if (Date.now() >= nextDue) {
+    return { due: true };
+  }
+
+  return {
+    due: false,
+    intervalHours,
+    lastCollectedAt: lastRaw,
+    nextDueAt: new Date(nextDue).toISOString(),
+  };
+}
+
 export async function POST(req: Request) {
   // Optional auth check for cron endpoints
   const cronSecret = process.env.CRON_SECRET;
@@ -66,6 +131,21 @@ export async function POST(req: Request) {
     });
   }
 
+  // Check if enough time has elapsed since the last collection
+  const dueCheck = await isCollectionDue();
+  if (!dueCheck.due) {
+    return NextResponse.json({
+      success: true,
+      data: {
+        mode: 'skipped',
+        is_demo: false,
+        message: `Collection skipped — next due at ${dueCheck.nextDueAt} (interval: ${dueCheck.intervalHours}h, last: ${dueCheck.lastCollectedAt}).`,
+        collection: { collected: 0, duplicates: 0, errors: 0 },
+        processing: { processed: 0, projectsCreated: 0, rejected: 0, errors: 0 },
+      },
+    });
+  }
+
   const demoMode = isDemoMode();
 
   // Live mode: never auto-fallback to demo data.
@@ -74,6 +154,9 @@ export async function POST(req: Request) {
       const collectResult = await collectAll();
       // Simplified processing: no full meta pipeline, just lightweight screening
       const processResult = await processNewSignals();
+
+      // Record the successful collection timestamp
+      await setConfigValue('signal_last_collected_at', new Date().toISOString());
 
       return NextResponse.json({
         success: true,
@@ -112,6 +195,9 @@ export async function POST(req: Request) {
   const existing = new Set(demoSignalStore.map((s) => s.content));
   const fresh = newSignals.filter((s) => !existing.has(s.content));
   demoSignalStore.unshift(...fresh);
+
+  // Record the successful collection timestamp
+  await setConfigValue('signal_last_collected_at', new Date().toISOString());
 
   return NextResponse.json({
     success: true,

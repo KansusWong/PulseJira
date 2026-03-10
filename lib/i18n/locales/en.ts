@@ -293,6 +293,9 @@ const en: TranslationDict = {
   'prefs.notConfigured': 'Not configured',
   'prefs.credentialPlaceholder': 'Leave empty to keep current; new values written to .env.local',
   'prefs.saveCredentials': 'Save Platform Credentials',
+  'prefs.fetchInterval': 'Signal fetch interval',
+  'prefs.fetchIntervalUnit': 'hours',
+  'prefs.fetchIntervalHint': 'System auto-collects signals at this interval (min 1 hour)',
 
   // ── Settings: LLM Pool ──
   'llm.title': 'LLM Pool',

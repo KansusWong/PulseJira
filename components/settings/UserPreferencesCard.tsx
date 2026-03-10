@@ -184,6 +184,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
   const [sourceInputs, setSourceInputs] = useState<Record<string, string>>({});
   const [sourceKeywordInputs, setSourceKeywordInputs] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [fetchIntervalHours, setFetchIntervalHours] = useState<number>(5);
 
   const [socialVars, setSocialVars] = useState<EnvVarInfo[]>([]);
   const [credentialInputs, setCredentialInputs] = useState<Record<string, string>>({});
@@ -239,13 +240,15 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [prefRes, envRes] = await Promise.all([
+      const [prefRes, envRes, sysConfigRes] = await Promise.all([
         fetch("/api/settings/preferences"),
         fetch("/api/settings/env"),
+        fetch("/api/settings/system-config"),
       ]);
 
       const prefJson = await prefRes.json();
       const envJson = await envRes.json();
+      const sysConfigJson = await sysConfigRes.json();
 
       if (prefJson.success && prefJson.data) {
         const catalog = (prefJson.data.platformCatalog || []) as PlatformCatalogItem[];
@@ -258,6 +261,11 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
       if (envJson.success && envJson.data?.groups) {
         const socialGroup = (envJson.data.groups as any[]).find((group) => group.id === "social");
         setSocialVars(socialGroup?.vars || []);
+      }
+
+      if (sysConfigJson.success && sysConfigJson.data) {
+        const interval = Number(sysConfigJson.data.signal_fetch_interval_hours);
+        if (interval >= 1) setFetchIntervalHours(interval);
       }
 
       await loadSignalSources();
@@ -398,16 +406,26 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
   const handleSavePreferences = useCallback(async () => {
     setSaveStatus("saving");
     try {
-      const res = await fetch("/api/settings/preferences", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topics: preferences.topics,
-          platforms: preferences.platforms,
+      const [prefRes, sysRes] = await Promise.all([
+        fetch("/api/settings/preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topics: preferences.topics,
+            platforms: preferences.platforms,
+          }),
         }),
-      });
-      const json = await res.json();
-      if (json.success) {
+        fetch("/api/settings/system-config", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            signal_fetch_interval_hours: Math.max(1, fetchIntervalHours),
+          }),
+        }),
+      ]);
+      const prefJson = await prefRes.json();
+      const sysJson = await sysRes.json();
+      if (prefJson.success && sysJson.success) {
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
       } else {
@@ -416,7 +434,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
     } catch {
       setSaveStatus("error");
     }
-  }, [preferences]);
+  }, [preferences, fetchIntervalHours]);
 
   const handleSaveCredentials = useCallback(async () => {
     const payload: Record<string, string> = {};
@@ -857,6 +875,31 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                 {t("prefs.topicHint")}
               </p>
             )}
+
+            <div className="mt-5 pt-4 border-t border-zinc-800">
+              <label className="text-sm font-medium text-zinc-300 mb-2 block">
+                {t("prefs.fetchInterval")}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={fetchIntervalHours}
+                  onChange={(event) => {
+                    const v = parseInt(event.target.value, 10);
+                    if (!Number.isNaN(v) && v >= 1) setFetchIntervalHours(v);
+                  }}
+                  className="w-24 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-500 transition-colors"
+                />
+                <span className="text-sm text-zinc-400">
+                  {t("prefs.fetchIntervalUnit")}
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-600 mt-1.5 flex items-center gap-1.5">
+                <Info className="w-3 h-3" />
+                {t("prefs.fetchIntervalHint")}
+              </p>
+            </div>
           </div>
         )}
 

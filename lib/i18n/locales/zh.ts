@@ -293,6 +293,9 @@ const zh: TranslationDict = {
   'prefs.notConfigured': '未配置',
   'prefs.credentialPlaceholder': '留空表示不修改；填写后会写入 .env.local',
   'prefs.saveCredentials': '保存平台凭证',
+  'prefs.fetchInterval': '信号抓取周期',
+  'prefs.fetchIntervalUnit': '小时',
+  'prefs.fetchIntervalHint': '系统每隔该时间自动抓取一次信号（最小 1 小时）',
 
   // ── Settings: LLM Pool ──
   'llm.title': 'LLM 账户池',
