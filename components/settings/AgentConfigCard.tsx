@@ -575,7 +575,7 @@ function AgentEditModal({
     <div
       ref={backdropRef}
       onClick={(e) => e.target === backdropRef.current && onClose()}
-      className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
     >
       <div
         className="absolute bg-zinc-900 border border-zinc-700/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
