@@ -79,6 +79,9 @@ export function WebhookConfigCard() {
   const [editTemplateValue, setEditTemplateValue] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
 
+  // Delete confirm state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   // Test / delete state
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{
@@ -147,11 +150,11 @@ export function WebhookConfigCard() {
 
   const handleDelete = useCallback(
     async (id: string) => {
-      if (!confirm(t("webhook.deleteConfirm"))) return;
       await fetch(`/api/settings/webhooks/${id}`, { method: "DELETE" });
+      setDeleteConfirmId(null);
       fetchWebhooks();
     },
-    [fetchWebhooks, t],
+    [fetchWebhooks],
   );
 
   const handleTest = useCallback(
@@ -457,7 +460,7 @@ export function WebhookConfigCard() {
 
               {/* Delete button */}
               <button
-                onClick={() => handleDelete(wh.id)}
+                onClick={() => setDeleteConfirmId(wh.id)}
                 className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                 title={t("webhook.delete")}
               >
@@ -465,6 +468,44 @@ export function WebhookConfigCard() {
               </button>
             </div>
           ))}
+        </div>
+      )}
+      {/* Delete confirm modal */}
+      {deleteConfirmId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm"
+          onClick={() => setDeleteConfirmId(null)}
+        >
+          <div
+            className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 shadow-2xl max-w-sm w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-full bg-red-500/10">
+                <AlertCircle className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-sm font-semibold text-zinc-100">
+                {t("webhook.delete")}
+              </h3>
+            </div>
+            <p className="text-sm text-zinc-400 mb-6">
+              {t("webhook.deleteConfirm")}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-zinc-400 hover:bg-zinc-800 transition-colors"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirmId)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+              >
+                {t("webhook.delete")}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
