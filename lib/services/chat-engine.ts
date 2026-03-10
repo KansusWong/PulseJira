@@ -13,7 +13,6 @@ import { assessComplexity } from '@/agents/chat-judge';
 import { createChatAssistantAgent } from '@/agents/chat-assistant';
 import { getPreferences } from '@/lib/services/preferences-store';
 import { messageBus } from '@/connectors/bus/message-bus';
-import { getTools } from '@/lib/tools';
 import { runDecisionPhase, runArchitectPhase } from '@/skills/meta-pipeline';
 import { hasAgentFactory, getAgentFactoryIds } from '@/lib/tools/spawn-agent';
 import { ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
@@ -504,34 +503,6 @@ export class ChatEngine {
 
       channel.push({ type: 'agent_log', data: { message: '正在分析任务...' } });
 
-      // Build system prompt (unchanged)
-      const systemPrompt = `You are RebuilD Assistant, an AI project management helper.
-
-${getEnvironmentContext()}
-
-You are working on a light project task. Produce the requested deliverable directly.
-Be concise, professional, and helpful. Use Markdown formatting.
-If the request involves code, provide complete, runnable code examples.
-You have access to tools for searching the web, reading files, and listing directories.
-
-## Sub-Agent Delegation
-
-You have access to \`spawn_sub_agent\` and \`list_agents\` tools. Use them when:
-- A subtask requires specialist focus (e.g., research via analyst, code review via reviewer)
-- The task can be cleanly decomposed into independent pieces
-- You need to gather information from multiple angles
-
-Do NOT use sub-agents for:
-- Simple, single-step operations you can handle directly
-- Tasks that require your full conversation context to execute
-- When the overhead of delegation exceeds the benefit
-
-When delegating:
-1. Use list_agents first to see what specialists are available
-2. Provide a clear, self-contained task description (the sub-agent cannot see your conversation)
-3. Include all necessary context in input_data
-4. After receiving results, synthesize and present a unified response to the user`;
-
       // Sub-agent budget: allow up to 3 spawns, 15 total sub-agent loops
       const subAgentBudget = createDefaultBudget();
 
@@ -548,18 +519,12 @@ When delegating:
         logger: channelLogger,
       };
 
-      const tools = [
-        ...getTools('web_search', 'read_file', 'list_files'),
-        new ListAgentsTool(),
-        new SpawnSubAgentTool(subAgentBudget, agentContext),
-      ];
-
-      const agent = new BaseAgent({
-        name: 'chat-assistant',
-        systemPrompt,
-        tools,
-        maxLoops: 10,
-        model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
+      const agent = createChatAssistantAgent({
+        mode: 'project',
+        extraTools: [
+          new ListAgentsTool(),
+          new SpawnSubAgentTool(subAgentBudget, agentContext),
+        ],
       });
 
       const historyContext = context.messages
