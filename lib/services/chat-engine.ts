@@ -418,9 +418,9 @@ export class ChatEngine {
    * Returns null for internal messages that should not be displayed.
    */
   private transformAgentLog(message: string): string | null {
-    // "[chat-assistant] Step N: Thinking..." → "思考中...（第 N 步）"
+    // "[chat-assistant] Step N: Thinking..." → "💭 思考中...（第 N 步）"
     const stepMatch = message.match(/\[[\w-]+\] Step (\d+): Thinking/);
-    if (stepMatch) return `思考中...（第 ${stepMatch[1]} 步）`;
+    if (stepMatch) return `💭 思考中...（第 ${stepMatch[1]} 步）`;
 
     // "[chat-assistant] Action: toolName({...args})" → Chinese label + key argument
     const actionMatch = message.match(/\[[\w-]+\] Action: (\w+)\(([\s\S]*)\)\s*$/);
@@ -435,11 +435,25 @@ export class ChatEngine {
         if (toolName === 'web_search' && parsed.query) {
           argSummary = parsed.query;
         } else if (toolName === 'read_file' && parsed.path) {
-          argSummary = parsed.path.split('/').pop() || parsed.path;
+          argSummary = parsed.path;
         } else if (toolName === 'list_files' && parsed.path) {
           argSummary = parsed.path;
-        } else if (toolName === 'spawn_sub_agent' && parsed.agent_name) {
+        } else if ((toolName === 'spawn_sub_agent' || toolName === 'spawn_agent') && parsed.agent_name) {
           argSummary = parsed.agent_name;
+        } else if ((toolName === 'code_write' || toolName === 'code_edit') && parsed.path) {
+          argSummary = parsed.path;
+        } else if (toolName === 'run_command' && parsed.command) {
+          argSummary = parsed.command;
+        } else if (toolName === 'rag_retrieve' && parsed.query) {
+          argSummary = parsed.query;
+        } else if ((toolName === 'search_vision_knowledge' || toolName === 'search_decisions' || toolName === 'search_code_artifacts' || toolName === 'search_code_patterns') && parsed.query) {
+          argSummary = parsed.query;
+        } else if (toolName === 'git_create_pr' && parsed.title) {
+          argSummary = parsed.title;
+        } else if (toolName === 'create_agent' && parsed.name) {
+          argSummary = parsed.name;
+        } else if (toolName === 'create_skill' && parsed.name) {
+          argSummary = parsed.name;
         }
       } catch {
         // args not valid JSON, ignore
@@ -450,15 +464,42 @@ export class ChatEngine {
         read_file: '读取文件',
         list_files: '浏览目录',
         spawn_sub_agent: '分派子任务',
+        spawn_agent: '分派子任务',
         list_agents: '查看可用智能体',
+        search_vision_knowledge: '检索知识库',
+        search_decisions: '检索决策记录',
+        search_code_artifacts: '检索代码产物',
+        search_code_patterns: '检索代码模式',
+        rag_retrieve: 'RAG 检索',
+        code_write: '写入代码',
+        code_edit: '编辑代码',
+        git_commit: 'Git 提交',
+        git_create_pr: '创建 PR',
+        run_command: '执行命令',
+        run_tests: '运行测试',
+        validate_output: '验证输出',
+        create_agent: '创建智能体',
+        create_skill: '创建技能',
+        fetch_daily_data: '获取日报数据',
+        finish_planning: '完成规划',
+        finish_implementation: '完成实现',
+        finish_daily_report: '生成日报',
+        discover_skills: '发现技能',
+        blackboard_read: '读取黑板',
+        blackboard_write: '写入黑板',
+        merge_pr: '合并 PR',
+        check_ci: '检查 CI',
+        trigger_deploy: '触发部署',
+        check_health: '健康检查',
+        store_code_pattern: '存储代码模式',
       };
       const label = labels[toolName] || toolName;
-      return argSummary ? `${label}：${argSummary}` : `${label}...`;
+      return argSummary ? `🔧 ${label}：${argSummary}` : `🔧 ${label}...`;
     }
 
-    if (message.includes('Completed with text response')) return '正在整理结果...';
-    if (message.includes('Max loops')) return '已达到最大步数，正在收尾...';
-    if (message.includes('Exit tool')) return '任务即将完成...';
+    if (message.includes('Completed with text response')) return '✅ 正在整理结果...';
+    if (message.includes('Max loops')) return '✅ 已达到最大步数，正在收尾...';
+    if (message.includes('Exit tool')) return '✅ 任务即将完成...';
 
     return null; // suppress other internal messages
   }

@@ -31,7 +31,7 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const [streamingText, setStreamingText] = useState("");
+  const [streamingSteps, setStreamingSteps] = useState<string[]>([]);
 
   // Abort active stream if conversation changes or is deleted
   useEffect(() => {
@@ -60,12 +60,12 @@ export function ChatView() {
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingText]);
+  }, [messages, streamingSteps]);
 
   const handleSend = useCallback(
     async (text: string) => {
       setStreaming(true);
-      setStreamingText("");
+      setStreamingSteps([]);
 
       const abortController = new AbortController();
       abortRef.current = abortController;
@@ -73,7 +73,7 @@ export function ChatView() {
       const streamTimeout = setTimeout(() => {
         abortController.abort();
         setStreaming(false);
-        setStreamingText("");
+        setStreamingSteps([]);
       }, 5 * 60 * 1000);
 
       let conversationId = activeConversationId;
@@ -159,7 +159,7 @@ export function ChatView() {
         clearTimeout(streamTimeout);
         abortRef.current = null;
         setStreaming(false);
-        setStreamingText("");
+        setStreamingSteps([]);
       }
     },
     [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel]
@@ -210,9 +210,9 @@ export function ChatView() {
         }
 
         case "agent_log": {
-          // Show agent activity as system messages
+          // Accumulate agent activity as step list
           if (event.data.message) {
-            setStreamingText(event.data.message);
+            setStreamingSteps(prev => [...prev, event.data.message]);
           }
           break;
         }
@@ -308,19 +308,33 @@ export function ChatView() {
               <MessageBubble key={msg.id} message={msg} />
             ))}
 
-            {/* Streaming indicator */}
-            {isStreaming && streamingText && (
+            {/* Streaming indicator — step list */}
+            {isStreaming && streamingSteps.length > 0 && (
               <div className="mr-auto max-w-[85%]">
                 <div className="flex items-center gap-2 mb-1 px-1">
                   <span className="text-[11px] font-medium text-zinc-500">RebuilD</span>
                 </div>
-                <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50 text-zinc-400 text-sm">
-                  <span className="animate-pulse">{streamingText}</span>
+                <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {streamingSteps.map((step, i) => (
+                      <div
+                        key={i}
+                        className={`text-sm flex items-start gap-2 ${
+                          i === streamingSteps.length - 1
+                            ? 'text-zinc-300 animate-pulse'
+                            : 'text-zinc-600'
+                        }`}
+                      >
+                        <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-current" />
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
-            {isStreaming && !streamingText && (
+            {isStreaming && streamingSteps.length === 0 && (
               <div className="mr-auto">
                 <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
                   <div className="flex items-center gap-1.5">
