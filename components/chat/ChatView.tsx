@@ -183,7 +183,6 @@ export function ChatView() {
 
         case "plan_assessment": {
           const assessment = event.data as ComplexityAssessment;
-          showPlanPanel(assessment);
 
           // Add plan message to chat
           addMessage(conversationId, {
