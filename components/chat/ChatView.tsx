@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
@@ -8,6 +8,7 @@ import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import type { ChatMessage, ChatEvent, ComplexityAssessment, DecisionOutput, StructuredRequirements, StructuredAgentStep } from "@/lib/core/types";
 import { StreamingStepIndicator } from "./StreamingStepIndicator";
+import { TeamCollaborationView } from "./team/TeamCollaborationView";
 
 export function ChatView() {
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
@@ -29,12 +30,19 @@ export function ChatView() {
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
   const addAgentLog = usePulseStore((s) => s.addAgentLog);
   const updatePlanStepProgress = usePulseStore((s) => s.updatePlanStepProgress);
+  const addTeamCommunication = usePulseStore((s) => s.addTeamCommunication);
+
+  // Streaming steps — now in store (shared with TeamCollaborationView)
+  const streamingSteps = usePulseStore((s) => s.streamingSteps);
+  const addStreamingStep = usePulseStore((s) => s.addStreamingStep);
+  const clearStreamingSteps = usePulseStore((s) => s.clearStreamingSteps);
+  const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
+  const setTeamCollaborationActive = usePulseStore((s) => s.setTeamCollaborationActive);
 
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const [streamingSteps, setStreamingSteps] = useState<StructuredAgentStep[]>([]);
 
   // Abort active stream if conversation changes or is deleted
   useEffect(() => {
@@ -78,7 +86,7 @@ export function ChatView() {
   const handleSend = useCallback(
     async (text: string) => {
       setStreaming(true);
-      setStreamingSteps([]);
+      clearStreamingSteps();
 
       const abortController = new AbortController();
       abortRef.current = abortController;
@@ -86,7 +94,8 @@ export function ChatView() {
       const streamTimeout = setTimeout(() => {
         abortController.abort();
         setStreaming(false);
-        setStreamingSteps([]);
+        clearStreamingSteps();
+        setTeamCollaborationActive(false);
       }, 5 * 60 * 1000);
 
       let conversationId = activeConversationId;
@@ -172,10 +181,11 @@ export function ChatView() {
         clearTimeout(streamTimeout);
         abortRef.current = null;
         setStreaming(false);
-        setStreamingSteps([]);
+        clearStreamingSteps();
+        setTeamCollaborationActive(false);
       }
     },
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, clearStreamingSteps, setTeamCollaborationActive]
   );
 
   const handleSSEEvent = useCallback(
@@ -218,6 +228,7 @@ export function ChatView() {
 
         case "team_update": {
           showTeamPanel(event.data.team_id, event.data.agents || []);
+          setTeamCollaborationActive(true);
           break;
         }
 
@@ -230,9 +241,24 @@ export function ChatView() {
               message: event.data.message,
               timestamp: Date.now(),
             };
-            setStreamingSteps(prev => [...prev, step]);
+            addStreamingStep(step);
             addAgentLog({ agent: step.agent || 'system', type: 'log', message: event.data.message });
           }
+          break;
+        }
+
+        case "team_comms": {
+          const currentTeamId = usePulseStore.getState().teamPanel.teamId;
+          addTeamCommunication({
+            id: event.data.id || crypto.randomUUID(),
+            team_id: event.data.team_id || currentTeamId || '',
+            from_agent: event.data.from_agent,
+            to_agent: event.data.to_agent,
+            message_type: event.data.message_type || 'message',
+            payload: event.data.payload,
+            read: false,
+            created_at: event.data.created_at || new Date().toISOString(),
+          });
           break;
         }
 
@@ -311,6 +337,7 @@ export function ChatView() {
               updatePlanStepProgress(i, 'completed');
             }
           });
+          setTeamCollaborationActive(false);
           break;
         }
 
@@ -327,7 +354,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog, updatePlanStepProgress]
+    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog, updatePlanStepProgress, addStreamingStep, addTeamCommunication, setTeamCollaborationActive]
   );
 
   return (
@@ -342,12 +369,19 @@ export function ChatView() {
               <MessageBubble key={msg.id} message={msg} />
             ))}
 
-            {/* Streaming indicator — structured step list */}
-            {isStreaming && streamingSteps.length > 0 && (
+            {/* Team collaboration view — replaces StreamingStepIndicator in team mode */}
+            {teamCollaborationActive && isStreaming && (
+              <div className="max-w-none -mx-4">
+                <TeamCollaborationView />
+              </div>
+            )}
+
+            {/* Streaming indicator — normal (non-team) mode only */}
+            {isStreaming && !teamCollaborationActive && streamingSteps.length > 0 && (
               <StreamingStepIndicator steps={streamingSteps} />
             )}
 
-            {isStreaming && streamingSteps.length === 0 && (
+            {isStreaming && !teamCollaborationActive && streamingSteps.length === 0 && (
               <div className="mr-auto">
                 <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
                   <div className="flex items-center gap-1.5">

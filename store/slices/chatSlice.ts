@@ -8,6 +8,7 @@ import type {
   AgentMailMessage,
   TeamStatus,
   StructuredRequirements,
+  StructuredAgentStep,
 } from '@/lib/core/types';
 
 export type PlanStepStatus = 'pending' | 'active' | 'completed' | 'skipped';
@@ -20,6 +21,8 @@ export interface PanelSnapshot {
   toolApprovalPanel: ChatSlice['toolApprovalPanel'];
   architectPanel: ChatSlice['architectPanel'];
   teamPanel: ChatSlice['teamPanel'];
+  teamCollaboration: ChatSlice['teamCollaboration'];
+  streamingSteps: ChatSlice['streamingSteps'];
 }
 
 /** Max number of per-conversation panel snapshots kept in memory. */
@@ -84,6 +87,15 @@ export interface ChatSlice {
     communications: AgentMailMessage[];
   };
 
+  // Streaming steps (shared by StreamingStepIndicator and TeamCollaborationView)
+  streamingSteps: StructuredAgentStep[];
+
+  // Team collaboration view state (main area inline view)
+  teamCollaboration: {
+    active: boolean;
+    collapsed: boolean;
+  };
+
   // Actions
   setConversations: (conversations: Conversation[]) => void;
   addConversation: (conversation: Conversation) => void;
@@ -122,6 +134,11 @@ export interface ChatSlice {
   updateTeamStatus: (status: TeamStatus) => void;
   addTeamCommunication: (message: AgentMailMessage) => void;
 
+  addStreamingStep: (step: StructuredAgentStep) => void;
+  clearStreamingSteps: () => void;
+  setTeamCollaborationActive: (active: boolean) => void;
+  setTeamCollaborationCollapsed: (collapsed: boolean) => void;
+
   /** Reset all right-side panels to their idle/hidden state. */
   resetAllPanels: () => void;
 }
@@ -133,6 +150,8 @@ const DEFAULT_PANELS: PanelSnapshot = {
   toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
   architectPanel: { visible: false, status: 'idle', stepsCompleted: 0, errorMessage: null, attempt: 0 },
   teamPanel: { visible: false, teamId: null, agents: [], communications: [] },
+  teamCollaboration: { active: false, collapsed: false },
+  streamingSteps: [],
 };
 
 export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
@@ -185,6 +204,13 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     communications: [],
   },
 
+  streamingSteps: [],
+
+  teamCollaboration: {
+    active: false,
+    collapsed: false,
+  },
+
   setConversations: (conversations) => set({ conversations }),
 
   addConversation: (conversation) =>
@@ -206,6 +232,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         toolApprovalPanel: state.toolApprovalPanel,
         architectPanel: state.architectPanel,
         teamPanel: state.teamPanel,
+        teamCollaboration: state.teamCollaboration,
+        streamingSteps: state.streamingSteps,
       };
       // Check if any panel has meaningful state worth caching
       const hasState = snapshot.planPanel.visible || snapshot.planPanel.assessment !== null
@@ -213,7 +241,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         || snapshot.dmPanel.visible || snapshot.dmPanel.decision !== null
         || snapshot.toolApprovalPanel.visible || snapshot.toolApprovalPanel.approvalId !== null
         || snapshot.architectPanel.visible || snapshot.architectPanel.status !== 'idle'
-        || snapshot.teamPanel.visible || snapshot.teamPanel.teamId !== null;
+        || snapshot.teamPanel.visible || snapshot.teamPanel.teamId !== null
+        || snapshot.teamCollaboration.active;
 
       if (hasState) {
         cache[prevId] = snapshot;
@@ -456,6 +485,24 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         ...state.teamPanel,
         communications: [...state.teamPanel.communications, message],
       },
+    })),
+
+  addStreamingStep: (step) =>
+    set((state) => ({
+      streamingSteps: [...state.streamingSteps, step],
+    })),
+
+  clearStreamingSteps: () =>
+    set({ streamingSteps: [] }),
+
+  setTeamCollaborationActive: (active) =>
+    set((state) => ({
+      teamCollaboration: { ...state.teamCollaboration, active },
+    })),
+
+  setTeamCollaborationCollapsed: (collapsed) =>
+    set((state) => ({
+      teamCollaboration: { ...state.teamCollaboration, collapsed },
     })),
 
   resetAllPanels: () =>

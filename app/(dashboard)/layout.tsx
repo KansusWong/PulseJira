@@ -46,6 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const dmPanelVisible = usePulseStore((s) => s.dmPanel.visible);
   const toolApprovalVisible = usePulseStore((s) => s.toolApprovalPanel.visible);
   const architectPanelVisible = usePulseStore((s) => s.architectPanel.visible);
+  const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
 
   const reconciledRef = useRef(false);
 
@@ -130,7 +131,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const rightPanel = clarificationVisible
+  const rightPanel = teamCollaborationActive
+    ? undefined  // Team info is shown inline in the main area
+    : clarificationVisible
     ? <ClarificationForm />
     : planPanelVisible
     ? <PlanPanel />
@@ -148,7 +151,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <DashboardShell
       sidebarOpen={sidebarOpen}
       onToggleSidebar={toggleSidebar}
-      rightPanelOpen={clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || architectPanelVisible || teamPanelVisible}
+      rightPanelOpen={!teamCollaborationActive && (clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || architectPanelVisible || teamPanelVisible)}
       sidebar={
         <Sidebar
           projects={projects}

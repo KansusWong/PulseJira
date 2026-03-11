@@ -1,66 +1,51 @@
 "use client";
 
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import { getAgentUI } from "@/lib/config/agent-ui-meta";
 import type { StructuredAgentStep } from "@/lib/core/types";
+import {
+  type DisplayItem,
+  buildDisplayItems,
+  groupByAgent,
+  formatDuration,
+  getItemDuration,
+  Bullet,
+} from "./team/step-utils";
 
-/** Maximum number of recent steps to display. */
-const MAX_VISIBLE_STEPS = 5;
+/** Maximum number of recent display items to show. */
+const MAX_VISIBLE_ITEMS = 6;
 
 interface Props {
   steps: StructuredAgentStep[];
 }
 
-/** Group consecutive steps by agent name. */
-function groupByAgent(steps: StructuredAgentStep[]): { agent: string; steps: StructuredAgentStep[] }[] {
-  const groups: { agent: string; steps: StructuredAgentStep[] }[] = [];
-  for (const step of steps) {
-    const last = groups[groups.length - 1];
-    if (last && last.agent === step.agent) {
-      last.steps.push(step);
-    } else {
-      groups.push({ agent: step.agent, steps: [step] });
-    }
-  }
-  return groups;
-}
-
-function StepBadge({ index, step, isLast }: { index: number; step: StructuredAgentStep; isLast: boolean }) {
-  // Completed results: show success/fail icon instead of number
-  if (step.kind === "tool_result") {
-    return step.success ? (
-      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-    ) : (
-      <XCircle className="w-4 h-4 shrink-0 text-red-400" />
-    );
-  }
-  if (step.kind === "completion") {
-    return <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />;
-  }
-
-  // Thinking / tool_call: numbered badge
-  const num = step.stepNumber ?? index + 1;
-  return (
-    <span
-      className={`shrink-0 w-4 h-4 rounded-md text-[9px] font-semibold flex items-center justify-center leading-none ${
-        isLast
-          ? "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30"
-          : "bg-zinc-800 text-zinc-500"
-      }`}
-    >
-      {num}
-    </span>
-  );
-}
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export function StreamingStepIndicator({ steps }: Props) {
+  const [now, setNow] = useState(Date.now());
+
+  // Tick every second for live timer on the active item
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   if (steps.length === 0) return null;
 
-  // Only show the most recent steps to keep the indicator compact
-  const hiddenCount = Math.max(0, steps.length - MAX_VISIBLE_STEPS);
-  const visibleSteps = hiddenCount > 0 ? steps.slice(-MAX_VISIBLE_STEPS) : steps;
-  const groups = groupByAgent(visibleSteps);
-  const lastStepId = steps[steps.length - 1]?.id;
+  const allItems = buildDisplayItems(steps);
+
+  // Hide completed thinking steps — only keep the last one (active indicator)
+  const filtered = allItems.filter(
+    (item, idx) => item.type !== "thinking" || idx === allItems.length - 1,
+  );
+
+  const hiddenCount = Math.max(0, filtered.length - MAX_VISIBLE_ITEMS);
+  const visibleItems = hiddenCount > 0 ? filtered.slice(-MAX_VISIBLE_ITEMS) : filtered;
+  const groups = groupByAgent(visibleItems);
+  const lastItem = filtered[filtered.length - 1];
 
   return (
     <div className="mr-auto max-w-[85%]">
@@ -88,36 +73,109 @@ export function StreamingStepIndicator({ steps }: Props) {
                   </span>
                 </div>
 
-                {/* Steps within this agent group */}
-                <div className="space-y-1">
-                  {group.steps.map((step, si) => {
-                    const isLast = step.id === lastStepId;
-                    return (
-                      <div
-                        key={step.id}
-                        className={`text-xs flex items-start gap-2 ${
-                          isLast ? "text-zinc-300" : "text-zinc-500"
-                        }`}
-                      >
-                        <span className="mt-0.5">
-                          <StepBadge index={si} step={step} isLast={isLast} />
-                        </span>
-                        <span className="flex-1 min-w-0">
-                          <span>{step.message}</span>
-                          {step.kind === "tool_result" && step.resultPreview && (
-                            <span
-                              className={`block truncate text-[10px] mt-0.5 ${
-                                step.success ? "text-zinc-600" : "text-red-400/70"
-                              }`}
-                              title={step.resultPreview}
-                            >
-                              {step.resultPreview}
+                {/* Display items */}
+                <div className="space-y-1.5">
+                  {group.items.map((item, ii) => {
+                    const isLast = item === lastItem;
+                    const nextInFiltered = filtered[filtered.indexOf(item) + 1];
+                    const durationMs = getItemDuration(item, nextInFiltered, isLast, now);
+
+                    // --- Thinking (only shown as active/last) ---
+                    if (item.type === "thinking") {
+                      return (
+                        <div
+                          key={item.step.id}
+                          className="flex items-start gap-2 text-xs text-zinc-400"
+                        >
+                          <Bullet color="bg-blue-400" pulse />
+                          <span className="flex-1">思考中...</span>
+                          {durationMs !== null && (
+                            <span className="shrink-0 text-[10px] text-zinc-500 tabular-nums">
+                              {formatDuration(durationMs)}
                             </span>
                           )}
-                        </span>
-                        {isLast && (
                           <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
-                        )}
+                        </div>
+                      );
+                    }
+
+                    // --- LLM text reasoning ---
+                    if (item.type === "text") {
+                      return (
+                        <div
+                          key={item.step.id}
+                          className="flex items-start gap-2 text-xs text-zinc-300"
+                        >
+                          <Bullet color="bg-zinc-500" />
+                          <span className="flex-1 min-w-0 line-clamp-2">
+                            {item.step.message}
+                          </span>
+                          {isLast && (
+                            <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // --- Tool call (+ optional result sub-line) ---
+                    if (item.type === "tool") {
+                      const hasResult = !!item.resultStep;
+                      const success = item.resultStep?.success !== false;
+                      const bulletColor = !hasResult
+                        ? "bg-blue-400"
+                        : success
+                          ? "bg-emerald-500"
+                          : "bg-red-500";
+
+                      const toolLabel =
+                        item.callStep.toolLabel || item.callStep.toolName || "tool";
+                      const argSummary = item.callStep.argSummary;
+                      const displayName = argSummary
+                        ? `${toolLabel}(${argSummary})`
+                        : toolLabel;
+
+                      return (
+                        <div key={item.callStep.id} className="space-y-0.5">
+                          {/* Tool call line */}
+                          <div className="flex items-start gap-2 text-xs text-zinc-300">
+                            <Bullet color={bulletColor} pulse={!hasResult && isLast} />
+                            <span className="flex-1 min-w-0 font-mono text-[11px] truncate">
+                              {displayName}
+                            </span>
+                            {durationMs !== null && (
+                              <span className="shrink-0 text-[10px] text-zinc-600 tabular-nums">
+                                {formatDuration(durationMs)}
+                              </span>
+                            )}
+                            {isLast && !hasResult && (
+                              <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                            )}
+                          </div>
+                          {/* Result sub-line */}
+                          {hasResult && (
+                            <div
+                              className={`ml-4 text-[10px] ${
+                                success ? "text-zinc-600" : "text-red-400/70"
+                              }`}
+                            >
+                              └{" "}
+                              {success
+                                ? "完成"
+                                : `失败: ${item.resultStep!.resultPreview || "未知错误"}`}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // --- Completion ---
+                    return (
+                      <div
+                        key={item.step.id}
+                        className="flex items-start gap-2 text-xs text-emerald-400/80"
+                      >
+                        <Bullet color="bg-emerald-500" />
+                        <span>{item.step.message}</span>
                       </div>
                     );
                   })}

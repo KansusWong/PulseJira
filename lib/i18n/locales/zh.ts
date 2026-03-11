@@ -168,6 +168,21 @@ const zh: TranslationDict = {
   'team.noCommunications': '暂无通信记录。',
   'team.sendInstruction': '向团队发送指令...',
 
+  // ── Team Collaboration View ──
+  'team.collaboration.title': '团队执行',
+  'team.collaboration.agents': '{count} 个智能体',
+  'team.collaboration.working': '{count} 个工作中',
+  'team.collaboration.elapsed': '已用时',
+  'team.collaboration.collapse': '折叠',
+  'team.collaboration.expand': '展开',
+  'team.collaboration.waitingForTask': '等待任务分配...',
+  'team.collaboration.agentFailed': '智能体执行失败',
+  'team.collaboration.allAgents': '全部智能体',
+  'team.collaboration.sendInstruction': '向团队发送指令...',
+  'team.collaboration.comms': '消息 ({count})',
+  'team.collaboration.noComms': '暂无智能体间消息',
+  'team.collaboration.earlierSteps': '+{count} 个早期步骤',
+
   // ── Kanban ──
   'kanban.todo': '待办',
   'kanban.inProgress': '进行中',

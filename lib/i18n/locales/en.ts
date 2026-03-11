@@ -168,6 +168,21 @@ const en: TranslationDict = {
   'team.noCommunications': 'No communications yet.',
   'team.sendInstruction': 'Send instruction to team...',
 
+  // ── Team Collaboration View ──
+  'team.collaboration.title': 'Team Execution',
+  'team.collaboration.agents': '{count} agents',
+  'team.collaboration.working': '{count} working',
+  'team.collaboration.elapsed': 'Elapsed',
+  'team.collaboration.collapse': 'Collapse',
+  'team.collaboration.expand': 'Expand',
+  'team.collaboration.waitingForTask': 'Waiting for task assignment...',
+  'team.collaboration.agentFailed': 'Agent execution failed',
+  'team.collaboration.allAgents': 'All agents',
+  'team.collaboration.sendInstruction': 'Send instruction to team...',
+  'team.collaboration.comms': 'Messages ({count})',
+  'team.collaboration.noComms': 'No inter-agent messages yet',
+  'team.collaboration.earlierSteps': '+{count} earlier steps',
+
   // ── Kanban ──
   'kanban.todo': 'To Do',
   'kanban.inProgress': 'In Progress',
