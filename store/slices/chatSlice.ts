@@ -10,12 +10,29 @@ import type {
   StructuredRequirements,
 } from '@/lib/core/types';
 
+/** Snapshot of all 6 right-side panel states — used for per-conversation caching. */
+export interface PanelSnapshot {
+  planPanel: ChatSlice['planPanel'];
+  clarificationPanel: ChatSlice['clarificationPanel'];
+  dmPanel: ChatSlice['dmPanel'];
+  toolApprovalPanel: ChatSlice['toolApprovalPanel'];
+  architectPanel: ChatSlice['architectPanel'];
+  teamPanel: ChatSlice['teamPanel'];
+}
+
+/** Max number of per-conversation panel snapshots kept in memory. */
+const PANEL_CACHE_MAX = 10;
+
 export interface ChatSlice {
   // Conversation state
   conversations: Conversation[];
   activeConversationId: string | null;
   messages: Record<string, ChatMessage[]>; // conversationId → messages
   isStreaming: boolean;
+
+  // Per-conversation panel state cache (LRU, max PANEL_CACHE_MAX entries)
+  panelStateCache: Record<string, PanelSnapshot>;
+  panelCacheOrder: string[]; // oldest → newest
 
   // Plan panel state
   planPanel: {
@@ -105,11 +122,22 @@ export interface ChatSlice {
   resetAllPanels: () => void;
 }
 
+const DEFAULT_PANELS: PanelSnapshot = {
+  planPanel: { visible: false, assessment: null, status: 'idle' },
+  clarificationPanel: { visible: false, requirements: null },
+  dmPanel: { visible: false, decision: null, status: 'idle' },
+  toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
+  architectPanel: { visible: false, status: 'idle', stepsCompleted: 0, errorMessage: null, attempt: 0 },
+  teamPanel: { visible: false, teamId: null, agents: [], communications: [] },
+};
+
 export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   conversations: [],
   activeConversationId: null,
   messages: {},
   isStreaming: false,
+  panelStateCache: {},
+  panelCacheOrder: [],
 
   planPanel: {
     visible: false,
@@ -159,26 +187,70 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       conversations: [conversation, ...state.conversations],
     })),
 
-  setActiveConversationId: (id) => set({
-    activeConversationId: id,
-    // Reset all panels when switching conversations — panels are bound to a conversation
-    planPanel: { visible: false, assessment: null, status: 'idle' },
-    clarificationPanel: { visible: false, requirements: null },
-    dmPanel: { visible: false, decision: null, status: 'idle' },
-    toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
-    architectPanel: { visible: false, status: 'idle', stepsCompleted: 0, errorMessage: null, attempt: 0 },
-    teamPanel: { visible: false, teamId: null, agents: [], communications: [] },
+  setActiveConversationId: (id) => set((state) => {
+    const prevId = state.activeConversationId;
+    const cache = { ...state.panelStateCache };
+    let order = [...state.panelCacheOrder];
+
+    // ── Save current panel state for the outgoing conversation ──
+    if (prevId) {
+      const snapshot: PanelSnapshot = {
+        planPanel: state.planPanel,
+        clarificationPanel: state.clarificationPanel,
+        dmPanel: state.dmPanel,
+        toolApprovalPanel: state.toolApprovalPanel,
+        architectPanel: state.architectPanel,
+        teamPanel: state.teamPanel,
+      };
+      // Check if any panel has meaningful state worth caching
+      const hasState = snapshot.planPanel.visible || snapshot.planPanel.assessment !== null
+        || snapshot.clarificationPanel.visible || snapshot.clarificationPanel.requirements !== null
+        || snapshot.dmPanel.visible || snapshot.dmPanel.decision !== null
+        || snapshot.toolApprovalPanel.visible || snapshot.toolApprovalPanel.approvalId !== null
+        || snapshot.architectPanel.visible || snapshot.architectPanel.status !== 'idle'
+        || snapshot.teamPanel.visible || snapshot.teamPanel.teamId !== null;
+
+      if (hasState) {
+        cache[prevId] = snapshot;
+        // Update LRU order: remove old position then push to end
+        order = order.filter((x) => x !== prevId);
+        order.push(prevId);
+        // Evict oldest entries beyond the limit
+        while (order.length > PANEL_CACHE_MAX) {
+          const evicted = order.shift()!;
+          delete cache[evicted];
+        }
+      }
+    }
+
+    // ── Restore panel state for the incoming conversation (or reset to defaults) ──
+    const restored = cache[id!] ?? DEFAULT_PANELS;
+    // Promote to most-recent if it was cached
+    if (id && cache[id]) {
+      order = order.filter((x) => x !== id);
+      order.push(id);
+    }
+
+    return {
+      activeConversationId: id,
+      panelStateCache: cache,
+      panelCacheOrder: order,
+      ...restored,
+    };
   }),
 
   removeConversation: (id) =>
     set((state) => {
       const isActive = state.activeConversationId === id;
-      // Clean up messages cache for deleted conversation
+      // Clean up messages cache and panel cache for deleted conversation
       const { [id]: _removed, ...remainingMessages } = state.messages;
+      const { [id]: _removedPanel, ...remainingPanelCache } = state.panelStateCache;
       return {
         conversations: state.conversations.filter((c) => c.id !== id),
         activeConversationId: isActive ? null : state.activeConversationId,
         messages: remainingMessages,
+        panelStateCache: remainingPanelCache,
+        panelCacheOrder: state.panelCacheOrder.filter((x) => x !== id),
         // Reset streaming state if the deleted conversation was actively streaming
         ...(isActive && state.isStreaming ? { isStreaming: false } : {}),
       };
@@ -348,12 +420,17 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     })),
 
   resetAllPanels: () =>
-    set({
-      planPanel: { visible: false, assessment: null, status: 'idle' },
-      clarificationPanel: { visible: false, requirements: null },
-      dmPanel: { visible: false, decision: null, status: 'idle' },
-      toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
-      architectPanel: { visible: false, status: 'idle', stepsCompleted: 0, errorMessage: null, attempt: 0 },
-      teamPanel: { visible: false, teamId: null, agents: [], communications: [] },
+    set((state) => {
+      const id = state.activeConversationId;
+      // Also evict from cache so stale state doesn't resurface
+      if (id && state.panelStateCache[id]) {
+        const { [id]: _evicted, ...rest } = state.panelStateCache;
+        return {
+          ...DEFAULT_PANELS,
+          panelStateCache: rest,
+          panelCacheOrder: state.panelCacheOrder.filter((x) => x !== id),
+        };
+      }
+      return { ...DEFAULT_PANELS };
     }),
 });
