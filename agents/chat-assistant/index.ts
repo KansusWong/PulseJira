@@ -24,7 +24,7 @@ export function createChatAssistantAgent(options?: {
   const basePrompt = override.systemPrompt ?? defaultPromptFn(envContext);
   const systemPrompt = mergeSoulWithPrompt(soul, basePrompt);
 
-  const defaultMaxLoops = mode === 'project' ? 10 : 3;
+  const defaultMaxLoops = mode === 'project' ? 6 : 3;
   const baseTools = getTools('web_search', 'read_file', 'list_files');
   const tools = options?.extraTools
     ? [...baseTools, ...options.extraTools]

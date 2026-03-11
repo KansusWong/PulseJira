@@ -20,7 +20,7 @@ import { ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
 import { SpawnSubAgentTool, createDefaultBudget } from '@/lib/tools/spawn-sub-agent';
 import { ListAgentsTool } from '@/lib/tools/list-agents';
 import { BaseAgent } from '@/lib/core/base-agent';
-import { createProject, getProject } from '@/projects/project-service';
+import { createProject, getProject, updateProject } from '@/projects/project-service';
 import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
 import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
@@ -614,7 +614,21 @@ export class ChatEngine {
         agent,
         kind: 'thinking',
         stepNumber,
-        message: `💭 思考中...（第 ${stepNumber} 步）`,
+        message: '思考中...',
+        timestamp: Date.now(),
+      };
+    }
+
+    // "[agent] Text: <content>" → kind: 'text' (LLM intermediate reasoning)
+    const textMatch = message.match(/\[[\w-]+\] Text: ([\s\S]+)$/);
+    if (textMatch) {
+      const text = textMatch[1].trim();
+      if (!text) return null;
+      return {
+        id: crypto.randomUUID(),
+        agent,
+        kind: 'text',
+        message: text.slice(0, 200),
         timestamp: Date.now(),
       };
     }
@@ -656,7 +670,7 @@ export class ChatEngine {
       }
 
       const toolLabel = ChatEngine.TOOL_LABELS[toolName] || toolName;
-      const friendlyMsg = argSummary ? `🔧 ${toolLabel}：${argSummary}` : `🔧 ${toolLabel}...`;
+      const displayMsg = argSummary ? `${toolLabel}(${argSummary})` : toolLabel;
 
       return {
         id: crypto.randomUUID(),
@@ -665,7 +679,7 @@ export class ChatEngine {
         toolName,
         toolLabel,
         argSummary: argSummary || undefined,
-        message: friendlyMsg,
+        message: displayMsg,
         timestamp: Date.now(),
       };
     }
@@ -677,8 +691,6 @@ export class ChatEngine {
       const success = resultMatch[2] === 'OK';
       const resultPreview = resultMatch[3].trim();
       const toolLabel = ChatEngine.TOOL_LABELS[toolName] || toolName;
-      const statusIcon = success ? '✅' : '❌';
-      const friendlyMsg = `${statusIcon} ${toolLabel} ${success ? '成功' : '失败'}`;
 
       return {
         id: crypto.randomUUID(),
@@ -688,7 +700,7 @@ export class ChatEngine {
         toolLabel,
         success,
         resultPreview: resultPreview.slice(0, 150),
-        message: friendlyMsg,
+        message: success ? '完成' : `失败: ${resultPreview.slice(0, 80)}`,
         timestamp: Date.now(),
       };
     }
@@ -699,7 +711,7 @@ export class ChatEngine {
         id: crypto.randomUUID(),
         agent,
         kind: 'completion',
-        message: '✅ 正在整理结果...',
+        message: '正在整理结果...',
         timestamp: Date.now(),
       };
     }
@@ -708,7 +720,7 @@ export class ChatEngine {
         id: crypto.randomUUID(),
         agent,
         kind: 'completion',
-        message: '✅ 已达到最大步数，正在收尾...',
+        message: '已达到最大步数，正在收尾...',
         timestamp: Date.now(),
       };
     }
@@ -717,7 +729,7 @@ export class ChatEngine {
         id: crypto.randomUUID(),
         agent,
         kind: 'completion',
-        message: '✅ 任务即将完成...',
+        message: '任务即将完成...',
         timestamp: Date.now(),
       };
     }
@@ -766,6 +778,22 @@ export class ChatEngine {
 
       channel.push({ type: 'agent_log', data: { message: '正在分析任务...' } });
 
+      // Fix 2: Insert placeholder assistant message before agent runs
+      let placeholderMsgId: string | null = null;
+      if (supabaseConfigured) {
+        const { data: placeholderRow } = await supabase.from('messages').insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: '正在分析中，请稍候...',
+          metadata: { processing: true },
+        }).select('id').single();
+        placeholderMsgId = placeholderRow?.id ?? null;
+      }
+
+      // Fix 4: Mark project as analyzing
+      updateProject(project.id, { status: 'analyzing' }).catch((err) =>
+        console.error('[ChatEngine] Set project analyzing failed:', err));
+
       // Sub-agent budget: allow up to 3 spawns, 15 total sub-agent loops
       const subAgentBudget = createDefaultBudget();
 
@@ -777,9 +805,21 @@ export class ChatEngine {
         }
       };
 
+      // Fix 3: Debounced conversation.updated_at refresh via onCheckpoint
+      let lastConvRefresh = Date.now();
+      const onCheckpoint = (_data: { messages: any[]; stepsCompleted: number }) => {
+        const now = Date.now();
+        if (now - lastConvRefresh >= 30_000) {
+          lastConvRefresh = now;
+          this.updateConversation(conversationId, {} as any).catch((err) =>
+            console.error('[ChatEngine] Conversation checkpoint refresh failed:', err));
+        }
+      };
+
       const agentContext: import('@/lib/core/types').AgentContext = {
         projectId: project.id,
         logger: channelLogger,
+        onCheckpoint,
       };
 
       const agent = createChatAssistantAgent({
@@ -822,8 +862,25 @@ export class ChatEngine {
           const responseText = ChatEngine.extractResponse(result);
           const isExportable = /```[\s\S]*?```/.test(responseText) || responseText.length > 800;
           const metadata = isExportable ? { exportable: true } : undefined;
-          await this.saveMessage(conversationId, 'assistant', responseText, metadata).catch((err) =>
-            console.error('[ChatEngine] Save single-agent response failed:', err));
+
+          // Fix 2: Update placeholder message with final content (or save new if no placeholder)
+          if (placeholderMsgId && supabaseConfigured) {
+            try {
+              await supabase.from('messages').update({
+                content: responseText,
+                metadata: metadata || null,
+              }).eq('id', placeholderMsgId);
+            } catch (err) {
+              console.error('[ChatEngine] Update placeholder message failed:', err);
+            }
+          } else {
+            await this.saveMessage(conversationId, 'assistant', responseText, metadata).catch((err) =>
+              console.error('[ChatEngine] Save single-agent response failed:', err));
+          }
+
+          // Fix 4: Mark project as active on success
+          updateProject(project!.id, { status: 'active' }).catch((err) =>
+            console.error('[ChatEngine] Set project active failed:', err));
 
           channel.push({
             type: 'message',
@@ -834,6 +891,23 @@ export class ChatEngine {
         })
         .catch(async (error: unknown) => {
           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+
+          // Fix 2: Update placeholder message with error info
+          if (placeholderMsgId && supabaseConfigured) {
+            try {
+              await supabase.from('messages').update({
+                content: `分析失败: ${errorMsg}`,
+                metadata: { error: true },
+              }).eq('id', placeholderMsgId);
+            } catch (err) {
+              console.error('[ChatEngine] Update placeholder with error failed:', err);
+            }
+          }
+
+          // Fix 4: Revert project status to draft on failure
+          updateProject(project!.id, { status: 'draft' }).catch((err) =>
+            console.error('[ChatEngine] Revert project to draft failed:', err));
+
           channel.push({ type: 'error', data: { message: errorMsg } });
           channel.close();
           unsubscribe();

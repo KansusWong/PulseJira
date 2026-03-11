@@ -15,6 +15,8 @@ const MAX_CONTEXT_MESSAGES = parseInt(process.env.AGENT_MAX_CONTEXT_MESSAGES || 
 const LLM_TIMEOUT_MS = parseInt(process.env.AGENT_LLM_TIMEOUT_MS || '120000', 10);
 /** Fixed model for context compression (cheap & fast, independent of agent model). */
 const COMPRESSION_MODEL = process.env.AGENT_COMPRESSION_MODEL || 'gpt-4o-mini';
+/** Delay between ReAct loop steps to avoid 429 rate limiting (ms). */
+const INTER_STEP_DELAY_MS = parseInt(process.env.AGENT_INTER_STEP_DELAY_MS || '1500', 10);
 /** Token budget controller — triggers compression based on estimated token count. */
 const contextBudget = new ContextBudget();
 
@@ -267,6 +269,11 @@ export class BaseAgent {
       : undefined;
 
     for (let step = 0; step < maxLoops!; step++) {
+      // Delay between steps to avoid 429 rate limiting on shared LLM accounts
+      if (step > 0 && INTER_STEP_DELAY_MS > 0) {
+        await new Promise(resolve => setTimeout(resolve, INTER_STEP_DELAY_MS));
+      }
+
       await log(`[${name}] Step ${step + 1}: Thinking...`);
 
       const completionStartAt = Date.now();
@@ -318,6 +325,14 @@ export class BaseAgent {
       }
 
       messages.push(message);
+
+      // Emit LLM intermediate reasoning text (visible as bullet in UI)
+      if (message.content && message.tool_calls?.length) {
+        const text = typeof message.content === 'string' ? message.content.trim() : '';
+        if (text) {
+          await log(`[${name}] Text: ${text.slice(0, 200)}`);
+        }
+      }
 
       // --- Handle tool calls ---
       if (message.tool_calls && message.tool_calls.length > 0) {

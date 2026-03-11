@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { chatEngine } from '@/lib/services/chat-engine';
 import { toolApprovalService } from '@/lib/services/tool-approval';
+import { makeSSEResponseFromGenerator } from '@/lib/utils/api-error';
 
 export async function GET(
   _req: Request,
@@ -42,33 +43,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const { action } = body; // 'approve' | 'reject' | 'modify'
 
   if (action === 'approve') {
-    // Execute the approved plan via SSE
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          const conversation = await chatEngine.getOrCreateConversation(params.id);
-          const mode = conversation.execution_mode || 'single_agent';
-          for await (const event of chatEngine.executePlan(params.id, mode)) {
-            const data = `data: ${JSON.stringify(event)}\n\n`;
-            controller.enqueue(encoder.encode(data));
-          }
-        } catch (error: any) {
-          const errorEvent = `data: ${JSON.stringify({ type: 'error', data: { message: error.message } })}\n\n`;
-          controller.enqueue(encoder.encode(errorEvent));
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-      },
-    });
+    const conversation = await chatEngine.getOrCreateConversation(params.id);
+    const mode = conversation.execution_mode || 'single_agent';
+    return makeSSEResponseFromGenerator(
+      chatEngine.executePlan(params.id, mode),
+      { signal: req.signal },
+    );
   }
 
   if (action === 'confirm_requirements') {
@@ -77,30 +57,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ success: false, error: 'Missing requirements' }, { status: 400 });
     }
 
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const event of chatEngine.confirmAndExecute(params.id, requirements)) {
-            const data = `data: ${JSON.stringify(event)}\n\n`;
-            controller.enqueue(encoder.encode(data));
-          }
-        } catch (error: any) {
-          const errorEvent = `data: ${JSON.stringify({ type: 'error', data: { message: error.message } })}\n\n`;
-          controller.enqueue(encoder.encode(errorEvent));
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-      },
-    });
+    return makeSSEResponseFromGenerator(
+      chatEngine.confirmAndExecute(params.id, requirements),
+      { signal: req.signal },
+    );
   }
 
   if (action === 'reject') {
@@ -118,57 +78,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   if (action === 'approve_dm') {
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const event of chatEngine.executeDmApproval(params.id)) {
-            const data = `data: ${JSON.stringify(event)}\n\n`;
-            controller.enqueue(encoder.encode(data));
-          }
-        } catch (error: any) {
-          const errorEvent = `data: ${JSON.stringify({ type: 'error', data: { message: error.message } })}\n\n`;
-          controller.enqueue(encoder.encode(errorEvent));
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-      },
-    });
+    return makeSSEResponseFromGenerator(
+      chatEngine.executeDmApproval(params.id),
+      { signal: req.signal },
+    );
   }
 
   if (action === 'resume_architect') {
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const event of chatEngine.resumeArchitectPhase(params.id)) {
-            const data = `data: ${JSON.stringify(event)}\n\n`;
-            controller.enqueue(encoder.encode(data));
-          }
-        } catch (error: any) {
-          const errorEvent = `data: ${JSON.stringify({ type: 'error', data: { message: error.message } })}\n\n`;
-          controller.enqueue(encoder.encode(errorEvent));
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-      },
-    });
+    return makeSSEResponseFromGenerator(
+      chatEngine.resumeArchitectPhase(params.id),
+      { signal: req.signal },
+    );
   }
 
   if (action === 'reject_dm') {

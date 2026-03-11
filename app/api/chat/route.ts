@@ -7,6 +7,7 @@
 
 import { chatEngine } from '@/lib/services/chat-engine';
 import { webhookService } from '@/lib/services/webhook';
+import { makeSSEResponseFromGenerator } from '@/lib/utils/api-error';
 
 // Lazy-init webhook listener (idempotent, safe to call on every cold start)
 webhookService.init();
@@ -25,28 +26,8 @@ export async function POST(req: Request) {
     });
   }
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const event of chatEngine.handleMessage(conversation_id, message)) {
-          const data = `data: ${JSON.stringify(event)}\n\n`;
-          controller.enqueue(encoder.encode(data));
-        }
-      } catch (error: any) {
-        const errorEvent = `data: ${JSON.stringify({ type: 'error', data: { message: error.message } })}\n\n`;
-        controller.enqueue(encoder.encode(errorEvent));
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-    },
-  });
+  return makeSSEResponseFromGenerator(
+    chatEngine.handleMessage(conversation_id, message),
+    { signal: req.signal },
+  );
 }

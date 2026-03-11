@@ -75,6 +75,77 @@ export interface SSEOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * SSE streaming response from an async generator.
+ * Adds heartbeat keep-alive, pipeline timeout, and client disconnect detection.
+ * Replaces raw ReadableStream boilerplate in route handlers.
+ */
+export function makeSSEResponseFromGenerator(
+  generator: AsyncGenerator<any>,
+  options?: SSEOptions,
+) {
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
+  const safe = createSafeWriter(writer);
+  const timeoutMs = options?.timeoutMs ?? SSE_PIPELINE_TIMEOUT_MS;
+
+  (async () => {
+    // Heartbeat to keep connection alive through proxies / load balancers
+    const heartbeat = setInterval(() => {
+      if (safe.closed) {
+        clearInterval(heartbeat);
+        return;
+      }
+      safe.write({ type: 'heartbeat', ts: Date.now() }).catch(() => {
+        clearInterval(heartbeat);
+      });
+    }, SSE_HEARTBEAT_INTERVAL_MS);
+
+    // Pipeline timeout — graceful shutdown before Vercel hard-kills the function
+    let timedOut = false;
+    const timeoutId = setTimeout(() => { timedOut = true; }, timeoutMs);
+
+    // Client disconnect detection
+    let clientDisconnected = false;
+    const onAbort = () => { clientDisconnected = true; };
+    options?.signal?.addEventListener('abort', onAbort);
+
+    try {
+      for await (const event of generator) {
+        if (timedOut || clientDisconnected || safe.closed) break;
+        await safe.write(event);
+      }
+      if (!clientDisconnected && !timedOut) {
+        // Generator completed normally — no extra action needed
+      } else if (timedOut && !clientDisconnected) {
+        await safe.write({
+          type: 'error',
+          data: { message: `Pipeline timeout: exceeded ${Math.round(timeoutMs / 1000)}s limit` },
+        });
+      }
+    } catch (e: unknown) {
+      console.error('[SSE Generator Error]', e);
+      if (!clientDisconnected) {
+        const message = e instanceof Error ? e.message : 'Internal Server Error';
+        await safe.write({ type: 'error', data: { message } });
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      clearInterval(heartbeat);
+      options?.signal?.removeEventListener('abort', onAbort);
+      await safe.close();
+    }
+  })();
+
+  return new NextResponse(stream.readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+
 /** SSE streaming response factory — replaces per-route makeStreamResponse helpers */
 export function makeSSEResponse(
   processor: (safe: ReturnType<typeof createSafeWriter>) => Promise<any>,
