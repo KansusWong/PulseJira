@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { supabase, assertSupabase } from '@/lib/db/client';
 import { runMetaPipeline } from '@/skills/meta-pipeline';
 import { recordLlmUsage } from '@/lib/services/usage';
+import { Blackboard } from '@/lib/blackboard';
 
 export async function POST(req: Request) {
   // Optional auth check
@@ -102,8 +103,30 @@ export async function POST(req: Request) {
 
     // Run meta pipeline with batch signals
     const signalContents = claimedSignals.map((s) => s.content);
+
+    const blackboard = new Blackboard(`cron-${Date.now()}`, undefined, {
+      maxEntries: 200,
+      ttlMs: 2 * 60 * 60 * 1000,
+    });
+
+    await blackboard.write({
+      key: 'pipeline.signalContext',
+      value: {
+        signals: claimedSignals.map((s) => ({
+          id: s.id,
+          content: s.content,
+          source_url: s.source_url,
+        })),
+        batch_size: claimedSignals.length,
+      },
+      type: 'context',
+      author: 'cron-processor',
+      tags: ['pipeline', 'signals'],
+    });
+
     const result = await runMetaPipeline(signalContents, {
       signalIds: claimedSignalIds,
+      blackboard,
       logger: (msg) => console.log(`[cron/process-signals] ${msg}`),
       recordUsage: cronRecordUsage,
     });

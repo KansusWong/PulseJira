@@ -17,6 +17,7 @@ import { NextResponse } from 'next/server';
 import { runMetaPipeline } from '@/skills/meta-pipeline';
 import { makeSSEResponse, errorResponse } from '@/lib/utils/api-error';
 import { messageBus } from '@/connectors/bus/message-bus';
+import { Blackboard } from '@/lib/blackboard';
 
 // Extend Vercel serverless function timeout to max allowed (#13)
 export const maxDuration = 300;
@@ -38,6 +39,11 @@ export async function POST(req: Request) {
   // Unique session ID to scope messageBus events per request (#12)
   const sessionId = crypto.randomUUID();
 
+  const blackboard = new Blackboard(`meta-${sessionId}`, projectId, {
+    maxEntries: 200,
+    ttlMs: 2 * 60 * 60 * 1000,
+  });
+
   return makeSSEResponse(
     async (safe) => {
       return messageBus.withScope({ projectId, sessionId }, async () => {
@@ -46,6 +52,7 @@ export async function POST(req: Request) {
           repoUrl,
           skipDecision,
           signalIds,
+          blackboard,
           logger: (msg: string) => safe.log(msg),
         });
 

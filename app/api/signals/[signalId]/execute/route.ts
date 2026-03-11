@@ -92,10 +92,18 @@ export async function POST(
         status: 'active',
         project_id: meta.project_id,
         complexity_assessment: {
-          complexity_level: 'L3',
-          execution_mode: 'agent_team',
+          complexity_level: 'L3' as const,
+          execution_mode: 'agent_team' as const,
           confidence: 0.9,
+          rationale:
+            prepareResult.arbitrator_rationale ||
+            'Signal pipeline — auto-routed to L3 agent team',
           reasoning: 'Signal pipeline — auto-routed to L3 agent team',
+          suggested_agents: ['developer', 'reviewer'],
+          estimated_steps: mrd.success_metrics?.length || 3,
+          plan_outline: (mrd.success_metrics || []).map((m: string) => `Deliver: ${m}`),
+          requires_project: true,
+          requires_clarification: false,
         },
         execution_mode: 'agent_team',
         structured_requirements: requirements,
