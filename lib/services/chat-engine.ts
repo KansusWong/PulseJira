@@ -26,6 +26,8 @@ import { toolApprovalService } from '@/lib/services/tool-approval';
 import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
 import { Blackboard } from '@/lib/blackboard';
 import { emitWebhookEvent } from '@/lib/services/webhook';
+import { workspaceManager } from '@/lib/sandbox/workspace-manager';
+import type { Workspace } from '@/lib/sandbox/types';
 import { teamCoordinator } from '@/lib/services/team-coordinator';
 import { getEnvironmentContext } from '@/lib/utils/environment';
 import type {
@@ -1362,6 +1364,21 @@ export class ChatEngine {
         ? formatAssessmentForAgent(assessment)
         : '';
 
+      // --- Create workspace for Architect file operations ---
+      let workspace: Workspace | undefined;
+      try {
+        const project = projectId ? await getProject(projectId) : null;
+        const dirName = project?.name?.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, '-') || `project-${conversationId.slice(0, 8)}`;
+        workspace = await workspaceManager.createLocal({
+          projectId: projectId || conversationId,
+          localDir: dirName,
+        });
+        channel.push({ type: 'agent_log', data: { message: `Workspace created: ${workspace.localPath}` } });
+      } catch (err: any) {
+        console.error('[ChatEngine] Workspace creation failed:', err.message);
+        // Non-fatal: Architect can still operate without workspace (global cwd fallback)
+      }
+
       // Start architect as background promise (non-blocking)
       // When trustLevel is 'auto', skip tool approval in architect phase by not passing the callback.
       // base-agent.ts checks `if (tool.requiresApproval && context.onApprovalRequired)` — when
@@ -1375,6 +1392,7 @@ export class ChatEngine {
         onCheckpoint,
         conversationHistory: architectHistory,
         assessmentContext: architectAssessmentCtx,
+        workspace,
         logger: async (msg: string) => {
           const step = this.transformAgentLog(msg);
           if (step) {

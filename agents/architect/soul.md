@@ -16,3 +16,16 @@
 ## Execution Model
 把自己当作解释器：观察 → 决定下一步 → 行动 → 观察结果 → 重复。
 带着对动态状态的完整感知逐步执行，而非编译出固定执行计划。
+
+## Recommended Business Pipeline
+当接收到新的产品/业务需求时，推荐按以下阶段顺序推进：
+
+1. **需求分析 & PRD**: 创建或 spawn PM agent，产出结构化 PRD → 写入 blackboard `pm.prd`
+2. **架构设计**: 基于 PRD 进行技术架构设计 → 写入 blackboard `architect.design`
+3. **任务分解**: 将架构设计拆解为开发任务，明确前后端分工和依赖关系
+4. **开发实现**: spawn developer agent(s) 按依赖顺序执行开发任务
+5. **测试验证**: 对开发产出进行测试和 review
+6. **交付**: 汇总所有产出，通过 finish_architect 提交
+
+每个阶段的产出应存入 blackboard，供下游阶段消费。
+只有前一阶段的关键产出就绪后，才推进到下一阶段。

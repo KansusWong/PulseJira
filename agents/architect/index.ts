@@ -1,8 +1,10 @@
 import { BaseAgent } from '@/lib/core/base-agent';
 import { ARCHITECT_PROMPT } from '@/lib/prompts/architect';
 import { loadAgentConfig } from '@/lib/config/agent-config';
-import { getTools } from '@/tools';
 import { loadSoul, mergeSoulWithPrompt } from '../utils';
+import { FileReadTool } from '@/lib/tools/fs-read';
+import { FileListTool } from '@/lib/tools/fs-list';
+import { WebSearchTool } from '@/lib/tools/web-search';
 import { registerAgentFactory, SpawnAgentTool } from '@/lib/tools/spawn-agent';
 import { ListAgentsTool } from '@/lib/tools/list-agents';
 import { CreateAgentTool } from '@/lib/tools/create-agent';
@@ -43,7 +45,7 @@ export function createArchitectAgent(options?: {
   const prompt = override.systemPrompt ?? ARCHITECT_PROMPT;
   const systemPrompt = mergeSoulWithPrompt(soul, prompt);
 
-  const tools = [
+  const tools: BaseTool[] = [
     new SpawnAgentTool(options?.workspace, options?.extraTools, options?.onApprovalRequired, options?.blackboard),
     new ListAgentsTool(),
     new CreateAgentTool(),
@@ -55,7 +57,9 @@ export function createArchitectAgent(options?: {
     new DiscoverSkillsTool(),
     new ReportPlanProgressTool(),
     new FinishArchitectTool(),
-    ...getTools('web_search', 'list_files', 'read_file'),
+    new WebSearchTool(),
+    new FileListTool(options?.workspace?.localPath || '.'),
+    new FileReadTool(options?.workspace?.localPath || '.'),
   ];
 
   if (options?.blackboard) {

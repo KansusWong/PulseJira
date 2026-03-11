@@ -24,6 +24,7 @@ import { messageBus } from '@/connectors/bus/message-bus';
 import { emitWebhookEvent } from '@/lib/services/webhook';
 import type { ArchitectResult, AgentContext, DecisionOutput, StructuredRequirements } from '@/lib/core/types';
 import type { Blackboard } from '@/lib/blackboard/blackboard';
+import type { Workspace } from '@/lib/sandbox/types';
 
 // ---------------------------------------------------------------------------
 // Zod schemas for runtime validation of agent outputs.
@@ -102,6 +103,8 @@ export interface MetaPipelineOptions {
   conversationHistory?: string;
   /** Formatted complexity assessment context (plan_outline, rationale, suggested_agents). */
   assessmentContext?: string;
+  /** Workspace for file-system scoped tools (read_file, list_files). */
+  workspace?: Workspace;
 }
 
 /**
@@ -337,6 +340,7 @@ export async function runArchitectPhase(
     onApprovalRequired: options.onApprovalRequired,
     blackboard: options.blackboard,
     initialMessages: options.initialMessages,
+    workspace: options.workspace,
   });
 
   const rawArchitectResult = await architect.run(architectInput, {

@@ -74,7 +74,7 @@ export class FileReadTool extends BaseTool<FileReadInput, string> {
         return `Error: File "${input.path}" does not exist.`;
       }
       if (stats.isDirectory()) {
-        return `Error: Path "${input.path}" is a directory, not a file.`;
+        return `Error: Path "${input.path}" is a directory, not a file. Use the list_files tool to view directory contents.`;
       }
 
       if (stats.isSymbolicLink()) {
