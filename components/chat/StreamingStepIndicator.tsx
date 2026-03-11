@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Wrench, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { getAgentUI } from "@/lib/config/agent-ui-meta";
 import type { StructuredAgentStep } from "@/lib/core/types";
 
@@ -25,24 +25,32 @@ function groupByAgent(steps: StructuredAgentStep[]): { agent: string; steps: Str
   return groups;
 }
 
-function StepIcon({ step }: { step: StructuredAgentStep }) {
-  if (step.kind === "thinking") {
-    return <Brain className="w-3.5 h-3.5 shrink-0 text-zinc-400" />;
-  }
-  if (step.kind === "tool_call") {
-    return <Wrench className="w-3.5 h-3.5 shrink-0 text-zinc-400" />;
-  }
+function StepBadge({ index, step, isLast }: { index: number; step: StructuredAgentStep; isLast: boolean }) {
+  // Completed results: show success/fail icon instead of number
   if (step.kind === "tool_result") {
     return step.success ? (
-      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
     ) : (
-      <XCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+      <XCircle className="w-4 h-4 shrink-0 text-red-400" />
     );
   }
   if (step.kind === "completion") {
-    return <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />;
+    return <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />;
   }
-  return <span className="w-3.5 h-3.5 shrink-0" />;
+
+  // Thinking / tool_call: numbered badge
+  const num = step.stepNumber ?? index + 1;
+  return (
+    <span
+      className={`shrink-0 w-4 h-4 rounded-md text-[9px] font-semibold flex items-center justify-center leading-none ${
+        isLast
+          ? "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30"
+          : "bg-zinc-800 text-zinc-500"
+      }`}
+    >
+      {num}
+    </span>
+  );
 }
 
 export function StreamingStepIndicator({ steps }: Props) {
@@ -82,17 +90,17 @@ export function StreamingStepIndicator({ steps }: Props) {
 
                 {/* Steps within this agent group */}
                 <div className="space-y-1">
-                  {group.steps.map((step) => {
+                  {group.steps.map((step, si) => {
                     const isLast = step.id === lastStepId;
                     return (
                       <div
                         key={step.id}
-                        className={`text-xs flex items-start gap-1.5 ${
+                        className={`text-xs flex items-start gap-2 ${
                           isLast ? "text-zinc-300" : "text-zinc-500"
                         }`}
                       >
                         <span className="mt-0.5">
-                          <StepIcon step={step} />
+                          <StepBadge index={si} step={step} isLast={isLast} />
                         </span>
                         <span className="flex-1 min-w-0">
                           <span>{step.message}</span>
