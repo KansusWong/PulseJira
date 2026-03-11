@@ -19,11 +19,13 @@ export interface PlatformConfig {
 }
 
 export type AgentExecutionMode = 'simple' | 'medium' | 'advanced';
+export type TrustLevel = 'auto' | 'collaborative';
 
 export interface UserPreferences {
   topics: string[];
   platforms: Record<string, PlatformConfig>;
   agentExecutionMode: AgentExecutionMode;
+  trustLevel: TrustLevel;
   updatedAt: string;
 }
 
@@ -55,6 +57,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   topics: [],
   platforms: buildDefaultPlatformMap(),
   agentExecutionMode: 'simple',
+  trustLevel: 'collaborative',
   updatedAt: new Date().toISOString(),
 };
 
@@ -75,7 +78,7 @@ async function loadFromDB(): Promise<UserPreferences> {
   try {
     const { data, error } = await supabase
       .from('user_preferences')
-      .select('topics, platforms, agent_execution_mode, updated_at')
+      .select('topics, platforms, agent_execution_mode, trust_level, updated_at')
       .eq('user_id', USER_ID)
       .single();
 
@@ -98,10 +101,17 @@ async function loadFromDB(): Promise<UserPreferences> {
         ? rawMode
         : 'simple';
 
+    const rawTrust = data.trust_level;
+    const trustLevel: TrustLevel =
+      rawTrust === 'auto' || rawTrust === 'collaborative'
+        ? rawTrust
+        : 'collaborative';
+
     return {
       topics: Array.isArray(data.topics) ? data.topics : [],
       platforms: normalizedPlatforms,
       agentExecutionMode,
+      trustLevel,
       updatedAt: data.updated_at ?? new Date().toISOString(),
     };
   } catch (err) {
@@ -120,6 +130,7 @@ async function saveToDB(prefs: UserPreferences): Promise<void> {
           topics: prefs.topics,
           platforms: prefs.platforms,
           agent_execution_mode: prefs.agentExecutionMode || 'simple',
+          trust_level: prefs.trustLevel || 'collaborative',
           updated_at: prefs.updatedAt,
         },
         { onConflict: 'user_id' }

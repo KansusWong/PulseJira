@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
 
 type ExecutionMode = "simple" | "medium" | "advanced";
+type TrustLevel = "auto" | "collaborative";
 
 interface ModeConfig {
   key: ExecutionMode;
@@ -13,6 +14,13 @@ interface ModeConfig {
   borderClass: string;
   bgClass: string;
   disabled: boolean;
+}
+
+interface TrustConfig {
+  key: TrustLevel;
+  colorClass: string;
+  borderClass: string;
+  bgClass: string;
 }
 
 const MODES: ModeConfig[] = [
@@ -39,9 +47,25 @@ const MODES: ModeConfig[] = [
   },
 ];
 
+const TRUST_LEVELS: TrustConfig[] = [
+  {
+    key: "auto",
+    colorClass: "text-blue-400",
+    borderClass: "border-blue-500",
+    bgClass: "bg-blue-500/10",
+  },
+  {
+    key: "collaborative",
+    colorClass: "text-emerald-400",
+    borderClass: "border-emerald-500",
+    bgClass: "bg-emerald-500/10",
+  },
+];
+
 export function AdvancedSettingsCard() {
   const { t } = useTranslation();
   const [currentMode, setCurrentMode] = useState<ExecutionMode>("simple");
+  const [currentTrust, setCurrentTrust] = useState<TrustLevel>("collaborative");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [confirmModal, setConfirmModal] = useState<ExecutionMode | null>(null);
@@ -52,6 +76,7 @@ export function AdvancedSettingsCard() {
       .then((json) => {
         if (json.success && json.data?.preferences) {
           setCurrentMode(json.data.preferences.agentExecutionMode || "simple");
+          setCurrentTrust(json.data.preferences.trustLevel || "collaborative");
         }
       })
       .catch(console.error)
@@ -79,6 +104,29 @@ export function AdvancedSettingsCard() {
       }
     },
     []
+  );
+
+  const saveTrust = useCallback(
+    async (level: TrustLevel) => {
+      if (level === currentTrust) return;
+      setSaving(true);
+      try {
+        const res = await fetch("/api/settings/preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trustLevel: level }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setCurrentTrust(level);
+        }
+      } catch (e) {
+        console.error("Failed to save trust level:", e);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [currentTrust]
   );
 
   const handleModeClick = useCallback(
@@ -115,6 +163,11 @@ export function AdvancedSettingsCard() {
           </p>
         </div>
       </div>
+
+      {/* ── Section 1: Agent Work Mode ── */}
+      <h3 className="text-sm font-semibold text-zinc-300 mb-3">
+        {t("advancedSettings.section.workMode")}
+      </h3>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {MODES.map((mode) => {
@@ -173,6 +226,66 @@ export function AdvancedSettingsCard() {
                   {t("advancedSettings.comingSoon")}
                 </div>
               )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Section 2: Trust Level ── */}
+      <h3 className="text-sm font-semibold text-zinc-300 mb-3 mt-8">
+        {t("advancedSettings.section.trustLevel")}
+      </h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {TRUST_LEVELS.map((trust) => {
+          const isActive = currentTrust === trust.key;
+          return (
+            <button
+              key={trust.key}
+              disabled={saving}
+              onClick={() => saveTrust(trust.key)}
+              className={clsx(
+                "relative rounded-xl border-2 p-5 text-left transition-all",
+                isActive
+                  ? `${trust.borderClass} ${trust.bgClass}`
+                  : "border-zinc-700/60 hover:border-zinc-600",
+                !isActive && "hover:bg-zinc-800/40"
+              )}
+            >
+              {isActive && (
+                <div className="absolute top-3 right-3">
+                  <Check className={clsx("w-5 h-5", trust.colorClass)} />
+                </div>
+              )}
+
+              <h3
+                className={clsx(
+                  "text-sm font-semibold mb-1",
+                  isActive ? trust.colorClass : "text-zinc-300"
+                )}
+              >
+                {t(`advancedSettings.trust.${trust.key}.title`)}
+              </h3>
+
+              <p className="text-xs text-zinc-500 mb-3">
+                {t(`advancedSettings.trust.${trust.key}.description`)}
+              </p>
+
+              <div className="space-y-1">
+                {(
+                  t(`advancedSettings.trust.${trust.key}.features`) as string
+                )
+                  .split("|")
+                  .map((feature, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1.5 text-xs text-zinc-400"
+                    >
+                      <span className={clsx("w-1 h-1 rounded-full", isActive ? trust.colorClass.replace("text-", "bg-") : "bg-zinc-600")} />
+                      {feature}
+                    </div>
+                  ))}
+              </div>
             </button>
           );
         })}

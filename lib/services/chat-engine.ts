@@ -969,13 +969,15 @@ export class ChatEngine {
         return approved;
       };
 
-      // --- Execution mode: medium allows dynamic project-specific agent creation ---
+      // --- Read trust level + execution mode from preferences ---
       let execMode: 'simple' | 'medium' | 'advanced' = 'simple';
+      let trustLevel: 'auto' | 'collaborative' = 'collaborative';
       try {
         const prefs = await getPreferences();
         execMode = prefs.agentExecutionMode || 'simple';
+        trustLevel = prefs.trustLevel || 'collaborative';
       } catch {
-        // Default to simple on failure
+        // Default to simple / collaborative on failure
       }
       if (execMode === 'advanced') {
         execMode = 'medium';
@@ -1035,10 +1037,13 @@ export class ChatEngine {
       };
 
       // Start architect as background promise (non-blocking)
+      // When trustLevel is 'auto', skip tool approval in architect phase by not passing the callback.
+      // base-agent.ts checks `if (tool.requiresApproval && context.onApprovalRequired)` — when
+      // onApprovalRequired is undefined, tools execute directly without approval.
       const architectPromise = runArchitectPhase(context.userMessage, dmDecision, {
         projectId: context.conversation.project_id ?? undefined,
         structuredRequirements: context.conversation.structured_requirements ?? undefined,
-        onApprovalRequired,
+        onApprovalRequired: trustLevel === 'auto' ? undefined : onApprovalRequired,
         blackboard,
         initialMessages,
         onCheckpoint,

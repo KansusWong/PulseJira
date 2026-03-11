@@ -43,12 +43,13 @@ export async function PUT(req: Request) {
       return errorResponse('Invalid JSON body', 400);
     }
 
-    const { topics, platforms, agentExecutionMode } = body;
+    const { topics, platforms, agentExecutionMode, trustLevel } = body;
 
     const patch: Record<string, any> = {};
     if (topics !== undefined) patch.topics = topics;
     if (platforms !== undefined) patch.platforms = platforms;
     if (agentExecutionMode !== undefined) patch.agentExecutionMode = agentExecutionMode;
+    if (trustLevel !== undefined) patch.trustLevel = trustLevel;
 
     const updated = await setPreferences(patch);
 
