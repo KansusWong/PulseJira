@@ -60,10 +60,20 @@ export function ChatView() {
       .catch((err) => console.error('[ChatView] Failed to load messages:', err));
   }, [activeConversationId, setMessages]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom — only on new messages, not on streaming step updates.
+  // Also skip if the user has scrolled up (not near bottom).
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingSteps]);
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    // "Near bottom" = within 150px of the bottom edge
+    const isNearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -323,7 +333,7 @@ export function ChatView() {
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <EmptyState onSend={handleSend} />
         ) : (

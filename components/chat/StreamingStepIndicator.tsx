@@ -4,6 +4,9 @@ import { Brain, Wrench, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { getAgentUI } from "@/lib/config/agent-ui-meta";
 import type { StructuredAgentStep } from "@/lib/core/types";
 
+/** Maximum number of recent steps to display. */
+const MAX_VISIBLE_STEPS = 5;
+
 interface Props {
   steps: StructuredAgentStep[];
 }
@@ -22,20 +25,12 @@ function groupByAgent(steps: StructuredAgentStep[]): { agent: string; steps: Str
   return groups;
 }
 
-function StepIcon({ step, isLast }: { step: StructuredAgentStep; isLast: boolean }) {
+function StepIcon({ step }: { step: StructuredAgentStep }) {
   if (step.kind === "thinking") {
-    return (
-      <Brain
-        className={`w-3.5 h-3.5 shrink-0 text-zinc-400 ${isLast ? "animate-pulse" : ""}`}
-      />
-    );
+    return <Brain className="w-3.5 h-3.5 shrink-0 text-zinc-400" />;
   }
   if (step.kind === "tool_call") {
-    return (
-      <Wrench
-        className={`w-3.5 h-3.5 shrink-0 text-zinc-400 ${isLast ? "animate-pulse" : ""}`}
-      />
-    );
+    return <Wrench className="w-3.5 h-3.5 shrink-0 text-zinc-400" />;
   }
   if (step.kind === "tool_result") {
     return step.success ? (
@@ -53,13 +48,21 @@ function StepIcon({ step, isLast }: { step: StructuredAgentStep; isLast: boolean
 export function StreamingStepIndicator({ steps }: Props) {
   if (steps.length === 0) return null;
 
-  const groups = groupByAgent(steps);
+  // Only show the most recent steps to keep the indicator compact
+  const hiddenCount = Math.max(0, steps.length - MAX_VISIBLE_STEPS);
+  const visibleSteps = hiddenCount > 0 ? steps.slice(-MAX_VISIBLE_STEPS) : steps;
+  const groups = groupByAgent(visibleSteps);
   const lastStepId = steps[steps.length - 1]?.id;
 
   return (
     <div className="mr-auto max-w-[85%]">
       <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
-        <div className="space-y-3 max-h-48 overflow-y-auto">
+        {hiddenCount > 0 && (
+          <div className="text-[10px] text-zinc-600 mb-2">
+            +{hiddenCount} earlier steps
+          </div>
+        )}
+        <div className="space-y-3">
           {groups.map((group, gi) => {
             const ui = getAgentUI(group.agent);
             const badgeClass = ui?.badgeClass || "bg-zinc-500/20 text-zinc-400";
@@ -89,11 +92,10 @@ export function StreamingStepIndicator({ steps }: Props) {
                         }`}
                       >
                         <span className="mt-0.5">
-                          <StepIcon step={step} isLast={isLast} />
+                          <StepIcon step={step} />
                         </span>
                         <span className="flex-1 min-w-0">
                           <span>{step.message}</span>
-                          {/* Show result preview for tool_result on hover */}
                           {step.kind === "tool_result" && step.resultPreview && (
                             <span
                               className={`block truncate text-[10px] mt-0.5 ${
