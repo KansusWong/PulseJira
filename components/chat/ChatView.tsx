@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
@@ -28,10 +27,7 @@ export function ChatView() {
   const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
   const addAgentLog = usePulseStore((s) => s.addAgentLog);
-  const addProject = usePulseStore((s) => s.addProject);
-  const setRunning = usePulseStore((s) => s.setRunning);
 
-  const router = useRouter();
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
@@ -236,7 +232,7 @@ export function ChatView() {
         }
 
         case "project_created": {
-          const { project_id, name, is_light } = event.data;
+          const { name, is_light } = event.data;
           addMessage(conversationId, {
             id: crypto.randomUUID(),
             conversation_id: conversationId,
@@ -247,17 +243,6 @@ export function ChatView() {
             metadata: event.data,
             created_at: new Date().toISOString(),
           });
-          addProject({
-            id: project_id,
-            name,
-            description: '',
-            status: 'analyzing',
-            is_light,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-          setRunning(true, project_id);
-          router.push(`/projects/${project_id}`);
           break;
         }
 
@@ -308,7 +293,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog, addProject, setRunning, router]
+    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog]
   );
 
   return (
