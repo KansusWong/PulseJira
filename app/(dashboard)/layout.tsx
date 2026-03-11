@@ -104,10 +104,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleDeleteProject = useCallback(
     async (id: string) => {
-      const project = usePulseStore.getState().projects.find((p) => p.id === id);
-      const label = project?.name || "this project";
-      if (!window.confirm(t('dashboard.confirmDelete', { name: label }))) return;
-
       if (!id.startsWith("local-")) {
         await fetch(`/api/projects/${id}`, { method: "DELETE" }).catch((err) => console.error('[dashboard] Delete project failed:', err));
       }

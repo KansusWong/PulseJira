@@ -119,6 +119,7 @@ function ProjectItem({
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(project.name);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -131,6 +132,7 @@ function ProjectItem({
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+        setConfirmingDelete(false);
       }
     };
     document.addEventListener("mousedown", handleClick);
@@ -228,18 +230,36 @@ function ProjectItem({
                   {t('common.rename')}
                 </button>
               )}
-              {onDelete && (
+              {onDelete && !confirmingDelete && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setMenuOpen(false);
-                    onDelete();
+                    setConfirmingDelete(true);
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {t('common.delete')}
                 </button>
+              )}
+              {confirmingDelete && (
+                <div className="px-3 py-2 space-y-2">
+                  <p className="text-xs text-zinc-300">{t('dashboard.confirmDelete', { name: project.name })}</p>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmingDelete(false); setMenuOpen(false); }}
+                      className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 rounded transition-colors"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmingDelete(false); setMenuOpen(false); onDelete?.(); }}
+                      className="px-2 py-1 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded transition-colors"
+                    >
+                      {t('common.delete')}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -272,6 +292,7 @@ export function Sidebar({
   const [projectsFolderOpen, setProjectsFolderOpen] = useState(false);
   const [conversationsFolderOpen, setConversationsFolderOpen] = useState(false);
   const [deliverablesFolderOpen, setDeliverablesFolderOpen] = useState(false);
+  const [confirmingDeliverableDeleteId, setConfirmingDeliverableDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(pathname === "/settings");
   const [openSettingsSection, setOpenSettingsSection] = useState<SettingsSectionKey | null>(null);
 
@@ -465,17 +486,36 @@ export function Sidebar({
                           <FileText className="w-3.5 h-3.5 flex-shrink-0" />
                           <span className="truncate flex-1">{project.name}</span>
                         </button>
-                        {onDeleteProject && (
+                        {onDeleteProject && confirmingDeliverableDeleteId !== project.id && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onDeleteProject(project.id);
+                              setConfirmingDeliverableDeleteId(project.id);
                             }}
                             className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover/deliv:opacity-100 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
                             title={t('common.delete')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                        )}
+                        {confirmingDeliverableDeleteId === project.id && (
+                          <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl p-3 w-52">
+                            <p className="text-xs text-zinc-300 mb-2">{t('dashboard.confirmDelete', { name: project.name })}</p>
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmingDeliverableDeleteId(null); }}
+                                className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 rounded transition-colors"
+                              >
+                                {t('common.cancel')}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmingDeliverableDeleteId(null); onDeleteProject?.(project.id); }}
+                                className="px-2 py-1 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded transition-colors"
+                              >
+                                {t('common.delete')}
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     ))}

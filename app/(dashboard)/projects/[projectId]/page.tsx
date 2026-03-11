@@ -713,7 +713,6 @@ export default function ProjectDetailPage() {
 
   const handleDelete = async () => {
     if (!project) return;
-    if (!window.confirm(t('dashboard.confirmDelete', { name: project.name }))) return;
 
     if (!project.id.startsWith("local-")) {
       await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
