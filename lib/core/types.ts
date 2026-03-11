@@ -347,6 +347,21 @@ export interface ChatEvent {
   data: any;
 }
 
+/** Structured progress step for streaming execution display. */
+export interface StructuredAgentStep {
+  id: string;
+  agent: string;
+  kind: 'thinking' | 'tool_call' | 'tool_result' | 'completion';
+  stepNumber?: number;
+  toolName?: string;
+  toolLabel?: string;
+  argSummary?: string;
+  success?: boolean;
+  resultPreview?: string;
+  message: string;
+  timestamp: number;
+}
+
 /** Agent status in a team. */
 export interface AgentStatus {
   name: string;

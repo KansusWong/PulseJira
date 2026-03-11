@@ -395,6 +395,11 @@ export class BaseAgent {
             content: resultStr,
           });
 
+          // Emit structured result log for frontend display
+          const isError = resultStr.startsWith('Error');
+          const preview = resultStr.slice(0, 150).replace(/\n/g, ' ');
+          await log(`[${name}] Result: ${toolName} | ${isError ? 'ERROR' : 'OK'} | ${preview}`);
+
           // Inject corrective hint when code_edit fails on missing file
           if (toolName === 'code_edit' && resultStr.includes('File not found')) {
             messages.push({

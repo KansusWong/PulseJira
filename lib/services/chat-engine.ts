@@ -38,6 +38,7 @@ import type {
   StructuredRequirements,
   ArchitectCheckpoint,
   ArchitectResult,
+  StructuredAgentStep,
 } from '@/lib/core/types';
 
 // ---------------------------------------------------------------------------
@@ -513,9 +514,9 @@ export class ChatEngine {
 
     try {
       const channelLogger = (msg: string) => {
-        const friendly = this.transformAgentLog(msg);
-        if (friendly) {
-          channel.push({ type: 'agent_log', data: { message: friendly } });
+        const step = this.transformAgentLog(msg);
+        if (step) {
+          channel.push({ type: 'agent_log', data: { message: step.message, step } });
         }
       };
 
@@ -558,22 +559,71 @@ export class ChatEngine {
     }
   }
 
+  /** Tool name → Chinese label mapping. */
+  private static readonly TOOL_LABELS: Record<string, string> = {
+    web_search: '搜索',
+    read_file: '读取文件',
+    list_files: '浏览目录',
+    spawn_sub_agent: '分派子任务',
+    spawn_agent: '分派子任务',
+    list_agents: '查看可用智能体',
+    search_vision_knowledge: '检索知识库',
+    search_decisions: '检索决策记录',
+    search_code_artifacts: '检索代码产物',
+    search_code_patterns: '检索代码模式',
+    rag_retrieve: 'RAG 检索',
+    code_write: '写入代码',
+    code_edit: '编辑代码',
+    git_commit: 'Git 提交',
+    git_create_pr: '创建 PR',
+    run_command: '执行命令',
+    run_tests: '运行测试',
+    validate_output: '验证输出',
+    create_agent: '创建智能体',
+    create_skill: '创建技能',
+    fetch_daily_data: '获取日报数据',
+    finish_planning: '完成规划',
+    finish_implementation: '完成实现',
+    finish_daily_report: '生成日报',
+    discover_skills: '发现技能',
+    blackboard_read: '读取黑板',
+    blackboard_write: '写入黑板',
+    merge_pr: '合并 PR',
+    check_ci: '检查 CI',
+    trigger_deploy: '触发部署',
+    check_health: '健康检查',
+    store_code_pattern: '存储代码模式',
+  };
+
   /**
-   * Transform internal BaseAgent English log messages into user-friendly Chinese progress text.
+   * Transform internal BaseAgent English log messages into a StructuredAgentStep.
    * Returns null for internal messages that should not be displayed.
    */
-  private transformAgentLog(message: string): string | null {
-    // "[chat-assistant] Step N: Thinking..." → "💭 思考中...（第 N 步）"
-    const stepMatch = message.match(/\[[\w-]+\] Step (\d+): Thinking/);
-    if (stepMatch) return `💭 思考中...（第 ${stepMatch[1]} 步）`;
+  private transformAgentLog(message: string): StructuredAgentStep | null {
+    // Extract agent name from "[agent-name]" prefix
+    const agentMatch = message.match(/\[([\w-]+)\]/);
+    const agent = agentMatch ? agentMatch[1] : 'system';
 
-    // "[chat-assistant] Action: toolName({...args})" → Chinese label + key argument
+    // "[agent] Step N: Thinking..." → kind: 'thinking'
+    const stepMatch = message.match(/\[[\w-]+\] Step (\d+): Thinking/);
+    if (stepMatch) {
+      const stepNumber = parseInt(stepMatch[1], 10);
+      return {
+        id: crypto.randomUUID(),
+        agent,
+        kind: 'thinking',
+        stepNumber,
+        message: `💭 思考中...（第 ${stepNumber} 步）`,
+        timestamp: Date.now(),
+      };
+    }
+
+    // "[agent] Action: toolName({...args})" → kind: 'tool_call'
     const actionMatch = message.match(/\[[\w-]+\] Action: (\w+)\(([\s\S]*)\)\s*$/);
     if (actionMatch) {
       const toolName = actionMatch[1];
       const rawArgs = actionMatch[2];
 
-      // Try to extract a short human-readable summary from tool args
       let argSummary = '';
       try {
         const parsed = JSON.parse(rawArgs);
@@ -604,47 +654,72 @@ export class ChatEngine {
         // args not valid JSON, ignore
       }
 
-      const labels: Record<string, string> = {
-        web_search: '搜索',
-        read_file: '读取文件',
-        list_files: '浏览目录',
-        spawn_sub_agent: '分派子任务',
-        spawn_agent: '分派子任务',
-        list_agents: '查看可用智能体',
-        search_vision_knowledge: '检索知识库',
-        search_decisions: '检索决策记录',
-        search_code_artifacts: '检索代码产物',
-        search_code_patterns: '检索代码模式',
-        rag_retrieve: 'RAG 检索',
-        code_write: '写入代码',
-        code_edit: '编辑代码',
-        git_commit: 'Git 提交',
-        git_create_pr: '创建 PR',
-        run_command: '执行命令',
-        run_tests: '运行测试',
-        validate_output: '验证输出',
-        create_agent: '创建智能体',
-        create_skill: '创建技能',
-        fetch_daily_data: '获取日报数据',
-        finish_planning: '完成规划',
-        finish_implementation: '完成实现',
-        finish_daily_report: '生成日报',
-        discover_skills: '发现技能',
-        blackboard_read: '读取黑板',
-        blackboard_write: '写入黑板',
-        merge_pr: '合并 PR',
-        check_ci: '检查 CI',
-        trigger_deploy: '触发部署',
-        check_health: '健康检查',
-        store_code_pattern: '存储代码模式',
+      const toolLabel = ChatEngine.TOOL_LABELS[toolName] || toolName;
+      const friendlyMsg = argSummary ? `🔧 ${toolLabel}：${argSummary}` : `🔧 ${toolLabel}...`;
+
+      return {
+        id: crypto.randomUUID(),
+        agent,
+        kind: 'tool_call',
+        toolName,
+        toolLabel,
+        argSummary: argSummary || undefined,
+        message: friendlyMsg,
+        timestamp: Date.now(),
       };
-      const label = labels[toolName] || toolName;
-      return argSummary ? `🔧 ${label}：${argSummary}` : `🔧 ${label}...`;
     }
 
-    if (message.includes('Completed with text response')) return '✅ 正在整理结果...';
-    if (message.includes('Max loops')) return '✅ 已达到最大步数，正在收尾...';
-    if (message.includes('Exit tool')) return '✅ 任务即将完成...';
+    // "[agent] Result: toolName | OK/ERROR | preview" → kind: 'tool_result'
+    const resultMatch = message.match(/\[[\w-]+\] Result: (\w+) \| (OK|ERROR) \| ([\s\S]*)$/);
+    if (resultMatch) {
+      const toolName = resultMatch[1];
+      const success = resultMatch[2] === 'OK';
+      const resultPreview = resultMatch[3].trim();
+      const toolLabel = ChatEngine.TOOL_LABELS[toolName] || toolName;
+      const statusIcon = success ? '✅' : '❌';
+      const friendlyMsg = `${statusIcon} ${toolLabel} ${success ? '成功' : '失败'}`;
+
+      return {
+        id: crypto.randomUUID(),
+        agent,
+        kind: 'tool_result',
+        toolName,
+        toolLabel,
+        success,
+        resultPreview: resultPreview.slice(0, 150),
+        message: friendlyMsg,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Completion messages → kind: 'completion'
+    if (message.includes('Completed with text response')) {
+      return {
+        id: crypto.randomUUID(),
+        agent,
+        kind: 'completion',
+        message: '✅ 正在整理结果...',
+        timestamp: Date.now(),
+      };
+    }
+    if (message.includes('Max loops')) {
+      return {
+        id: crypto.randomUUID(),
+        agent,
+        kind: 'completion',
+        message: '✅ 已达到最大步数，正在收尾...',
+        timestamp: Date.now(),
+      };
+    }
+    if (message.includes('Exit tool')) {
+      return {
+        id: crypto.randomUUID(),
+        agent,
+        kind: 'completion',
+        message: '✅ 任务即将完成...',
+        timestamp: Date.now(),
+      };
+    }
 
     return null; // suppress other internal messages
   }
@@ -695,9 +770,9 @@ export class ChatEngine {
 
       // Channel-based logger: transforms internal English logs to Chinese progress
       const channelLogger = (msg: string) => {
-        const friendly = this.transformAgentLog(msg);
-        if (friendly) {
-          channel.push({ type: 'agent_log', data: { message: friendly } });
+        const step = this.transformAgentLog(msg);
+        if (step) {
+          channel.push({ type: 'agent_log', data: { message: step.message, step } });
         }
       };
 
@@ -890,9 +965,9 @@ export class ChatEngine {
     // Subscribe to messageBus agent-log to capture BaseAgent tool-call details
     const unsubLog = messageBus.onLog((message) => {
       if (message.type === 'agent_log' && message.payload?.message) {
-        const friendly = this.transformAgentLog(message.payload.message);
-        if (friendly) {
-          channel.push({ type: 'agent_log', data: { message: friendly } });
+        const step = this.transformAgentLog(message.payload.message);
+        if (step) {
+          channel.push({ type: 'agent_log', data: { message: step.message, step } });
         }
       }
     });
@@ -917,8 +992,12 @@ export class ChatEngine {
         conversationHistory: historyContext,
         assessmentContext,
         logger: async (msg: string) => {
-          const friendly = this.transformAgentLog(msg);
-          channel.push({ type: 'agent_log', data: { message: friendly || msg } });
+          const step = this.transformAgentLog(msg);
+          if (step) {
+            channel.push({ type: 'agent_log', data: { message: step.message, step } });
+          } else {
+            channel.push({ type: 'agent_log', data: { message: msg } });
+          }
         },
       });
 
@@ -1024,9 +1103,9 @@ export class ChatEngine {
     // Subscribe to messageBus agent-log to capture BaseAgent tool-call details
     const unsubLog = messageBus.onLog((message) => {
       if (message.type === 'agent_log' && message.payload?.message) {
-        const friendly = this.transformAgentLog(message.payload.message);
-        if (friendly) {
-          channel.push({ type: 'agent_log', data: { message: friendly } });
+        const step = this.transformAgentLog(message.payload.message);
+        if (step) {
+          channel.push({ type: 'agent_log', data: { message: step.message, step } });
         }
       }
     });
@@ -1217,11 +1296,12 @@ export class ChatEngine {
         conversationHistory: architectHistory,
         assessmentContext: architectAssessmentCtx,
         logger: async (msg: string) => {
-          const friendly = this.transformAgentLog(msg);
-          channel.push({
-            type: 'agent_log',
-            data: { message: friendly || msg },
-          });
+          const step = this.transformAgentLog(msg);
+          if (step) {
+            channel.push({ type: 'agent_log', data: { message: step.message, step } });
+          } else {
+            channel.push({ type: 'agent_log', data: { message: msg } });
+          }
         },
       });
 

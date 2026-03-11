@@ -6,7 +6,8 @@ import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage, ChatEvent, ComplexityAssessment, DecisionOutput, StructuredRequirements } from "@/lib/core/types";
+import type { ChatMessage, ChatEvent, ComplexityAssessment, DecisionOutput, StructuredRequirements, StructuredAgentStep } from "@/lib/core/types";
+import { StreamingStepIndicator } from "./StreamingStepIndicator";
 
 export function ChatView() {
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
@@ -32,7 +33,7 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const [streamingSteps, setStreamingSteps] = useState<string[]>([]);
+  const [streamingSteps, setStreamingSteps] = useState<StructuredAgentStep[]>([]);
 
   // Abort active stream if conversation changes or is deleted
   useEffect(() => {
@@ -211,8 +212,15 @@ export function ChatView() {
 
         case "agent_log": {
           if (event.data.message) {
-            setStreamingSteps(prev => [...prev, event.data.message]);
-            addAgentLog({ agent: event.data.agent || 'system', type: 'log', message: event.data.message });
+            const step: StructuredAgentStep = event.data.step || {
+              id: crypto.randomUUID(),
+              agent: event.data.agent || 'system',
+              kind: 'thinking' as const,
+              message: event.data.message,
+              timestamp: Date.now(),
+            };
+            setStreamingSteps(prev => [...prev, step]);
+            addAgentLog({ agent: step.agent || 'system', type: 'log', message: event.data.message });
           }
           break;
         }
@@ -308,30 +316,9 @@ export function ChatView() {
               <MessageBubble key={msg.id} message={msg} />
             ))}
 
-            {/* Streaming indicator — step list */}
+            {/* Streaming indicator — structured step list */}
             {isStreaming && streamingSteps.length > 0 && (
-              <div className="mr-auto max-w-[85%]">
-                <div className="flex items-center gap-2 mb-1 px-1">
-                  <span className="text-[11px] font-medium text-zinc-500">RebuilD</span>
-                </div>
-                <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                    {streamingSteps.map((step, i) => (
-                      <div
-                        key={i}
-                        className={`text-sm flex items-start gap-2 ${
-                          i === streamingSteps.length - 1
-                            ? 'text-zinc-300 animate-pulse'
-                            : 'text-zinc-600'
-                        }`}
-                      >
-                        <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-current" />
-                        <span>{step}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <StreamingStepIndicator steps={streamingSteps} />
             )}
 
             {isStreaming && streamingSteps.length === 0 && (
