@@ -100,6 +100,9 @@ export interface ChatSlice {
   hideTeamPanel: () => void;
   updateTeamStatus: (status: TeamStatus) => void;
   addTeamCommunication: (message: AgentMailMessage) => void;
+
+  /** Reset all right-side panels to their idle/hidden state. */
+  resetAllPanels: () => void;
 }
 
 export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
@@ -156,7 +159,16 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       conversations: [conversation, ...state.conversations],
     })),
 
-  setActiveConversationId: (id) => set({ activeConversationId: id }),
+  setActiveConversationId: (id) => set({
+    activeConversationId: id,
+    // Reset all panels when switching conversations — panels are bound to a conversation
+    planPanel: { visible: false, assessment: null, status: 'idle' },
+    clarificationPanel: { visible: false, requirements: null },
+    dmPanel: { visible: false, decision: null, status: 'idle' },
+    toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
+    architectPanel: { visible: false, status: 'idle', stepsCompleted: 0, errorMessage: null, attempt: 0 },
+    teamPanel: { visible: false, teamId: null, agents: [], communications: [] },
+  }),
 
   removeConversation: (id) =>
     set((state) => {
@@ -334,4 +346,14 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         communications: [...state.teamPanel.communications, message],
       },
     })),
+
+  resetAllPanels: () =>
+    set({
+      planPanel: { visible: false, assessment: null, status: 'idle' },
+      clarificationPanel: { visible: false, requirements: null },
+      dmPanel: { visible: false, decision: null, status: 'idle' },
+      toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
+      architectPanel: { visible: false, status: 'idle', stepsCompleted: 0, errorMessage: null, attempt: 0 },
+      teamPanel: { visible: false, teamId: null, agents: [], communications: [] },
+    }),
 });
