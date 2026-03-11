@@ -425,9 +425,11 @@ export class ChatEngine {
       agentPromise
         .then(async (result) => {
           const responseText = ChatEngine.extractResponse(result);
-          await this.saveMessage(context.conversation.id, 'assistant', responseText).catch((err) =>
+          const isExportable = /```[\s\S]*?```/.test(responseText) || responseText.length > 800;
+          const metadata = isExportable ? { exportable: true } : undefined;
+          await this.saveMessage(context.conversation.id, 'assistant', responseText, metadata).catch((err) =>
             console.error('[ChatEngine] Save direct response failed:', err));
-          channel.push({ type: 'message', data: { role: 'assistant', content: responseText } });
+          channel.push({ type: 'message', data: { role: 'assistant', content: responseText, metadata: metadata ?? null } });
           channel.close();
         })
         .catch(async (error: unknown) => {
@@ -632,12 +634,14 @@ export class ChatEngine {
       agentPromise
         .then(async (result) => {
           const responseText = ChatEngine.extractResponse(result);
-          await this.saveMessage(conversationId, 'assistant', responseText).catch((err) =>
+          const isExportable = /```[\s\S]*?```/.test(responseText) || responseText.length > 800;
+          const metadata = isExportable ? { exportable: true } : undefined;
+          await this.saveMessage(conversationId, 'assistant', responseText, metadata).catch((err) =>
             console.error('[ChatEngine] Save single-agent response failed:', err));
 
           channel.push({
             type: 'message',
-            data: { role: 'assistant', content: responseText },
+            data: { role: 'assistant', content: responseText, metadata: metadata ?? null },
           });
           channel.close();
           unsubscribe();

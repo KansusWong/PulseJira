@@ -98,6 +98,7 @@ const zh: TranslationDict = {
   'chat.role.agent': 'Agent',
   'chat.role.system': '系统',
   'chat.role.plan': '计划',
+  'chat.exportMarkdown': '导出为 Markdown',
 
   // ── Plan Panel ──
   'plan.title': '执行计划',

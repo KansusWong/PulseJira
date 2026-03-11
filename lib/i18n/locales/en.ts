@@ -98,6 +98,7 @@ const en: TranslationDict = {
   'chat.role.agent': 'Agent',
   'chat.role.system': 'System',
   'chat.role.plan': 'Plan',
+  'chat.exportMarkdown': 'Export as Markdown',
 
   // ── Plan Panel ──
   'plan.title': 'Execution Plan',

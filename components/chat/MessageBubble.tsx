@@ -1,6 +1,9 @@
 "use client";
 
+import { useCallback } from "react";
 import clsx from "clsx";
+import ReactMarkdown from "react-markdown";
+import { Download } from "lucide-react";
 import type { ChatMessage } from "@/lib/core/types";
 import { useTranslation } from '@/lib/i18n';
 
@@ -56,6 +59,20 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     plan: t('chat.role.plan'),
   };
 
+  const handleExport = useCallback(() => {
+    const blob = new Blob([message.content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rebuild-${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [message.content]);
+
+  const showExport = message.role === 'assistant' && message.metadata?.exportable === true;
+
   return (
     <div className={clsx("max-w-[85%] w-fit", style.align)}>
       {/* Label */}
@@ -73,9 +90,29 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
       {/* Bubble */}
       <div className={clsx("rounded-2xl px-4 py-3", style.bg, style.text)}>
-        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words prose prose-invert prose-sm max-w-none">
-          {message.content}
-        </div>
+        {message.role === "user" ? (
+          <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+            {message.content}
+          </div>
+        ) : (
+          <div className="prose prose-invert prose-sm max-w-none break-words">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          </div>
+        )}
+
+        {showExport && (
+          <>
+            <div className="border-t border-zinc-700/50 mt-3 pt-2 flex justify-end">
+              <button
+                onClick={handleExport}
+                className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors px-2 py-1 rounded-md hover:bg-zinc-800/60"
+              >
+                <Download size={14} />
+                {t('chat.exportMarkdown')}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
