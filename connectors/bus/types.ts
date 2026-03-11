@@ -33,7 +33,9 @@ export interface AgentMessage {
     | 'intervention_ack'
     // Sub-agent events (L2 single_agent mode)
     | 'sub_agent_start'
-    | 'sub_agent_complete';
+    | 'sub_agent_complete'
+    // Plan step progress (Architect → PlanPanel)
+    | 'plan_step_progress';
   payload: any;
   timestamp: number;
   scope?: MessageScope;

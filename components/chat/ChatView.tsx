@@ -28,6 +28,7 @@ export function ChatView() {
   const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
   const addAgentLog = usePulseStore((s) => s.addAgentLog);
+  const updatePlanStepProgress = usePulseStore((s) => s.updatePlanStepProgress);
 
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -225,6 +226,15 @@ export function ChatView() {
           break;
         }
 
+        case "plan_step_progress": {
+          updatePlanStepProgress(
+            event.data.step_index,
+            event.data.status,
+            event.data.summary,
+          );
+          break;
+        }
+
         case "dm_decision": {
           const dmDecision = event.data as DecisionOutput;
           if (dmDecision.decision === 'PROCEED') {
@@ -284,7 +294,13 @@ export function ChatView() {
         }
 
         case "done": {
-          // Explicit stream completion signal
+          // Mark all active steps as completed on stream end
+          const stepStates = usePulseStore.getState().planPanel.stepStates;
+          stepStates.forEach((s, i) => {
+            if (s.status === 'active') {
+              updatePlanStepProgress(i, 'completed');
+            }
+          });
           break;
         }
 
@@ -301,7 +317,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog]
+    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog, updatePlanStepProgress]
   );
 
   return (

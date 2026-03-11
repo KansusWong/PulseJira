@@ -10,6 +10,8 @@ import type {
   StructuredRequirements,
 } from '@/lib/core/types';
 
+export type PlanStepStatus = 'pending' | 'active' | 'completed' | 'skipped';
+
 /** Snapshot of all 6 right-side panel states — used for per-conversation caching. */
 export interface PanelSnapshot {
   planPanel: ChatSlice['planPanel'];
@@ -39,6 +41,7 @@ export interface ChatSlice {
     visible: boolean;
     assessment: ComplexityAssessment | null;
     status: 'pending' | 'approved' | 'rejected' | 'idle';
+    stepStates: { status: PlanStepStatus; summary?: string }[];
   };
 
   // Clarification panel state (L3 requirements confirmation)
@@ -96,6 +99,7 @@ export interface ChatSlice {
   hidePlanPanel: () => void;
   approvePlan: () => void;
   rejectPlan: () => void;
+  updatePlanStepProgress: (stepIndex: number, status: PlanStepStatus, summary?: string) => void;
 
   showClarificationForm: (requirements: StructuredRequirements) => void;
   hideClarificationForm: () => void;
@@ -123,7 +127,7 @@ export interface ChatSlice {
 }
 
 const DEFAULT_PANELS: PanelSnapshot = {
-  planPanel: { visible: false, assessment: null, status: 'idle' },
+  planPanel: { visible: false, assessment: null, status: 'idle', stepStates: [] },
   clarificationPanel: { visible: false, requirements: null },
   dmPanel: { visible: false, decision: null, status: 'idle' },
   toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
@@ -143,6 +147,7 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     visible: false,
     assessment: null,
     status: 'idle',
+    stepStates: [],
   },
 
   clarificationPanel: {
@@ -285,7 +290,12 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
 
   showPlanPanel: (assessment) =>
     set({
-      planPanel: { visible: true, assessment, status: 'pending' },
+      planPanel: {
+        visible: true,
+        assessment,
+        status: 'pending',
+        stepStates: (assessment.plan_outline || []).map(() => ({ status: 'pending' as PlanStepStatus })),
+      },
     }),
 
   hidePlanPanel: () =>
@@ -302,6 +312,35 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     set((state) => ({
       planPanel: { ...state.planPanel, status: 'rejected', visible: false },
     })),
+
+  updatePlanStepProgress: (stepIndex, status, summary) =>
+    set((state) => {
+      // Ignore out-of-plan steps
+      if (stepIndex < 0) return state;
+
+      const stepStates = [...state.planPanel.stepStates];
+
+      // Ensure array is large enough
+      while (stepStates.length <= stepIndex) {
+        stepStates.push({ status: 'pending' });
+      }
+
+      // When a new step becomes active, auto-complete any previously active step
+      // (guards against Architect forgetting to report completion)
+      if (status === 'active') {
+        for (let i = 0; i < stepStates.length; i++) {
+          if (stepStates[i].status === 'active') {
+            stepStates[i] = { ...stepStates[i], status: 'completed' };
+          }
+        }
+      }
+
+      stepStates[stepIndex] = { status, summary };
+
+      return {
+        planPanel: { ...state.planPanel, stepStates },
+      };
+    }),
 
   showClarificationForm: (requirements) =>
     set({

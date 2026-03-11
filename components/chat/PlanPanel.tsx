@@ -10,10 +10,12 @@ import {
   Zap,
   Users,
   Loader2,
+  MinusCircle,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
 import { processSSEResponse } from "@/lib/utils/sse-stream";
+import type { PlanStepStatus } from "@/store/slices/chatSlice";
 
 const modeIcons: Record<string, React.ReactNode> = {
   direct: <Zap className="w-4 h-4" />,
@@ -36,6 +38,7 @@ const complexityColors: Record<string, string> = {
 export function PlanPanel() {
   const assessment = usePulseStore((s) => s.planPanel.assessment);
   const status = usePulseStore((s) => s.planPanel.status);
+  const stepStates = usePulseStore((s) => s.planPanel.stepStates);
   const hidePlanPanel = usePulseStore((s) => s.hidePlanPanel);
   const approvePlan = usePulseStore((s) => s.approvePlan);
   const rejectPlan = usePulseStore((s) => s.rejectPlan);
@@ -152,14 +155,31 @@ export function PlanPanel() {
               {t('plan.executionPlan')}
             </div>
             <div className="space-y-2">
-              {assessment.plan_outline.map((step, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-zinc-800 text-zinc-500 text-[10px] flex items-center justify-center font-mono">
-                    {i + 1}
-                  </span>
-                  <span className="text-xs text-zinc-400 pt-0.5">{step}</span>
-                </div>
-              ))}
+              {assessment.plan_outline.map((step, i) => {
+                const stepState = stepStates[i]?.status ?? 'pending';
+                return (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <StepIndicator index={i} status={stepState} />
+                    <div className="flex-1 min-w-0">
+                      <span
+                        className={clsx("text-xs pt-0.5 block", {
+                          "text-zinc-400": stepState === "pending",
+                          "text-blue-300 font-medium": stepState === "active",
+                          "text-emerald-300/80 line-through": stepState === "completed",
+                          "text-zinc-600 line-through": stepState === "skipped",
+                        })}
+                      >
+                        {step}
+                      </span>
+                      {(stepState === "completed" || stepState === "skipped") && stepStates[i]?.summary && (
+                        <span className="text-[10px] text-zinc-600 block mt-0.5">
+                          {stepStates[i].summary}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -204,4 +224,33 @@ export function PlanPanel() {
       )}
     </div>
   );
+}
+
+function StepIndicator({ index, status }: { index: number; status: PlanStepStatus }) {
+  switch (status) {
+    case "active":
+      return (
+        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+          <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+        </span>
+      );
+    case "completed":
+      return (
+        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        </span>
+      );
+    case "skipped":
+      return (
+        <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+          <MinusCircle className="w-4 h-4 text-zinc-600" />
+        </span>
+      );
+    default:
+      return (
+        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-zinc-800 text-zinc-500 text-[10px] flex items-center justify-center font-mono">
+          {index + 1}
+        </span>
+      );
+  }
 }

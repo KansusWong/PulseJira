@@ -13,6 +13,7 @@ import { PromoteFeatureTool } from '@/lib/tools/promote-feature';
 import { ValidateOutputTool } from '@/lib/tools/validate-output';
 import { FinishArchitectTool } from '@/lib/tools/finish-architect';
 import { DiscoverSkillsTool } from '@/lib/tools/discover-skills';
+import { ReportPlanProgressTool } from '@/lib/tools/report-plan-progress';
 import type { BaseTool } from '@/lib/core/base-tool';
 import type { AgentContext } from '@/lib/core/types';
 import type { Workspace } from '@/lib/sandbox/types';
@@ -52,6 +53,7 @@ export function createArchitectAgent(options?: {
     new PromoteFeatureTool(),
     new ValidateOutputTool(),
     new DiscoverSkillsTool(),
+    new ReportPlanProgressTool(),
     new FinishArchitectTool(),
     ...getTools('web_search', 'list_files', 'read_file'),
   ];

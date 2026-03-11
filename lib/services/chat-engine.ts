@@ -586,6 +586,7 @@ export class ChatEngine {
     finish_implementation: '完成实现',
     finish_daily_report: '生成日报',
     discover_skills: '发现技能',
+    report_plan_progress: '报告进度',
     blackboard_read: '读取黑板',
     blackboard_write: '写入黑板',
     merge_pr: '合并 PR',
@@ -1102,7 +1103,12 @@ export class ChatEngine {
 
     // Subscribe to messageBus agent-log to capture BaseAgent tool-call details
     const unsubLog = messageBus.onLog((message) => {
-      if (message.type === 'agent_log' && message.payload?.message) {
+      if (message.type === 'plan_step_progress') {
+        channel.push({
+          type: 'plan_step_progress',
+          data: message.payload,
+        });
+      } else if (message.type === 'agent_log' && message.payload?.message) {
         const step = this.transformAgentLog(message.payload.message);
         if (step) {
           channel.push({ type: 'agent_log', data: { message: step.message, step } });

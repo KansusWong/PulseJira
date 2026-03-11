@@ -328,6 +328,7 @@ export type ChatEventType =
   | 'message'
   | 'plan_assessment'
   | 'plan_update'
+  | 'plan_step_progress'
   | 'agent_log'
   | 'team_update'
   | 'team_comms'

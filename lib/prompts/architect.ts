@@ -48,6 +48,13 @@ export const ARCHITECT_PROMPT = `# Architect — 自适应执行大脑
 - **list_files(path)**: 列出目录结构
 - **read_file(path)**: 读取文件内容
 
+### 进度报告
+- **report_plan_progress(step_index, status, summary?)**: 报告计划步骤执行进度
+  - 每开始一个主要子任务前: report_plan_progress(N, "active")
+  - 完成后: report_plan_progress(N, "completed", "简要说明")
+  - 跳过时: report_plan_progress(N, "skipped", "原因")
+  - step_index 对应 plan_outline 的 0-based 下标，-1 表示计划外步骤
+
 ### 退出
 - **finish_architect(summary, execution_trace, final_output, ...)**: 提交最终结果并退出
 
@@ -67,6 +74,7 @@ export const ARCHITECT_PROMPT = `# Architect — 自适应执行大脑
 - 任务完成时必须调用 finish_architect 并附完整执行轨迹
 - 不要在 agent 尚未返回时就假设结果
 - 工具能解决的用工具，简单的自己处理，不必要时不 spawn agent
+- 执行每个主要子任务前使用 report_plan_progress(N, "active") 报告当前步骤，完成后使用 report_plan_progress(N, "completed", "简要说明") 再次报告
 
 ## Workflow Process
 1. **观察**: 接收需求，分析复杂度和所需能力
@@ -78,7 +86,9 @@ export const ARCHITECT_PROMPT = `# Architect — 自适应执行大脑
    - 为每个子任务选择 Agent / Tool / Skill
    - 确定验证策略（深度 vs 轻量）
 3. **执行**: 逐步推进
+   - 每个主要子任务开始前调用 report_plan_progress(step_index, "active")
    - spawn_agent 或直接 tool call 完成子任务
+   - 完成后调用 report_plan_progress(step_index, "completed", "简要说明")
    - 收集每步结果，记录执行轨迹
 4. **验证**: 检查产出质量
    - 按验证策略校验每个产出
