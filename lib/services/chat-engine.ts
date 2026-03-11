@@ -291,6 +291,40 @@ export class ChatEngine {
     };
 
     if (mode === 'agent_team') {
+      // Ensure a project exists before entering the DM → Architect pipeline.
+      // The clarification path creates a project in confirmAndExecute(); for the
+      // no-clarification path we must create one here so that the full pipeline
+      // has a project_id for task tracking, kanban, and the project detail page.
+      if (!conversation.project_id) {
+        const userMessage = context.userMessage;
+        const projectName = (assessment?.plan_outline?.[0] || userMessage)
+          .slice(0, 60)
+          .replace(/[^\w\s\u4e00-\u9fff-]/g, '')
+          .trim() || 'New Project';
+
+        yield { type: 'agent_log', data: { message: '正在创建项目...' } };
+
+        const project = await createProject({
+          name: projectName,
+          description: userMessage,
+          is_light: false,
+          conversation_id: conversationId,
+        });
+
+        await this.updateConversation(conversationId, {
+          project_id: project.id,
+          status: 'converted',
+        } as any);
+
+        // Update context so downstream handlers have the project_id
+        context.conversation = { ...context.conversation, project_id: project.id };
+
+        yield {
+          type: 'project_created',
+          data: { project_id: project.id, name: project.name, is_light: false },
+        };
+      }
+
       yield* this.handleAgentTeam(context);
     } else if (mode === 'single_agent') {
       yield* this.handleSingleAgentWithProject(context);
