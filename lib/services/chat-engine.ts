@@ -9,6 +9,7 @@
  */
 
 import { supabase, supabaseConfigured } from '@/lib/db/client';
+import { generateJSON } from '@/lib/core/llm';
 import { assessComplexity } from '@/agents/chat-judge';
 import { createChatAssistantAgent } from '@/agents/chat-assistant';
 import { getPreferences } from '@/lib/services/preferences-store';
@@ -74,9 +75,11 @@ If the requirements are CLEAR ENOUGH to proceed:
     "goals": ["Goal 1", "Goal 2"],
     "scope": "Technical scope description",
     "constraints": ["Constraint 1", "Constraint 2"],
-    "suggested_name": "project-name-slug"
+    "suggested_name": "TYPE-PREFIX 简短描述"
   }
 }
+
+For suggested_name, use a TYPE prefix (POC-Demo, Feature, Refactor, Bugfix, Tool, Integration, etc.) followed by a concise description that captures the user's intent. Keep it under 30 chars and use the user's language for the description part. Examples: "POC-Demo Agent销售助理", "Feature Dashboard暗色模式", "Integration Slack通知".
 
 If the requirements are NOT clear enough and you need to ask a question:
 {
@@ -90,6 +93,55 @@ Guidelines:
 - Be conversational and concise
 - After receiving enough context (usually 1-2 answers), declare "ready"
 - When forced to produce requirements (round >= 3), always output "ready" with best-effort requirements`;
+
+// ---------------------------------------------------------------------------
+// Project name generation
+// ---------------------------------------------------------------------------
+
+/**
+ * Use LLM to generate a concise, intent-driven project name from user input.
+ * Falls back to simple truncation if the LLM call fails.
+ */
+async function generateProjectName(
+  userMessage: string,
+  opts?: { isLight?: boolean; assessment?: ComplexityAssessment | null },
+): Promise<string> {
+  const fallback = userMessage
+    .slice(0, 50)
+    .replace(/[^\w\s\u4e00-\u9fff-]/g, '')
+    .trim() || (opts?.isLight ? 'Light Task' : 'New Project');
+
+  try {
+    const result = await generateJSON(
+      `You are a project-naming assistant. Given a user request, generate a short project name (max 30 chars) that captures the user's intent.
+
+Rules:
+- Use a TYPE prefix that fits the request: POC-Demo, Feature, Refactor, Bugfix, Tool, Integration, Analysis, Design, etc.
+- Follow the prefix with a concise description of WHAT is being built, in the user's language
+- Keep the name short and scannable, like a ticket title
+- If the request is in Chinese, the description part should also be in Chinese
+- Do NOT include quotes or special characters
+
+Examples:
+- "帮我做一个销售助理Agent的POC" → "POC-Demo Agent销售助理"
+- "Build a Slack notification integration" → "Integration Slack通知"
+- "重构用户认证模块" → "Refactor 用户认证模块"
+- "Add dark mode to the dashboard" → "Feature Dashboard暗色模式"
+- "Fix the login page crash on mobile" → "Bugfix 移动端登录崩溃"
+
+Respond with JSON: { "name": "..." }`,
+      userMessage.slice(0, 300),
+      { agentName: 'project-namer' },
+    );
+    const name = result?.name;
+    if (typeof name === 'string' && name.trim().length > 0) {
+      return name.trim().slice(0, 60);
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // ChatEngine
@@ -297,10 +349,9 @@ export class ChatEngine {
       // has a project_id for task tracking, kanban, and the project detail page.
       if (!conversation.project_id) {
         const userMessage = context.userMessage;
-        const projectName = (assessment?.plan_outline?.[0] || userMessage)
-          .slice(0, 60)
-          .replace(/[^\w\s\u4e00-\u9fff-]/g, '')
-          .trim() || 'New Project';
+
+        yield { type: 'agent_log', data: { message: '正在生成项目名称...' } };
+        const projectName = await generateProjectName(userMessage, { assessment });
 
         yield { type: 'agent_log', data: { message: '正在创建项目...' } };
 
@@ -348,10 +399,12 @@ export class ChatEngine {
 
     if (!projectId) {
       // Normal chat flow: create a new project from requirements
+      const projectName = requirements.suggested_name
+        || await generateProjectName(requirements.summary);
       yield { type: 'agent_log', data: { message: '正在创建项目...' } };
 
       const project = await createProject({
-        name: requirements.suggested_name || 'Untitled Project',
+        name: projectName,
         description: requirements.summary,
         is_light: false,
         conversation_id: conversationId,
@@ -558,8 +611,9 @@ export class ChatEngine {
       }
 
       if (!project) {
+        channel.push({ type: 'agent_log', data: { message: '正在生成项目名称...' } });
+        const projectName = await generateProjectName(context.userMessage, { isLight: true });
         channel.push({ type: 'agent_log', data: { message: '正在创建轻量项目...' } });
-        const projectName = context.userMessage.slice(0, 60).replace(/[^\w\s\u4e00-\u9fff-]/g, '').trim() || 'Light Task';
         project = await createProject({
           name: projectName,
           description: context.userMessage,
@@ -737,12 +791,13 @@ export class ChatEngine {
         };
       } else {
         // Unexpected output — force form generation
+        const fallbackName = await generateProjectName(context.userMessage);
         const fallbackReqs: StructuredRequirements = {
           summary: context.userMessage,
           goals: ['Complete the requested task'],
           scope: 'To be determined',
           constraints: [],
-          suggested_name: context.userMessage.slice(0, 40).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'new-project',
+          suggested_name: fallbackName,
         };
 
         yield { type: 'clarification_form', data: fallbackReqs };
