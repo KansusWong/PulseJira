@@ -98,6 +98,10 @@ export interface MetaPipelineOptions {
   initialMessages?: any[];
   /** Checkpoint callback — fired after each tool-call batch in the Architect ReAct loop. */
   onCheckpoint?: (data: { messages: any[]; stepsCompleted: number }) => void;
+  /** Formatted conversation history (last N messages) for context continuity. */
+  conversationHistory?: string;
+  /** Formatted complexity assessment context (plan_outline, rationale, suggested_agents). */
+  assessmentContext?: string;
 }
 
 /**
@@ -139,6 +143,9 @@ export interface MetaPipelineResult {
  */
 const MAX_BATCH_SIZE = 20;
 
+/** Maximum characters for blackboard context / conversation history in agent input. */
+const MAX_BB_CONTEXT_CHARS = 6000;
+
 export async function runDecisionPhase(
   input: string | string[],
   options: MetaPipelineOptions = {},
@@ -163,12 +170,19 @@ export async function runDecisionPhase(
 
   // Seed pipeline requirements to blackboard before DM runs
   if (options.blackboard) {
+    // Truncate conversationHistory if too long for blackboard storage
+    const historyForBB = options.conversationHistory && options.conversationHistory.length > MAX_BB_CONTEXT_CHARS
+      ? options.conversationHistory.slice(0, MAX_BB_CONTEXT_CHARS) + '\n[... truncated ...]'
+      : (options.conversationHistory ?? null);
+
     await options.blackboard.write({
       key: 'pipeline.requirements',
       value: {
         input: inputMessage,
         structuredRequirements: options.structuredRequirements ?? null,
         signalIds: options.signalIds ?? [],
+        conversationHistory: historyForBB,
+        assessmentContext: options.assessmentContext ?? null,
       },
       type: 'context',
       author: 'meta-pipeline',
@@ -185,9 +199,19 @@ export async function runDecisionPhase(
     ? formatStructuredRequirements(options.structuredRequirements)
     : '';
 
+  // Assemble full DM input with conversation history and assessment context
+  let fullDmInput = inputMessage;
+  if (options.conversationHistory) {
+    fullDmInput = `## Conversation History\n${options.conversationHistory}\n\n## Current Request\n${fullDmInput}`;
+  }
+  fullDmInput += dmContext + reqContext;
+  if (options.assessmentContext) {
+    fullDmInput += options.assessmentContext;
+  }
+
   let dmResult: any;
   try {
-    dmResult = await dm.run(inputMessage + dmContext + reqContext, {
+    dmResult = await dm.run(fullDmInput, {
       logger: messageBus.createLogger('decision-maker'),
       ...agentCtx,
     });
@@ -282,7 +306,14 @@ export async function runArchitectPhase(
 
   let architectInput: string;
   if (options.blackboard && options.blackboard.size > 0) {
-    const bbContext = options.blackboard.toContextString();
+    let bbContext = options.blackboard.toContextString();
+    // Compress blackboard context if too long
+    if (bbContext.length > MAX_BB_CONTEXT_CHARS) {
+      const half = Math.floor(MAX_BB_CONTEXT_CHARS / 2);
+      bbContext = bbContext.slice(0, half)
+        + '\n\n[... blackboard context truncated ...]\n\n'
+        + bbContext.slice(-half);
+    }
     architectInput = decision
       ? `决策者已批准以下需求 (confidence: ${decision.confidence}):\n\n## Blackboard Context\n${bbContext}\n\n原始需求:\n${inputMessage}${reqContext}`
       : `${inputMessage}${reqContext}\n\n## Blackboard Context\n${bbContext}`;
@@ -290,6 +321,15 @@ export async function runArchitectPhase(
     architectInput = decision
       ? `决策者已批准以下需求 (confidence: ${decision.confidence}):\n\n${decision.summary}\n\n推荐行动:\n${decision.recommended_actions?.join('\n') || 'N/A'}\n\n原始需求:\n${inputMessage}${reqContext}`
       : `${inputMessage}${reqContext}`;
+  }
+
+  // Prepend conversation history if available
+  if (options.conversationHistory) {
+    architectInput = `## Conversation History\n${options.conversationHistory}\n\n${architectInput}`;
+  }
+  // Append assessment context if available
+  if (options.assessmentContext) {
+    architectInput += options.assessmentContext;
   }
 
   const architect = createArchitectAgent({

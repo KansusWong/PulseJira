@@ -144,6 +144,62 @@ Respond with JSON: { "name": "..." }`,
 }
 
 // ---------------------------------------------------------------------------
+// Helper: format ComplexityAssessment for agent input
+// ---------------------------------------------------------------------------
+
+function formatAssessmentForAgent(assessment: ComplexityAssessment): string {
+  const lines: string[] = ['\n\n---\n## Complexity Assessment\n'];
+  lines.push(`- **Level:** ${assessment.complexity_level}`);
+  lines.push(`- **Execution Mode:** ${assessment.execution_mode}`);
+  lines.push(`- **Rationale:** ${assessment.rationale}`);
+  if (assessment.suggested_agents.length > 0) {
+    lines.push(`- **Suggested Agents:** ${assessment.suggested_agents.join(', ')}`);
+  }
+  if (assessment.plan_outline.length > 0) {
+    lines.push('\n### Proposed Plan');
+    assessment.plan_outline.forEach((step, i) => {
+      lines.push(`${i + 1}. ${step}`);
+    });
+  }
+  lines.push('\n---');
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Helper: compress conversation history to fit within token budget
+// ---------------------------------------------------------------------------
+
+/** Character threshold: compress if history exceeds this length. */
+const MAX_HISTORY_CHARS = 4000;
+
+/**
+ * Compress conversation history: truncate long messages and drop middle
+ * messages when the total exceeds `maxChars`.
+ */
+function compressHistory(messages: ChatMessage[], maxChars: number = MAX_HISTORY_CHARS): string {
+  const filtered = messages.filter(m => m.role === 'user' || m.role === 'assistant');
+  const recent = filtered.slice(-15);
+
+  // Try full format first
+  const full = recent.map(m => `[${m.role}]: ${m.content}`).join('\n\n');
+  if (full.length <= maxChars) return full;
+
+  // Truncate individual messages to 300 chars
+  const truncated = recent.map(m => {
+    const content = m.content.length > 300 ? m.content.slice(0, 300) + '...' : m.content;
+    return `[${m.role}]: ${content}`;
+  });
+  const truncatedStr = truncated.join('\n\n');
+  if (truncatedStr.length <= maxChars) return truncatedStr;
+
+  // Still too long: keep first 2 + last 3 messages, summarize middle
+  const head = truncated.slice(0, 2);
+  const tail = truncated.slice(-3);
+  const skipped = truncated.length - 5;
+  return [...head, `[... ${skipped} messages omitted ...]`, ...tail].join('\n\n');
+}
+
+// ---------------------------------------------------------------------------
 // ChatEngine
 // ---------------------------------------------------------------------------
 
@@ -845,11 +901,21 @@ export class ChatEngine {
       // Create Blackboard scoped to this conversation (persists across DM → Architect)
       const blackboard = new Blackboard(context.conversation.id, context.conversation.project_id, { maxEntries: 200, ttlMs: 2 * 60 * 60 * 1000 });
 
+      // Build conversation history (reuse L1/L2 pattern, last 15 messages, compressed)
+      const historyContext = compressHistory(context.messages);
+
+      // Build assessment context
+      const assessmentContext = context.assessment
+        ? formatAssessmentForAgent(context.assessment)
+        : '';
+
       // Phase 1: Decision Maker only (background promise)
       const dmPromise = runDecisionPhase(context.userMessage, {
         projectId: context.conversation.project_id ?? undefined,
         structuredRequirements: context.conversation.structured_requirements ?? undefined,
         blackboard,
+        conversationHistory: historyContext,
+        assessmentContext,
         logger: async (msg: string) => {
           const friendly = this.transformAgentLog(msg);
           channel.push({ type: 'agent_log', data: { message: friendly || msg } });
@@ -1129,6 +1195,14 @@ export class ChatEngine {
         }
       };
 
+      // Build conversation history and assessment context for Architect
+      // (rebuilt here because handleArchitectPhase is called independently)
+      const architectHistory = compressHistory(context.messages);
+      const assessment = context.conversation.complexity_assessment;
+      const architectAssessmentCtx = assessment
+        ? formatAssessmentForAgent(assessment)
+        : '';
+
       // Start architect as background promise (non-blocking)
       // When trustLevel is 'auto', skip tool approval in architect phase by not passing the callback.
       // base-agent.ts checks `if (tool.requiresApproval && context.onApprovalRequired)` — when
@@ -1140,6 +1214,8 @@ export class ChatEngine {
         blackboard,
         initialMessages,
         onCheckpoint,
+        conversationHistory: architectHistory,
+        assessmentContext: architectAssessmentCtx,
         logger: async (msg: string) => {
           const friendly = this.transformAgentLog(msg);
           channel.push({
