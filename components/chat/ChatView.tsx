@@ -26,6 +26,7 @@ export function ChatView() {
   const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
   const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
+  const addAgentLog = usePulseStore((s) => s.addAgentLog);
 
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -209,9 +210,9 @@ export function ChatView() {
         }
 
         case "agent_log": {
-          // Accumulate agent activity as step list
           if (event.data.message) {
             setStreamingSteps(prev => [...prev, event.data.message]);
+            addAgentLog({ agent: event.data.agent || 'system', type: 'log', message: event.data.message });
           }
           break;
         }
@@ -292,7 +293,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel]
+    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog]
   );
 
   return (

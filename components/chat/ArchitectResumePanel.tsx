@@ -10,83 +10,14 @@ import {
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { usePulseStore } from "@/store/usePulseStore.new";
-import type { ChatEvent } from "@/lib/core/types";
+import { processSSEResponse } from "@/lib/utils/sse-stream";
 
 export function ArchitectResumePanel() {
   const panel = usePulseStore((s) => s.architectPanel);
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
-  const addMessage = usePulseStore((s) => s.addMessage);
-  const showTeamPanel = usePulseStore((s) => s.showTeamPanel);
-  const showToolApproval = usePulseStore((s) => s.showToolApproval);
-  const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
-  const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
 
   const { t } = useTranslation();
-
-  const handleSSEStream = useCallback(
-    async (response: Response) => {
-      if (!response.ok || !response.body || !activeConversationId) return;
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const event: ChatEvent = JSON.parse(line.slice(6));
-            if (event.type === "message") {
-              addMessage(activeConversationId, {
-                id: crypto.randomUUID(),
-                conversation_id: activeConversationId,
-                role: event.data.role || "assistant",
-                content: event.data.content,
-                metadata: event.data.metadata || null,
-                created_at: new Date().toISOString(),
-              });
-            } else if (event.type === "team_update") {
-              showTeamPanel(event.data.team_id, event.data.agents || []);
-            } else if (event.type === "tool_approval_required") {
-              showToolApproval({
-                approvalId: event.data.approval_id,
-                toolName: event.data.tool_name,
-                toolArgs: event.data.tool_args,
-                agentName: event.data.agent_name,
-              });
-            } else if (event.type === "tool_approval_resolved") {
-              hideToolApproval();
-            } else if (event.type === "architect_failed") {
-              showArchitectFailed({
-                errorMessage: event.data.message,
-                stepsCompleted: event.data.steps_completed ?? 0,
-                attempt: event.data.attempt ?? 1,
-              });
-            } else if (event.type === "error") {
-              addMessage(activeConversationId, {
-                id: crypto.randomUUID(),
-                conversation_id: activeConversationId,
-                role: "system",
-                content: `Error: ${event.data.message}`,
-                metadata: null,
-                created_at: new Date().toISOString(),
-              });
-            }
-          } catch {
-            // Skip malformed lines
-          }
-        }
-      }
-    },
-    [activeConversationId, addMessage, showTeamPanel, showToolApproval, hideToolApproval, showArchitectFailed],
-  );
 
   const handleResume = useCallback(async () => {
     hideArchitectPanel();
@@ -101,12 +32,12 @@ export function ArchitectResumePanel() {
             body: JSON.stringify({ action: "resume_architect" }),
           },
         );
-        await handleSSEStream(res);
+        await processSSEResponse(res, activeConversationId);
       } catch {
         // Error handling via SSE stream
       }
     }
-  }, [activeConversationId, hideArchitectPanel, handleSSEStream]);
+  }, [activeConversationId, hideArchitectPanel]);
 
   const handleStartOver = useCallback(async () => {
     hideArchitectPanel();
@@ -121,12 +52,12 @@ export function ArchitectResumePanel() {
             body: JSON.stringify({ action: "approve_dm" }),
           },
         );
-        await handleSSEStream(res);
+        await processSSEResponse(res, activeConversationId);
       } catch {
         // Error handling via SSE stream
       }
     }
-  }, [activeConversationId, hideArchitectPanel, handleSSEStream]);
+  }, [activeConversationId, hideArchitectPanel]);
 
   if (!panel.visible) return null;
 

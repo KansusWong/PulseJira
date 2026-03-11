@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import {
   X,
@@ -11,12 +12,17 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { processSSEResponse } from "@/lib/utils/sse-stream";
 
 export function ClarificationForm() {
   const requirements = usePulseStore((s) => s.clarificationPanel.requirements);
   const hideClarificationForm = usePulseStore((s) => s.hideClarificationForm);
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
+  const addProject = usePulseStore((s) => s.addProject);
+  const setRunning = usePulseStore((s) => s.setRunning);
+  const setStreaming = usePulseStore((s) => s.setStreaming);
 
+  const router = useRouter();
   const { t } = useTranslation();
   const [projectName, setProjectName] = useState(
     requirements?.suggested_name || ""
@@ -28,6 +34,8 @@ export function ClarificationForm() {
   const handleConfirm = async () => {
     if (!activeConversationId) return;
     setIsSubmitting(true);
+    setStreaming(true);
+    hideClarificationForm();
 
     try {
       const res = await fetch(
@@ -45,16 +53,26 @@ export function ClarificationForm() {
         }
       );
 
-      if (!res.ok) {
-        throw new Error("Failed to confirm requirements");
-      }
-
-      hideClarificationForm();
+      await processSSEResponse(res, activeConversationId, {
+        onProjectCreated: (data) => {
+          addProject({
+            id: data.project_id,
+            name: data.name,
+            description: '',
+            status: 'analyzing',
+            is_light: data.is_light,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          setRunning(true, data.project_id);
+          router.push(`/projects/${data.project_id}`);
+        },
+      });
     } catch (err: any) {
       console.error('[ClarificationForm] Confirm failed:', err);
-      // Don't hide — user can retry
     } finally {
       setIsSubmitting(false);
+      setStreaming(false);
     }
   };
 

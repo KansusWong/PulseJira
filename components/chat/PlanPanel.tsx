@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import {
   X,
@@ -8,9 +9,11 @@ import {
   AlertTriangle,
   Zap,
   Users,
+  Loader2,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
+import { processSSEResponse } from "@/lib/utils/sse-stream";
 
 const modeIcons: Record<string, React.ReactNode> = {
   direct: <Zap className="w-4 h-4" />,
@@ -37,23 +40,44 @@ export function PlanPanel() {
   const approvePlan = usePulseStore((s) => s.approvePlan);
   const rejectPlan = usePulseStore((s) => s.rejectPlan);
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
+  const addProject = usePulseStore((s) => s.addProject);
+  const setRunning = usePulseStore((s) => s.setRunning);
+  const setStreaming = usePulseStore((s) => s.setStreaming);
 
+  const router = useRouter();
   const { t } = useTranslation();
 
   if (!assessment) return null;
 
   const handleApprove = async () => {
     if (!activeConversationId) return;
+    approvePlan();
+    setStreaming(true);
     try {
       const res = await fetch(`/api/conversations/${activeConversationId}/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "approve" }),
       });
-      if (!res.ok) throw new Error("Plan approval failed");
-      approvePlan(); // Only mark approved after successful API call
+      await processSSEResponse(res, activeConversationId, {
+        onProjectCreated: (data) => {
+          addProject({
+            id: data.project_id,
+            name: data.name,
+            description: '',
+            status: 'analyzing',
+            is_light: data.is_light,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          setRunning(true, data.project_id);
+          router.push(`/projects/${data.project_id}`);
+        },
+      });
     } catch {
       // Don't update state — user can retry
+    } finally {
+      setStreaming(false);
     }
   };
 
@@ -173,7 +197,7 @@ export function PlanPanel() {
       {status === "approved" && (
         <div className="px-4 py-3 border-t border-zinc-800/50">
           <div className="flex items-center gap-2 text-sm text-emerald-400">
-            <CheckCircle2 className="w-4 h-4" />
+            <Loader2 className="w-4 h-4 animate-spin" />
             {t('plan.approved')}
           </div>
         </div>
