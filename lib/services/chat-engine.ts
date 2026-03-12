@@ -451,7 +451,7 @@ export class ChatEngine {
         };
       }
 
-      yield* this.handleAgentTeam(context);
+      yield* this.handleArchitectPhase(context);
     } else if (mode === 'single_agent') {
       yield* this.handleSingleAgentWithProject(context);
     } else {
@@ -530,7 +530,7 @@ export class ChatEngine {
       assessment,
     };
 
-    yield* this.handleAgentTeam(context);
+    yield* this.handleArchitectPhase(context);
 
     yield { type: 'done', data: { conversation_id: conversationId } };
   }
@@ -1619,6 +1619,33 @@ export class ChatEngine {
 
     yield* this.handleArchitectPhase(context);
 
+    yield { type: 'done', data: { conversation_id: conversationId } };
+  }
+
+  /**
+   * Run DM review for an existing project (called from project page drawer).
+   * Reuses handleAgentTeam() which runs only the DM phase.
+   */
+  async *executeDmReview(conversationId: string): AsyncGenerator<ChatEvent> {
+    const conversation = await this.getOrCreateConversation(conversationId);
+
+    if (!conversation.project_id) {
+      yield { type: 'error', data: { message: 'No project associated.' } };
+      yield { type: 'done', data: { conversation_id: conversationId } };
+      return;
+    }
+
+    const messages = await this.getMessages(conversationId);
+    const assessment = conversation.complexity_assessment;
+
+    const context: ChatContext = {
+      conversation,
+      messages,
+      userMessage: messages.filter(m => m.role === 'user').pop()?.content || '',
+      assessment,
+    };
+
+    yield* this.handleAgentTeam(context);
     yield { type: 'done', data: { conversation_id: conversationId } };
   }
 

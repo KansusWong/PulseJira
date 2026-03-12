@@ -75,6 +75,21 @@ export default function ProjectDetailPage() {
           } else {
             addProject(json.data as Project);
           }
+
+          // Hydrate persisted agent logs if no execution is running
+          if (json.data.agent_logs?.length && !usePulseStore.getState().isRunning) {
+            usePulseStore.getState().hydrateAgentLogs(
+              json.data.agent_logs.map((log: any, i: number) => ({
+                id: log.id || `restored-${i}`,
+                agent: log.agent || 'system',
+                type: log.type || 'log',
+                message: log.message || '',
+                timestamp: log.timestamp || 0,
+                taskId: log.taskId,
+                taskTitle: log.taskTitle,
+              }))
+            );
+          }
         }
       })
       .catch((err) => console.error('[DEBUG] project fetch error:', err))
@@ -222,8 +237,11 @@ export default function ProjectDetailPage() {
     // Recover stale execution states when no agent is running.
     // "implementing"/"active" without result → interrupted mid-run
     // "implemented" with failed result → pipeline crashed, not truly implemented
+    // But if there's a pipeline_checkpoint, keep "analyzing" so "Continue" button shows
+    const hasCheckpoint = !!(p as any).pipeline_checkpoint;
     const isStaleExecution =
       !usePulseStore.getState().isRunning &&
+      !hasCheckpoint &&
       (
         (["implementing", "active"].includes(p.status) && !p.implement_result) ||
         (p.status === "implemented" && p.implement_result?.status === "failed")
@@ -355,6 +373,53 @@ export default function ProjectDetailPage() {
   const handleExecute = async () => {
     if (!project) return;
 
+    // Check for checkpoint → resume
+    const projectCheckpoint = (project as any).pipeline_checkpoint;
+    if (projectCheckpoint) {
+      if (projectCheckpoint.stage === 'plan') {
+        // Resume plan stage
+        const dummyPrepare = prepareResult || (project.prepare_result as PrepareResult);
+        if (dummyPrepare) {
+          await handleAcceptAndPlan(dummyPrepare, true);
+        }
+        return;
+      }
+      // Resume prepare stage
+      resetAgentState();
+      backendIdToTitleRef.current.clear();
+      setPrepareResult(null);
+      setAnalysisResult(null);
+      setRunning(true, projectId);
+      setStage("prepare");
+
+      try {
+        const response = await fetch(`/api/projects/${project.id}/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stage: "prepare",
+            description: project.description,
+            urls: [],
+            resume: true,
+          }),
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await readSSEStream(response);
+        if (data) {
+          setPrepareResult({ ...data, signalId: data.signalId });
+          updateProjectInStore(projectId, { status: "analyzing", prepare_result: data, pipeline_checkpoint: null });
+          resetAgentState();
+        }
+      } catch (e: any) {
+        addAgentLog({ agent: "pm", type: "log", message: `Error: ${e.message}` });
+      } finally {
+        setRunning(false);
+      }
+      return;
+    }
+
     if (prepareResult) {
       await handleAcceptAndPlan(prepareResult);
       return;
@@ -397,7 +462,7 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleAcceptAndPlan = async (currentPrepare: PrepareResult) => {
+  const handleAcceptAndPlan = async (currentPrepare: PrepareResult, resumeMode = false) => {
     if (!project) return;
     resetAgentState();
     setRunning(true, projectId);
@@ -424,6 +489,7 @@ export default function ProjectDetailPage() {
           description: project.description,
           signalId: currentPrepare.signalId || (prepareResult as any)?.signalId || project.signal_id,
           confirmed_proposal: confirmedProposal,
+          ...(resumeMode && { resume: true }),
         }),
       });
 
@@ -432,7 +498,7 @@ export default function ProjectDetailPage() {
       const data = await readSSEStream(response);
       if (data) {
         setAnalysisResult(data);
-        updateProjectInStore(projectId, { status: "planned", plan_result: data });
+        updateProjectInStore(projectId, { status: "planned", plan_result: data, pipeline_checkpoint: null });
         resetAgentState();
       }
     } catch (e: any) {
@@ -757,6 +823,8 @@ export default function ProjectDetailPage() {
         onDelete={handleDelete}
         isRunning={isRunning}
         hasPrepareResult={!!prepareResult}
+        hasCheckpoint={!!(project as any).pipeline_checkpoint}
+        conversationId={project.conversation_id}
         onPromote={async (data) => {
           try {
             const res = await fetch(`/api/projects/${projectId}/promote`, {
@@ -871,7 +939,7 @@ export default function ProjectDetailPage() {
               <BrainCircuit className="w-12 h-12 text-zinc-800 mb-4" />
               <h2 className="text-lg font-bold text-zinc-400 mb-2">{project.name}</h2>
               <p className="text-sm text-zinc-600 mb-6">{project.description}</p>
-              <p className="text-xs text-zinc-700">Click &quot;Run Agents&quot; to start the analysis pipeline.</p>
+              <p className="text-xs text-zinc-700">Click &quot;{t('project.header.startAnalysis')}&quot; to start the analysis pipeline.</p>
             </div>
           )}
         </div>

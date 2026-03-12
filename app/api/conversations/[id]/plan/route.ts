@@ -84,6 +84,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     );
   }
 
+  if (action === 'start_dm_review') {
+    return makeSSEResponseFromGenerator(
+      chatEngine.executeDmReview(params.id),
+      { signal: req.signal },
+    );
+  }
+
   if (action === 'resume_architect') {
     return makeSSEResponseFromGenerator(
       chatEngine.resumeArchitectPhase(params.id),
