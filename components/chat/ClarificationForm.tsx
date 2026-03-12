@@ -7,12 +7,14 @@ import {
   X,
   CheckCircle2,
   ArrowLeft,
+  Shield,
   Target,
   FileText,
   AlertTriangle,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { processSSEResponse } from "@/lib/utils/sse-stream";
+import { DmReviewDrawer } from "@/components/project/DmReviewDrawer";
 
 export function ClarificationForm() {
   const requirements = usePulseStore((s) => s.clarificationPanel.requirements);
@@ -28,6 +30,7 @@ export function ClarificationForm() {
     requirements?.suggested_name || ""
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dmDrawerOpen, setDmDrawerOpen] = useState(false);
 
   if (!requirements) return null;
 
@@ -189,6 +192,16 @@ export function ClarificationForm() {
           <CheckCircle2 className="w-4 h-4" />
           {isSubmitting ? t("common.creating") : t("clarification.confirm")}
         </button>
+        {activeConversationId && (
+          <button
+            onClick={() => setDmDrawerOpen(true)}
+            disabled={isSubmitting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 transition-colors disabled:opacity-50"
+          >
+            <Shield className="w-4 h-4 flex-shrink-0" />
+            <span className="whitespace-nowrap">{t("dm.drawerTitle")}</span>
+          </button>
+        )}
         <button
           onClick={handleGoBack}
           disabled={isSubmitting}
@@ -198,6 +211,10 @@ export function ClarificationForm() {
           {t("clarification.goBack")}
         </button>
       </div>
+
+      {dmDrawerOpen && activeConversationId && (
+        <DmReviewDrawer conversationId={activeConversationId} onClose={() => setDmDrawerOpen(false)} />
+      )}
     </div>
   );
 }

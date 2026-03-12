@@ -39,6 +39,7 @@ export function DashboardShell({
 
         {/* Main Content */}
         <main
+          data-workspace-root="true"
           className={clsx(
             "flex-1 min-w-0 flex flex-col overflow-y-auto relative transition-[padding] duration-300",
             !sidebarOpen && onToggleSidebar && "pl-14"
@@ -61,7 +62,7 @@ export function DashboardShell({
 
         {/* Right Panel */}
         {rightPanel && rightPanelOpen && (
-          <aside className="w-[350px] flex-shrink-0 border-l border-border bg-black hidden lg:flex flex-col">
+          <aside className="w-[420px] flex-shrink-0 border-l border-border bg-black hidden lg:flex flex-col">
             {rightPanel}
           </aside>
         )}
