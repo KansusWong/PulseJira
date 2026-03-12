@@ -1289,7 +1289,10 @@ export class ChatEngine {
       data: {
         team_id: teamId,
         status: 'active',
-        agents: suggestedAgents,
+        agents: suggestedAgents.map((name: string) => ({
+          name,
+          status: 'idle' as const,
+        })),
       },
     };
 
