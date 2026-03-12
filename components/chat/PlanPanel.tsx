@@ -204,33 +204,35 @@ export function PlanPanel() {
 
       {/* Actions */}
       {status === "pending" && (
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-zinc-800/50">
-          <button
-            onClick={handleApprove}
-            disabled={isSubmitting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            {t('plan.approve')}
-          </button>
+        <div className="flex flex-col gap-2 px-4 py-3 border-t border-zinc-800/50">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleApprove}
+              disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              {t('plan.approve')}
+            </button>
+            <button
+              onClick={handleReject}
+              disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <XCircle className="w-4 h-4" />
+              {t('plan.reject')}
+            </button>
+          </div>
           {activeConversationId && (
             <button
               onClick={() => setDmDrawerOpen(true)}
               disabled={isSubmitting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-xl bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Shield className="w-4 h-4" />
               {t('dm.drawerTitle')}
             </button>
           )}
-          <button
-            onClick={handleReject}
-            disabled={isSubmitting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <XCircle className="w-4 h-4" />
-            {t('plan.reject')}
-          </button>
         </div>
       )}
 

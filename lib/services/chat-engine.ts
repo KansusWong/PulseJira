@@ -1632,25 +1632,60 @@ export class ChatEngine {
   }
 
   /**
-   * Run DM review for an existing project (called from project page drawer).
-   * Reuses handleAgentTeam() which runs only the DM phase.
+   * Run DM review (called from drawer in ClarificationForm or project page).
+   * If no project exists yet, creates one first. Then runs DM phase via handleAgentTeam().
    */
-  async *executeDmReview(conversationId: string): AsyncGenerator<ChatEvent> {
-    const conversation = await this.getOrCreateConversation(conversationId);
+  async *executeDmReview(
+    conversationId: string,
+    requirements?: StructuredRequirements,
+  ): AsyncGenerator<ChatEvent> {
+    let conversation = await this.getOrCreateConversation(conversationId);
 
+    // If no project yet (called from ClarificationForm), create one
     if (!conversation.project_id) {
-      yield { type: 'error', data: { message: 'No project associated.' } };
-      yield { type: 'done', data: { conversation_id: conversationId } };
-      return;
+      const messages = await this.getMessages(conversationId);
+      const userMessage = requirements?.summary
+        || messages.filter(m => m.role === 'user').pop()?.content
+        || '';
+
+      yield { type: 'agent_log', data: { message: '正在生成项目名称...' } };
+      const projectName = requirements?.suggested_name
+        || await generateProjectName(userMessage, { assessment: conversation.complexity_assessment });
+
+      yield { type: 'agent_log', data: { message: '正在创建项目...' } };
+      const project = await createProject({
+        name: projectName,
+        description: userMessage,
+        is_light: false,
+        conversation_id: conversationId,
+      });
+      await updateProject(project.id, { status: 'analyzing' });
+
+      // Link conversation to project + store structured requirements
+      await this.updateConversation(conversationId, {
+        project_id: project.id,
+        ...(requirements && { structured_requirements: requirements }),
+      } as any);
+
+      conversation = { ...conversation, project_id: project.id, structured_requirements: requirements } as any;
+
+      yield {
+        type: 'project_created',
+        data: { project_id: project.id, name: project.name, is_light: false },
+      };
     }
 
     const messages = await this.getMessages(conversationId);
     const assessment = conversation.complexity_assessment;
+    const userMessage = requirements?.summary
+      || (conversation as any).structured_requirements?.summary
+      || messages.filter(m => m.role === 'user').pop()?.content
+      || '';
 
     const context: ChatContext = {
       conversation,
       messages,
-      userMessage: messages.filter(m => m.role === 'user').pop()?.content || '',
+      userMessage,
       assessment,
     };
 

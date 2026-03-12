@@ -46,9 +46,16 @@ const riskI18nKeys: Record<string, string> = {
 interface DmReviewDrawerProps {
   conversationId: string;
   onClose: () => void;
+  requirements?: {
+    summary: string;
+    goals: string[];
+    scope: string;
+    constraints: string[];
+    suggested_name: string;
+  };
 }
 
-export function DmReviewDrawer({ conversationId, onClose }: DmReviewDrawerProps) {
+export function DmReviewDrawer({ conversationId, onClose, requirements }: DmReviewDrawerProps) {
   const { t } = useTranslation();
   const [phase, setPhase] = useState<DrawerPhase>("idle");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -130,7 +137,7 @@ export function DmReviewDrawer({ conversationId, onClose }: DmReviewDrawerProps)
       const res = await fetch(`/api/conversations/${conversationId}/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "start_dm_review" }),
+        body: JSON.stringify({ action: "start_dm_review", ...(requirements && { requirements }) }),
         signal: controller.signal,
       });
 
@@ -158,7 +165,7 @@ export function DmReviewDrawer({ conversationId, onClose }: DmReviewDrawerProps)
         setPhase("error");
       }
     }
-  }, [conversationId, readSSE]);
+  }, [conversationId, requirements, readSSE]);
 
   const handleApprove = useCallback(async () => {
     if (isSubmitting) return;
