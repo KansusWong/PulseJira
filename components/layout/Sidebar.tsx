@@ -177,95 +177,112 @@ function ProjectItem({
   }
 
   return (
-    <div className="group relative">
-      <button
-        onClick={onSelect}
-        className={clsx(
-          "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
-          isActive
-            ? "bg-zinc-800 text-zinc-100"
-            : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-        )}
-      >
-        <div
+    <>
+      <div className="group relative">
+        <button
+          onClick={onSelect}
           className={clsx(
-            "w-1.5 h-1.5 rounded-full flex-shrink-0",
-            statusColors[project.status] || statusColors.draft
+            "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
+            isActive
+              ? "bg-zinc-800 text-zinc-100"
+              : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
           )}
-        />
-        <span className="truncate flex-1">{project.name}</span>
-      </button>
-
-      {/* Hover menu trigger */}
-      {(onRename || onDelete) && (
-        <div ref={menuRef}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen(!menuOpen);
-            }}
+        >
+          <div
             className={clsx(
-              "absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all",
-              menuOpen
-                ? "opacity-100 bg-zinc-700 text-zinc-200"
-                : "opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700"
+              "w-1.5 h-1.5 rounded-full flex-shrink-0",
+              statusColors[project.status] || statusColors.draft
             )}
-          >
-            <MoreHorizontal className="w-3.5 h-3.5" />
-          </button>
+          />
+          <span className="truncate flex-1">{project.name}</span>
+        </button>
 
-          {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl py-1 overflow-hidden">
-              {onRename && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMenuOpen(false);
-                    setEditName(project.name);
-                    setEditing(true);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  {t('common.rename')}
-                </button>
+        {/* Hover menu trigger */}
+        {(onRename || onDelete) && (
+          <div ref={menuRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(!menuOpen);
+              }}
+              className={clsx(
+                "absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all",
+                menuOpen
+                  ? "opacity-100 bg-zinc-700 text-zinc-200"
+                  : "opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700"
               )}
-              {onDelete && !confirmingDelete && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmingDelete(true);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {t('common.delete')}
-                </button>
-              )}
-              {confirmingDelete && (
-                <div className="px-3 py-2 space-y-2">
-                  <p className="text-xs text-zinc-300">{t('dashboard.confirmDelete', { name: project.name })}</p>
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmingDelete(false); setMenuOpen(false); }}
-                      className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 rounded transition-colors"
-                    >
-                      {t('common.cancel')}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmingDelete(false); setMenuOpen(false); onDelete?.(); }}
-                      className="px-2 py-1 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded transition-colors"
-                    >
-                      {t('common.delete')}
-                    </button>
-                  </div>
-                </div>
-              )}
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl py-1 overflow-hidden">
+                {onRename && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setEditName(project.name);
+                      setEditing(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    {t('common.rename')}
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      setConfirmingDelete(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {t('common.delete')}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Delete confirmation modal */}
+      {confirmingDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setConfirmingDelete(false)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl p-5 w-80 max-w-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="p-2 rounded-lg bg-red-500/10">
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </div>
+              <h3 className="text-sm font-medium text-zinc-200">{t('common.delete')}</h3>
             </div>
-          )}
+            <p className="text-sm text-zinc-400 mb-5">{t('dashboard.confirmDelete', { name: project.name })}</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={() => { setConfirmingDelete(false); onDelete?.(); }}
+                className="px-3 py-1.5 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
+              >
+                {t('common.delete')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
