@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  Shield,
   Zap,
   Users,
   Loader2,
@@ -16,6 +17,7 @@ import {
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
 import { processSSEResponse } from "@/lib/utils/sse-stream";
+import { DmReviewDrawer } from "@/components/project/DmReviewDrawer";
 import type { PlanStepStatus } from "@/store/slices/chatSlice";
 
 const modeIcons: Record<string, React.ReactNode> = {
@@ -51,6 +53,7 @@ export function PlanPanel() {
   const router = useRouter();
   const { t } = useTranslation();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dmDrawerOpen, setDmDrawerOpen] = useState(false);
 
   if (!assessment) return null;
 
@@ -210,6 +213,16 @@ export function PlanPanel() {
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {t('plan.approve')}
           </button>
+          {activeConversationId && (
+            <button
+              onClick={() => setDmDrawerOpen(true)}
+              disabled={isSubmitting}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Shield className="w-4 h-4" />
+              {t('dm.drawerTitle')}
+            </button>
+          )}
           <button
             onClick={handleReject}
             disabled={isSubmitting}
@@ -228,6 +241,10 @@ export function PlanPanel() {
             {t('plan.approved')}
           </div>
         </div>
+      )}
+
+      {dmDrawerOpen && activeConversationId && (
+        <DmReviewDrawer conversationId={activeConversationId} onClose={() => setDmDrawerOpen(false)} />
       )}
     </div>
   );
