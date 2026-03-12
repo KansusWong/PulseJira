@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { storeSignal } from '@/lib/services/rag';
 import { updateSignalStatus } from '@/lib/services/signal';
-import { runPrepare } from '@/lib/skills/prepare';
+import { runPrepare } from '@/skills/prepare-pipeline';
 import { runPlan } from '@/lib/skills/plan';
 import { suggestCompetitorUrl } from '@/lib/skills/suggest-url';
 import { makeSSEResponse, errorResponse } from '@/lib/utils/api-error';

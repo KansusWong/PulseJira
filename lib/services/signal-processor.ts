@@ -13,7 +13,7 @@
 
 import { supabase } from '../db/client';
 import { generateJSON } from '../core/llm';
-import { runPrepare, type PrepareResult } from '../skills/prepare';
+import { runPrepare, type PrepareResult } from '@/skills/prepare-pipeline';
 import { recordLlmUsage } from './usage';
 
 // ---------------------------------------------------------------------------

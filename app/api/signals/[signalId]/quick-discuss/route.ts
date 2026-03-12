@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { supabase, assertSupabase } from '@/lib/db/client';
 import { errorResponse } from '@/lib/utils/api-error';
 import { generateJSON } from '@/lib/core/llm';
-import { runPrepare, type PrepareResult } from '@/lib/skills/prepare';
+import { runPrepare, type PrepareResult } from '@/skills/prepare-pipeline';
 import { recordLlmUsage } from '@/lib/services/usage';
 
 interface ScreeningResult {
