@@ -438,6 +438,9 @@ export class ChatEngine {
           conversation_id: conversationId,
         });
 
+        // Mark as analyzing immediately so the API returns the correct status
+        await updateProject(project.id, { status: 'analyzing' });
+
         await this.updateConversation(conversationId, {
           project_id: project.id,
         } as any);
@@ -501,6 +504,9 @@ export class ChatEngine {
         is_light: false,
         conversation_id: conversationId,
       });
+
+      // Mark as analyzing immediately so the API returns the correct status
+      await updateProject(project.id, { status: 'analyzing' });
 
       projectId = project.id;
 
@@ -815,6 +821,9 @@ export class ChatEngine {
           is_light: true,
           conversation_id: conversationId,
         });
+
+        // Mark as analyzing immediately so the API returns the correct status
+        await updateProject(project.id, { status: 'analyzing' });
 
         // Link conversation to project
         await this.updateConversation(conversationId, {
