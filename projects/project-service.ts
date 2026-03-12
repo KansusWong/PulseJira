@@ -7,31 +7,43 @@ import type { Project, CreateProjectInput, ProjectTask } from './types';
  */
 
 export async function listProjects(): Promise<Project[]> {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .order('updated_at', { ascending: false });
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('updated_at', { ascending: false });
 
-  if (error) {
-    throw new Error(`Failed to list projects: ${error.message}`);
+      if (!error) return data || [];
+      if (attempt === MAX_RETRIES) throw new Error(`Failed to list projects: ${error.message}`);
+    } catch (e: any) {
+      if (attempt === MAX_RETRIES) throw e;
+    }
+    await new Promise(r => setTimeout(r, 500 * attempt));
   }
-  return data || [];
+  return [];
 }
 
 export async function getProject(projectId: string): Promise<Project | null> {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('id', projectId)
-    .single();
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null; // Not found
+      if (!error) return data;
+      if (error.code === 'PGRST116') return null; // Not found
+      if (attempt === MAX_RETRIES) throw new Error(`Failed to get project: ${error.message}`);
+    } catch (e: any) {
+      if (attempt === MAX_RETRIES) throw e;
     }
-    throw new Error(`Failed to get project: ${error.message}`);
+    await new Promise(r => setTimeout(r, 500 * attempt));
   }
-  return data;
+  return null;
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {

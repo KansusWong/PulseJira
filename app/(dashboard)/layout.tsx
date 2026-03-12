@@ -49,8 +49,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
 
   const reconciledRef = useRef(false);
+  const lastFetchRef = useRef(0);
+  const FETCH_THROTTLE_MS = 5_000; // At most one fetch every 5 seconds
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (force?: boolean) => {
+    const now = Date.now();
+    if (!force && now - lastFetchRef.current < FETCH_THROTTLE_MS) return;
+    lastFetchRef.current = now;
+
     try {
       const res = await fetch("/api/projects");
       if (!res.ok) return;
@@ -79,11 +85,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       try {
         await fetch("/api/projects/reconcile", { method: "POST" });
       } catch { /* backend may be unreachable */ }
-      await fetchProjects();
+      await fetchProjects(true);
     })();
   }, [fetchProjects]);
 
-  // Re-fetch projects whenever the user navigates between pages
+  // Re-fetch projects whenever the user navigates between pages (throttled)
   useEffect(() => {
     if (!reconciledRef.current) return;
     fetchProjects();
