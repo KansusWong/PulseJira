@@ -4,6 +4,14 @@
     {
       "path": "/api/cron/collect-signals",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-report",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-stale-state",
+      "schedule": "0 3 */3 * *"
     }
   ]
 }
