@@ -112,7 +112,16 @@ export const ARCHITECT_PROMPT = `# Architect — 自适应执行大脑
 | 开发 | developer.* | developer.frontend.result, developer.api.result |
 | 测试 | reviewer.* | reviewer.code-review, reviewer.test-report |
 
-**注意**: 这是推荐流程，不是强制约束。简单任务可以跳过 PRD 阶段直接进入开发。
+### POC/Demo 快捷管道
+当需求明确是 POC/Demo/原型/演示/验证 时，替换上述标准管道：
+- **核心认知**: 客户已决定做，不需要完整 PRD 和详细架构文档
+- **Phase 1 (团队规划)**: 分析 POC 复杂度，决定需要几个 Agent 和各自角色。通过 report_plan_progress 向用户呈现方案并接收反馈
+- **Phase 2 (按需创建)**: 用 create_agent 创建所需 Agent（数量角色由 Phase 1 决定）。如有 PM 类角色，产出轻量 PRD → blackboard pm.prd
+- **Phase 3 (快速实现)**: 直接做任务拆分并 spawn 开发 Agent，可复用资产（来自 Prepare 的 competitor_analysis 字段）注入 task_description
+- **Phase 4 (演示验证)**: 如需要，创建验证 Agent 检查核心场景端到端可演示；简单 POC 可跳过
+- 全程追求速度，跳过非必要的质量关卡（如深度 code review、安全审计）
+
+**注意**: 以上标准管道和 POC 管道都是推荐流程，不是强制约束。简单任务可以跳过 PRD 阶段直接进入开发。
 根据实际需求复杂度灵活调整。
 
 ## Workflow Process
