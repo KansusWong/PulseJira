@@ -4,7 +4,7 @@
 
 | # | Agent | 模式 | 执行方式 | Max Loops | 核心工具 |
 |---|-------|------|---------|-----------|---------|
-| 1 | **Chat Judge** | single-shot | `runOnce` | 1 | 无 — 输出 L1/L2/L3 复杂度评估 |
+| 1 | **Chat Judge** | single-shot | `runOnce` | 1 | 无 — 输出 L1/L2/L3 复杂度评估（感知用户执行模式偏好） |
 | 2 | **Chat Assistant** | `direct` / `project` | ReAct | 3 / 6 | web_search, read_file, list_files |
 | 3 | **Analyst** | `retrieve` | ReAct | 8 | search_vision/decisions/artifacts/patterns, finish_retrieval |
 | 4 | **Analyst** | `research` | ReAct | 5 | web_search |
@@ -398,6 +398,80 @@ Red Team: 解析优先级:
 
 ---
 
+## Chat Judge 详解
+
+文件: `agents/chat-judge/index.ts`, `agents/chat-judge/prompts/system.ts`, `agents/chat-judge/soul.md`
+
+### 核心职责
+
+单次 LLM 调用，评估用户需求复杂度并选择执行模式。
+
+### 三级复杂度标准
+
+| 等级 | 执行模式 | 典型场景 |
+|------|----------|---------|
+| L1 | direct | 纯问答、信息查询、概念解释、无需产出物 |
+| L2 | single_agent | 有明确产出物（代码/文档/demo）、单模块/单系统、需求清晰 |
+| L3 | agent_team | 多模块协作、涉及多个外部系统集成、生产级质量要求、需求可能需要澄清 |
+
+### 关键区分
+
+- **L1 vs L2**: 是否有具体产出物（代码、文件、文档）
+- **L2 vs L3**: 两个独立的升级维度，任一满足即升级：
+  - **维度1 — 系统范围**: 涉及 2 个及以上独立模块或外部系统集成 → L3
+  - **维度2 — 工程质量**: 明确要求生产级质量 → L3
+
+### 执行模式偏好感知
+
+Chat Judge 接收用户的执行模式偏好（simple / medium）作为输入参考：
+
+```
+核心原则: Team 模式是参考信号，不是自动升级触发器。
+复杂度判定仍以产出物本身的复杂度为准。
+
+- 仍然 L1: 纯问答 — Team 模式不影响无产出物的对话
+- 仍然 L2: 产出物是单一交付件（一个脚本、一个 PPT、一个页面、一个组件、一份文档）
+            即使开启 Team 模式，单 Agent 足以高效完成
+- 升级 L3: 产出物本身涉及多模块/多角色协作（前端 + 后端 + 数据库、多个独立系统集成）
+            Team 模式下顺应用户意图使用 agent_team
+
+简言之: Team 模式降低 L3 的门槛，但不消除门槛。
+```
+
+### 数据流
+
+```
+用户消息
+  │
+  ▼
+chat-engine.ts
+  ├─ 读取用户执行模式偏好 (getPreferences → agentExecutionMode)
+  ├─ 构建 conversationHistory
+  └─ assessComplexity(message, history, context, execMode)
+       │
+       ▼
+     Chat Judge (runOnce)
+       ├─ 输入: 用户消息 + 对话历史 + 执行模式偏好段落
+       └─ 输出: ComplexityAssessment {
+            complexity_level, execution_mode, rationale,
+            suggested_agents, estimated_steps, plan_outline,
+            requires_project, requires_clarification
+          }
+```
+
+### 判定示例
+
+```
+- "React hooks 怎么用？"                    → L1 / direct（纯问答）
+- "写一个登录页面 demo"                     → L2 / single_agent（单模块产出物）
+- "写一个数据清洗脚本"（Team 模式开启）     → L2 / single_agent（单一脚本，Team 不改变复杂度）
+- "做一个前后端分离的审批流 Demo"（Team 模式）→ L3 / agent_team（多模块协作）
+- "构建完整认证系统（注册/登录/权限）"      → L3 / agent_team（生产级质量）
+- "Slack + CRM 集成 POC"                    → L3 / agent_team（多外部系统集成）
+```
+
+---
+
 ## 运行方式对比
 
 | | `run()` (ReAct) | `runOnce()` (Single-shot) |
@@ -565,7 +639,7 @@ POC/Demo 快捷管道:
 用户消息
   │
   ▼
-Chat Judge → L1/L2/L3 评估
+Chat Judge → L1/L2/L3 评估（感知用户执行模式偏好）
   │
   ├─ L1: Chat Assistant(direct) → 直接回答
   │
@@ -664,6 +738,8 @@ Reasoner 模型特殊处理:
 | Decision Maker Agent | `agents/decision-maker/index.ts` |
 | Decision Maker Prompt | `lib/prompts/decision-maker.ts` |
 | Chat Judge | `agents/chat-judge/index.ts` |
+| Chat Judge Prompt | `agents/chat-judge/prompts/system.ts` |
+| Chat Judge Soul | `agents/chat-judge/soul.md` |
 | Chat Assistant | `agents/chat-assistant/index.ts` |
 | Deployer Agent | `agents/deployer/index.ts` |
 | Prepare Pipeline | `skills/prepare-pipeline.ts` |
