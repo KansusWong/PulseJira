@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
@@ -11,6 +12,7 @@ import { StreamingStepIndicator } from "./StreamingStepIndicator";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
 
 export function ChatView() {
+  const router = useRouter();
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
   const messages = usePulseStore((s) =>
     activeConversationId ? s.messages[activeConversationId] || [] : []
@@ -28,6 +30,8 @@ export function ChatView() {
   const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
   const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
+  const addProject = usePulseStore((s) => s.addProject);
+  const setRunning = usePulseStore((s) => s.setRunning);
   const addAgentLog = usePulseStore((s) => s.addAgentLog);
   const updatePlanStepProgress = usePulseStore((s) => s.updatePlanStepProgress);
   const addTeamCommunication = usePulseStore((s) => s.addTeamCommunication);
@@ -85,8 +89,15 @@ export function ChatView() {
 
   const handleSend = useCallback(
     async (text: string) => {
+      // If currently streaming, abort the previous generation first
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+
       setStreaming(true);
       clearStreamingSteps();
+      setTeamCollaborationActive(false);
 
       const abortController = new AbortController();
       abortRef.current = abortController;
@@ -286,7 +297,7 @@ export function ChatView() {
         }
 
         case "project_created": {
-          const { name, is_light } = event.data;
+          const { project_id, name, is_light } = event.data;
           addMessage(conversationId, {
             id: crypto.randomUUID(),
             conversation_id: conversationId,
@@ -297,6 +308,19 @@ export function ChatView() {
             metadata: event.data,
             created_at: new Date().toISOString(),
           });
+          if (project_id) {
+            addProject({
+              id: project_id,
+              name,
+              description: '',
+              status: 'analyzing',
+              is_light: !!is_light,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+            setRunning(true, project_id);
+            router.push(`/projects/${project_id}`);
+          }
           break;
         }
 
@@ -400,7 +424,7 @@ export function ChatView() {
 
       {/* Input */}
       <div className="border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
-        <ChatInput onSubmit={handleSend} disabled={isStreaming} />
+        <ChatInput onSubmit={handleSend} streaming={isStreaming} />
       </div>
     </div>
   );

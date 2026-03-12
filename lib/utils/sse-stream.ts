@@ -88,6 +88,18 @@ export async function processSSEResponse(
                 metadata: event.data,
                 created_at: new Date().toISOString(),
               });
+              // Always add the project to the store so the sidebar reflects it
+              if (event.data.project_id) {
+                s.addProject({
+                  id: event.data.project_id,
+                  name: event.data.name,
+                  description: '',
+                  status: 'analyzing' as const,
+                  is_light: !!event.data.is_light,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                });
+              }
               callbacks?.onProjectCreated?.(event.data);
               break;
             }
