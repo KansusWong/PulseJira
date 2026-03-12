@@ -75,7 +75,7 @@ export function createArchitectAgent(options?: {
   // ── Medium-only tools (full team orchestration capabilities) ──
   if (execMode === 'medium') {
     tools.push(
-      new CreateAgentTool(),
+      new CreateAgentTool({ workspace: options?.workspace }),
       new CreateSkillTool(),
       new PersistAgentTool(),
       new PersistSkillTool(),

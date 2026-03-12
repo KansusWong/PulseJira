@@ -6,7 +6,27 @@ import { registerAgent, deregisterAgent } from '@/lib/config/agent-registry';
 import { isToolRegistered, getTools } from './tool-registry';
 import { messageBus } from '@/connectors/bus/message-bus';
 import { mergeSoulWithPrompt } from '@/agents/utils';
+import { CodeWriteTool } from './code-write';
+import { CodeEditTool } from './code-edit';
+import { GitCommitTool } from './git-commit';
+import { RunCommandTool } from './run-command';
+import { RunTestsTool } from './run-tests';
 import type { DynamicAgentDefinition } from '../core/types';
+import type { Workspace } from '@/lib/sandbox/types';
+
+/**
+ * Workspace-scoped tools that require a cwd to instantiate.
+ * Valid only when a workspace is provided to CreateAgentTool.
+ */
+const WORKSPACE_TOOL_FACTORIES: Record<string, (cwd: string) => BaseTool> = {
+  code_write: (cwd) => new CodeWriteTool(cwd),
+  code_edit: (cwd) => new CodeEditTool(cwd),
+  run_command: (cwd) => new RunCommandTool(cwd),
+  run_tests: (cwd) => new RunTestsTool(cwd),
+  git_commit: (cwd) => new GitCommitTool(cwd),
+};
+
+const WORKSPACE_TOOL_NAMES = new Set(Object.keys(WORKSPACE_TOOL_FACTORIES));
 
 const CreateAgentInputSchema = z.object({
   name: z.string().describe('Unique agent identifier (e.g., "api-migration-specialist")'),
@@ -146,14 +166,23 @@ export class CreateAgentTool extends BaseTool<CreateAgentInput, CreateAgentOutpu
   description = '动态创建一个新的 Agent。指定名称、角色、系统提示词和工具列表。创建后可通过 spawn_agent 调用。默认为临时（会话级），使用 persist_agent 可持久化。';
   schema = CreateAgentInputSchema as z.ZodType<CreateAgentInput>;
 
+  private workspace?: Workspace;
+
+  constructor(options?: { workspace?: Workspace }) {
+    super();
+    this.workspace = options?.workspace;
+  }
+
   protected async _run(input: CreateAgentInput): Promise<CreateAgentOutput> {
     const { name, role, system_prompt, tools, max_loops, run_mode, project_id } = input;
 
     // Evict stale/excess dynamic agents before creating a new one
     evictStaleDynamicAgents();
 
-    // Validate all tool names exist
-    const invalidTools = tools.filter((t) => !isToolRegistered(t));
+    // Validate all tool names exist (global registry + workspace-scoped when workspace available)
+    const invalidTools = tools.filter(
+      (t) => !isToolRegistered(t) && !(this.workspace && WORKSPACE_TOOL_NAMES.has(t)),
+    );
     if (invalidTools.length > 0) {
       throw new Error(
         `Unknown tools: [${invalidTools.join(', ')}]. Use list_agents or check tool registry for valid names.`
@@ -184,8 +213,20 @@ export class CreateAgentTool extends BaseTool<CreateAgentInput, CreateAgentOutpu
     dynamicAgentTimestamps.set(id, Date.now());
 
     // Register factory — compose prompt via shared merger
+    const workspace = this.workspace;
     registerAgentFactory(id, () => {
-      const toolInstances = getTools(...definition.tools);
+      const globalToolNames = definition.tools.filter((t) => !WORKSPACE_TOOL_NAMES.has(t));
+      const wsToolNames = definition.tools.filter((t) => WORKSPACE_TOOL_NAMES.has(t));
+
+      const toolInstances = getTools(...globalToolNames);
+
+      if (wsToolNames.length > 0 && workspace) {
+        const cwd = workspace.localPath;
+        for (const t of wsToolNames) {
+          toolInstances.push(WORKSPACE_TOOL_FACTORIES[t](cwd));
+        }
+      }
+
       const fullPrompt = mergeSoulWithPrompt(definition.soul || '', definition.system_prompt);
       return new BaseAgent({
         name: definition.name,
