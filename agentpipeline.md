@@ -73,7 +73,37 @@
       Step 5: 失败时回滚
 ```
 
-**入口**: `app/api/projects/[projectId]/execute/route.ts` (SSE stream)
+**入口**: `app/api/projects/[projectId]/execute/route.ts` (SSE stream, `stage: 'prepare'`)
+
+### Pipeline A-POC: POC/Demo 快速通道（Knowledge Curator → Auto-PROCEED）
+
+```
+用户输入（含 POC/Demo/原型 意图）
+  │
+  ▼
+[project-runner.ts] ──► runProjectPreparePOC()
+  │                        │
+  │  ┌─────────────────────┘
+  │  │  skills/poc-prepare-pipeline.ts  (Fast-Track)
+  │  │    Step 1: Analyst(retrieve) → 检索可复用资产
+  │  │    → 跳过 research / advocate / critique / arbitrate
+  │  │    → 自动 PROCEED（客户已决定做）
+  │  └─────────────────────┐
+  │                        │
+  ▼                        ▼
+  下游 Plan / Implement 正常接续
+  │
+  ▼
+Architect（POC 快捷管道）
+    ├─ 分析复杂度，决定团队构成
+    ├─ report_plan_progress → 用户确认团队方案
+    ├─ create_agent → 按需创建 Agent 团队
+    └─ 编排执行 → finish_architect
+```
+
+**入口**: `app/api/projects/[projectId]/execute/route.ts` (SSE stream, `stage: 'prepare-poc'`)
+
+**核心理念**: POC/Demo 有隐性前提——客户已决定做，不需要市场验证。Prepare 的职责从「该不该做」转为「有没有可复用的东西」。
 
 ### Pipeline B: Meta Pipeline（Decision Maker → Architect 自适应编排）
 
@@ -516,6 +546,15 @@ Blackboard: 写入 dm.decision
 
 验证: Zod schema, 失败 → safe defaults
 清理: 非 persistent 的动态 agent/skill 自动回收
+
+POC/Demo 快捷管道:
+当需求是 POC/Demo/原型 时，Architect 替换标准 Business Pipeline：
+- Phase 1: 分析复杂度，决定团队构成（动态，非固定模板）
+- Phase 2: report_plan_progress → 用户确认/调整方案
+- Phase 3: create_agent 按需创建角色，注入可复用资产
+- Phase 4: 快速实现，跳过深度 code review / 安全审计
+- Phase 5: 演示验证（如需要），验证核心场景端到端可演示
+核心原则：速度优先、可复用资产优先、演示效果驱动、样例数据即产品
 ```
 
 ---
@@ -533,7 +572,7 @@ Chat Judge → L1/L2/L3 评估
   ├─ L2: Chat Assistant(project) → 轻量项目
   │       └─ 可能 spawn sub-agent
   │
-  └─ L3: 两种路径
+  └─ L3: 三种路径
        │
        ├─ 路径 A（经典）: Prepare → Plan → Implement → Deploy
        │    ├─ Prepare: Analyst ×5 模式
@@ -541,6 +580,10 @@ Chat Judge → L1/L2/L3 评估
        │    ├─ Plan: Analyst(retrieve) + Planner(prd) + Planner(task-plan)
        │    ├─ Implement: Planner(dag) + Developer ×N + Reviewer(qa)
        │    └─ Deploy: Deployer
+       │
+       ├─ 路径 A-POC（POC/Demo 快速通道）: POC Prepare → Architect 团队编排
+       │    ├─ POC Prepare: 只跑 Analyst(retrieve)，自动 PROCEED
+       │    └─ Architect: 分析复杂度 → 用户确认 → create_agent 动态团队 → 执行
        │
        └─ 路径 B（Meta）: Decision Maker → Architect
             ├─ DM: 自主 spawn analyst 子 agent + 信号聚合
@@ -551,8 +594,10 @@ Chat Judge → L1/L2/L3 评估
 
 ## Prepare Pipeline 统一说明
 
+### 标准 Prepare（`skills/prepare-pipeline.ts`）
+
 所有入口（`project-runner.ts`、`signal-processor.ts`、`analyze/route.ts`、`quick-discuss/route.ts`）
-现在统一使用 `skills/prepare-pipeline.ts`，具备以下能力：
+使用 `skills/prepare-pipeline.ts`，具备以下能力：
 
 - **Knowledge Curator**：Analyst(retrieve) 多跳知识检索，失败时回退到 `retrieveContext`
 - **Zod 验证**：Blue Team / Arbitrator 输出经 `safeParse()` 校验，验证失败时安全降级
@@ -561,6 +606,23 @@ Chat Judge → L1/L2/L3 评估
 - **Reasoner fallback**：Red Team 使用 reasoner 模型时自动降级为 single-shot
 
 旧文件 `lib/skills/prepare.ts` 已删除。
+
+### POC Prepare（`skills/poc-prepare-pipeline.ts`）
+
+POC/Demo 项目的精简路径，通过 `stage: 'prepare-poc'` 触发：
+
+- **只跑 Knowledge Curator**：Analyst(retrieve) 检索可复用资产（代码模式、历史项目、代码工件）
+- **跳过 4 个阶段**：Researcher、Blue Team、Red Team、Arbitrator 全部跳过
+- **自动 PROCEED**：客户已决定做，无需 Circuit Breaker 审批
+- **可复用资产传递**：Knowledge Curator 发现的 code_patterns / code_artifacts 打包到 `competitor_analysis` 字段，下游 Architect 可读取
+- **兼容 PrepareResult 类型**：下游 Plan/Implement 流程无感知差异
+- **Checkpoint 支持**：保持接口一致（虽然只有 1 步）
+
+Architect 接收到 POC 任务后进入快捷管道：
+1. 分析项目复杂度，自主决定需要几个 Agent 和各自角色（非固定模板）
+2. 通过 `report_plan_progress` 向用户呈现团队方案，接收反馈
+3. 使用 `create_agent` 按需创建团队，注入可复用资产
+4. 编排执行，全程通过 blackboard 共享产出
 
 ---
 
@@ -605,6 +667,7 @@ Reasoner 模型特殊处理:
 | Chat Assistant | `agents/chat-assistant/index.ts` |
 | Deployer Agent | `agents/deployer/index.ts` |
 | Prepare Pipeline | `skills/prepare-pipeline.ts` |
+| POC Prepare Pipeline | `skills/poc-prepare-pipeline.ts` |
 | Plan Pipeline | `skills/plan-pipeline.ts` |
 | Implement Pipeline | `skills/implement-pipeline.ts` |
 | Deploy Pipeline | `skills/deploy-pipeline.ts` |
