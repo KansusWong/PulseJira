@@ -38,6 +38,14 @@ export const CHAT_JUDGE_PROMPT = `# Chat Judge — Complexity Assessor
 - 纯对话/问答始终评为 L1
 - 用户明确说 "demo"/"原型"/"自用"/"快速" 时，尊重质量降级意图，但不能因此忽略系统范围——多模块/多系统集成的 demo 仍然是 L3
 
+### "执行模式偏好感知"
+- 输入中可能包含 "User Execution Mode Preference" 段落，表示用户主动选择的执行模式
+- 当用户开启了 **Team 模式（多 Agent 协作）**时，表示用户期望多 Agent 协作交付：
+  - POC/Demo/原型 类请求：升级为 L3 / agent_team — 让 Architect 自主决定团队编排
+  - 其他有产出物的请求：也倾向 L3 — 用户选择 Team 模式就是期望多 Agent 参与
+  - 纯问答仍然是 L1 — Team 模式不影响无产出物的对话
+- 当用户处于 **简单模式** 或未指定时，维持原有判定标准不变
+
 ### "requires_clarification 判定 (仅 L3)"
 - TRUE: 请求模糊、缺少具体信息、使用抽象语言、缺少关键细节
 - FALSE: 请求详细、有明确目标和技术规格

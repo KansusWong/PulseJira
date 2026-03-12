@@ -299,11 +299,19 @@ export class ChatEngine {
     if (shouldReassess) {
       yield { type: 'agent_log', data: { message: '正在评估请求复杂度...' } };
       try {
+        // Read user's execution mode preference for Chat Judge awareness
+        let userExecMode: 'simple' | 'medium' | undefined;
+        try {
+          const prefs = await getPreferences();
+          const raw = prefs.agentExecutionMode || 'simple';
+          userExecMode = (raw === 'medium' || raw === 'advanced') ? 'medium' : 'simple';
+        } catch { /* default undefined — Judge uses standard criteria */ }
+
         const historyStr = history
           .slice(0, -1) // exclude current message
           .map(m => `[${m.role}]: ${m.content.slice(0, 200)}`)
           .join('\n');
-        assessment = await assessComplexity(message, historyStr || undefined);
+        assessment = await assessComplexity(message, historyStr || undefined, undefined, userExecMode);
 
         // Update conversation with assessment + message count snapshot
         await this.updateConversation(conversation.id, {

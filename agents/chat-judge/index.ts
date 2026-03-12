@@ -20,7 +20,7 @@ export function createChatJudgeAgent(options?: { model?: string }) {
     systemPrompt,
     tools: [],
     maxLoops: 1,
-    model: options?.model ?? process.env.LLM_MODEL_NAME ?? 'gpt-4o',
+    model: options?.model ?? process.env.LLM_MODEL_NAME ?? 'glm-5',
   });
 }
 
@@ -32,12 +32,18 @@ export async function assessComplexity(
   userMessage: string,
   conversationHistory?: string,
   context?: AgentContext,
+  execMode?: 'simple' | 'medium',
 ): Promise<ComplexityAssessment> {
   const agent = createChatJudgeAgent();
 
-  const prompt = conversationHistory
+  let prompt = conversationHistory
     ? `## Conversation History\n${conversationHistory}\n\n## Current User Message\n${userMessage}`
     : userMessage;
+
+  if (execMode) {
+    const modeLabel = execMode === 'medium' ? 'Team 模式（多 Agent 协作）' : '简单模式（单 Agent）';
+    prompt += `\n\n## User Execution Mode Preference\n用户当前执行模式偏好: ${modeLabel}`;
+  }
 
   const result = await agent.runOnce(prompt, context ?? {});
 
