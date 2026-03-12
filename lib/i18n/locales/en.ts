@@ -40,6 +40,10 @@ const en: TranslationDict = {
   'sidebar.projects': 'Projects',
   'sidebar.noMatches': 'No matches found',
   'sidebar.noProjects': 'No projects yet',
+  'sidebar.lightTasks': 'Light Tasks',
+  'sidebar.noLightTasks': 'No light tasks yet',
+  'sidebar.complexProjects': 'Complex Projects',
+  'sidebar.noComplexProjects': 'No complex projects yet',
   'sidebar.deliverables': 'Deliverables',
   'sidebar.noDeliverables': 'No deliverables yet',
   'deliverable.copy': 'Copy Content',
@@ -89,6 +93,7 @@ const en: TranslationDict = {
   'chat.systemDesignExample': 'Design a microservices architecture for our e-commerce platform',
   'chat.placeholder': 'Ask anything or describe what you need...',
   'chat.enterToSend': 'Enter to send, Shift+Enter for new line',
+  'chat.sendWillInterrupt': 'Sending will interrupt current generation',
   'chat.signalSummary': '/signal-summary for daily signals',
   'chat.commands': 'Commands',
 

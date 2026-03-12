@@ -40,6 +40,10 @@ const zh: TranslationDict = {
   'sidebar.projects': '项目',
   'sidebar.noMatches': '未找到匹配项',
   'sidebar.noProjects': '暂无项目',
+  'sidebar.lightTasks': '轻量任务',
+  'sidebar.noLightTasks': '暂无轻量任务',
+  'sidebar.complexProjects': '复杂任务',
+  'sidebar.noComplexProjects': '暂无复杂任务',
   'sidebar.deliverables': '对话产出',
   'sidebar.noDeliverables': '暂无产出',
   'deliverable.copy': '复制内容',
@@ -89,6 +93,7 @@ const zh: TranslationDict = {
   'chat.systemDesignExample': '为我们的电商平台设计微服务架构',
   'chat.placeholder': '输入任何内容或描述你的需求...',
   'chat.enterToSend': '回车发送，Shift+回车换行',
+  'chat.sendWillInterrupt': '发送新消息将中断当前生成',
   'chat.signalSummary': '/signal-summary 获取每日信号',
   'chat.commands': '命令',
 

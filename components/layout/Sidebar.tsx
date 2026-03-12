@@ -24,7 +24,7 @@ import {
   MessageSquare,
   Settings2,
   Bell,
-  FileText,
+  Zap,
 } from "lucide-react";
 import clsx from "clsx";
 import type { Project } from "@/projects/types";
@@ -289,10 +289,9 @@ export function Sidebar({
   const searchParams = useSearchParams();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [projectsFolderOpen, setProjectsFolderOpen] = useState(false);
   const [conversationsFolderOpen, setConversationsFolderOpen] = useState(false);
-  const [deliverablesFolderOpen, setDeliverablesFolderOpen] = useState(false);
-  const [confirmingDeliverableDeleteId, setConfirmingDeliverableDeleteId] = useState<string | null>(null);
+  const [projectsFolderOpen, setProjectsFolderOpen] = useState(false);
+  const [lightTasksFolderOpen, setLightTasksFolderOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(pathname === "/settings");
   const [openSettingsSection, setOpenSettingsSection] = useState<SettingsSectionKey | null>(null);
 
@@ -319,23 +318,17 @@ export function Sidebar({
     setOpenSettingsSection(activeSettingsSection);
   }, [isSettingsActive, activeSettingsSection]);
 
-  const fullProjects = projects.filter(p => !p.is_light);
-  const lightProjects = projects.filter(p => p.is_light);
-
   const filteredProjects = searchQuery
-    ? fullProjects.filter((p) =>
+    ? projects.filter((p) =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : fullProjects;
+    : projects;
 
-  const filteredDeliverables = searchQuery
-    ? lightProjects.filter((p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : lightProjects;
+  const regularProjects = filteredProjects.filter((p) => !p.is_light);
+  const lightProjects = filteredProjects.filter((p) => p.is_light);
 
-  const groups = groupByTime(filteredProjects, t);
-  const deliverableGroups = groupByTime(filteredDeliverables, t);
+  const groups = groupByTime(regularProjects, t);
+  const lightGroups = groupByTime(lightProjects, t);
 
   const handleSelect = useCallback(
     (id: string) => {
@@ -343,14 +336,6 @@ export function Sidebar({
       router.push(`/projects/${id}`);
     },
     [onSelectProject, router]
-  );
-
-  const handleSelectDeliverable = useCallback(
-    (id: string) => {
-      onSelectDeliverable?.(id);
-      router.push(`/deliverables/${id}`);
-    },
-    [onSelectDeliverable, router]
   );
 
   return (
@@ -436,175 +421,145 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Deliverables Folder */}
-      <div className="px-2 mb-1">
-        <button
-          onClick={() => setDeliverablesFolderOpen(!deliverablesFolderOpen)}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-        >
-          <ChevronRight
-            className={clsx(
-              "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-              deliverablesFolderOpen && "rotate-90"
-            )}
-          />
-          <FileText className="w-4 h-4 flex-shrink-0" />
-          <span className="font-medium">{t('sidebar.deliverables')}</span>
-          <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-            {lightProjects.length}
-          </span>
-        </button>
-
-        {deliverablesFolderOpen && (
-          <div className="mt-1 pl-2">
-            {deliverableGroups.length === 0 ? (
-              <div className="px-3 py-4 text-center">
-                <p className="text-xs text-zinc-600">
-                  {searchQuery ? t('sidebar.noMatches') : t('sidebar.noDeliverables')}
-                </p>
-              </div>
-            ) : (
-              deliverableGroups.map((group) => (
-                <div key={group.label} className="mb-2">
-                  <div className="px-3 py-1">
-                    <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
-                      {group.label}
-                    </span>
-                  </div>
-                  <div className="space-y-0.5">
-                    {group.projects.map((project) => (
-                      <div key={project.id} className="group/deliv relative">
-                        <button
-                          onClick={() => handleSelectDeliverable(project.id)}
-                          className={clsx(
-                            "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
-                            activeDeliverableId === project.id
-                              ? "bg-zinc-800 text-zinc-100"
-                              : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-                          )}
-                        >
-                          <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate flex-1">{project.name}</span>
-                        </button>
-                        {onDeleteProject && confirmingDeliverableDeleteId !== project.id && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setConfirmingDeliverableDeleteId(project.id);
-                            }}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover/deliv:opacity-100 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                            title={t('common.delete')}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {confirmingDeliverableDeleteId === project.id && (
-                          <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl p-3 w-52">
-                            <p className="text-xs text-zinc-300 mb-2">{t('dashboard.confirmDelete', { name: project.name })}</p>
-                            <div className="flex gap-2 justify-end">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setConfirmingDeliverableDeleteId(null); }}
-                                className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 rounded transition-colors"
-                              >
-                                {t('common.cancel')}
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setConfirmingDeliverableDeleteId(null); onDeleteProject?.(project.id); }}
-                                className="px-2 py-1 text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded transition-colors"
-                              >
-                                {t('common.delete')}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Projects Folder */}
+      {/* Projects area */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Folder header */}
-        <button
-          onClick={() => setProjectsFolderOpen(!projectsFolderOpen)}
-          className="flex items-center gap-2.5 px-5 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-        >
-          <ChevronRight
-            className={clsx(
-              "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-              projectsFolderOpen && "rotate-90"
-            )}
-          />
-          <FolderOpen className="w-4 h-4 flex-shrink-0" />
-          <span className="font-medium">{t('sidebar.projects')}</span>
-          <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-            {fullProjects.length}
-          </span>
-        </button>
-
-        {/* Folder content */}
-        {projectsFolderOpen && (
-          <div className="flex-1 flex flex-col min-h-0">
-            {/* Search inside folder */}
-            <div className="px-3 py-1.5">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('common.search')}
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
-                />
-              </div>
-            </div>
-
-            {/* Project list */}
-            <div className="flex-1 overflow-y-auto px-2 pb-2">
-              {groups.length === 0 && (
-                <div className="px-3 py-6 text-center">
-                  <p className="text-xs text-zinc-600">
-                    {searchQuery ? t('sidebar.noMatches') : t('sidebar.noProjects')}
-                  </p>
-                </div>
-              )}
-              {groups.map((group) => (
-                <div key={group.label} className="mb-2">
-                  <div className="px-3 py-1">
-                    <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
-                      {group.label}
-                    </span>
-                  </div>
-                  <div className="space-y-0.5">
-                    {group.projects.map((project) => (
-                      <ProjectItem
-                        key={project.id}
-                        project={project}
-                        isActive={activeProjectId === project.id}
-                        onSelect={() => handleSelect(project.id)}
-                        onRename={
-                          onRenameProject
-                            ? (name) => onRenameProject(project.id, name)
-                            : undefined
-                        }
-                        onDelete={
-                          onDeleteProject
-                            ? () => onDeleteProject(project.id)
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Search (filters both sections) */}
+        <div className="px-3 py-1.5">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('common.search')}
+              className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+            />
           </div>
-        )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2 pb-2">
+          {/* Complex Projects */}
+          <div className="mb-1">
+            <button
+              onClick={() => setProjectsFolderOpen(!projectsFolderOpen)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <ChevronRight
+                className={clsx(
+                  "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
+                  projectsFolderOpen && "rotate-90"
+                )}
+              />
+              <FolderOpen className="w-4 h-4 flex-shrink-0" />
+              <span className="font-medium">{t('sidebar.complexProjects')}</span>
+              <span className="ml-auto text-[10px] text-zinc-600 font-mono">
+                {regularProjects.length}
+              </span>
+            </button>
+
+            {projectsFolderOpen && (
+              <div className="pb-1">
+                {groups.length === 0 && (
+                  <div className="px-3 py-4 text-center">
+                    <p className="text-xs text-zinc-600">
+                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noComplexProjects')}
+                    </p>
+                  </div>
+                )}
+                {groups.map((group) => (
+                  <div key={group.label} className="mb-2">
+                    <div className="px-3 py-1">
+                      <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
+                        {group.label}
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {group.projects.map((project) => (
+                        <ProjectItem
+                          key={project.id}
+                          project={project}
+                          isActive={activeProjectId === project.id}
+                          onSelect={() => handleSelect(project.id)}
+                          onRename={
+                            onRenameProject
+                              ? (name) => onRenameProject(project.id, name)
+                              : undefined
+                          }
+                          onDelete={
+                            onDeleteProject
+                              ? () => onDeleteProject(project.id)
+                              : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Light Tasks */}
+          <div className="mb-1">
+            <button
+              onClick={() => setLightTasksFolderOpen(!lightTasksFolderOpen)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <ChevronRight
+                className={clsx(
+                  "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
+                  lightTasksFolderOpen && "rotate-90"
+                )}
+              />
+              <Zap className="w-4 h-4 flex-shrink-0" />
+              <span className="font-medium">{t('sidebar.lightTasks')}</span>
+              <span className="ml-auto text-[10px] text-zinc-600 font-mono">
+                {lightProjects.length}
+              </span>
+            </button>
+
+            {lightTasksFolderOpen && (
+              <div className="pb-1">
+                {lightGroups.length === 0 && (
+                  <div className="px-3 py-4 text-center">
+                    <p className="text-xs text-zinc-600">
+                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noLightTasks')}
+                    </p>
+                  </div>
+                )}
+                {lightGroups.map((group) => (
+                  <div key={group.label} className="mb-1">
+                    <div className="px-3 py-0.5">
+                      <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
+                        {group.label}
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {group.projects.map((project) => (
+                        <ProjectItem
+                          key={project.id}
+                          project={project}
+                          isActive={activeProjectId === project.id}
+                          onSelect={() => handleSelect(project.id)}
+                          onRename={
+                            onRenameProject
+                              ? (name) => onRenameProject(project.id, name)
+                              : undefined
+                          }
+                          onDelete={
+                            onDeleteProject
+                              ? () => onDeleteProject(project.id)
+                              : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Signals nav */}
