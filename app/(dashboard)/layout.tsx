@@ -10,6 +10,7 @@ import { ClarificationForm } from "@/components/chat/ClarificationForm";
 import { DMDecisionPanel } from "@/components/chat/DMDecisionPanel";
 import { ToolApprovalPanel } from "@/components/chat/ToolApprovalPanel";
 import { ArchitectResumePanel } from "@/components/chat/ArchitectResumePanel";
+import { SolutionPreviewPanel } from "@/components/chat/SolutionPreviewPanel";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { useTranslation } from "@/lib/i18n";
 import type { Project } from "@/projects/types";
@@ -46,6 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const dmPanelVisible = usePulseStore((s) => s.dmPanel.visible);
   const toolApprovalVisible = usePulseStore((s) => s.toolApprovalPanel.visible);
   const architectPanelVisible = usePulseStore((s) => s.architectPanel.visible);
+  const solutionPanelVisible = usePulseStore((s) => s.solutionPanel.visible);
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
 
   const reconciledRef = useRef(false);
@@ -149,6 +151,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? <ToolApprovalPanel />
     : architectPanelVisible
     ? <ArchitectResumePanel />
+    : solutionPanelVisible
+    ? <SolutionPreviewPanel />
     : teamPanelVisible
     ? <AgentTeamPanel />
     : undefined;
@@ -157,7 +161,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <DashboardShell
       sidebarOpen={sidebarOpen}
       onToggleSidebar={toggleSidebar}
-      rightPanelOpen={!teamCollaborationActive && (clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || architectPanelVisible || teamPanelVisible)}
+      rightPanelOpen={!teamCollaborationActive && (clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || architectPanelVisible || solutionPanelVisible || teamPanelVisible)}
       sidebar={
         <Sidebar
           projects={projects}

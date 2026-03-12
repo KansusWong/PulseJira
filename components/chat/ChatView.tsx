@@ -7,7 +7,7 @@ import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage, ChatEvent, ComplexityAssessment, DecisionOutput, StructuredRequirements, StructuredAgentStep } from "@/lib/core/types";
+import type { ChatMessage, ChatEvent, ComplexityAssessment, DecisionOutput, StructuredRequirements, StructuredAgentStep, CodeSolutionProposal } from "@/lib/core/types";
 import { StreamingStepIndicator } from "./StreamingStepIndicator";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
 
@@ -31,6 +31,7 @@ export function ChatView() {
   const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
   const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
   const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
+  const showSolutionPanel = usePulseStore((s) => s.showSolutionPanel);
   const addProject = usePulseStore((s) => s.addProject);
   const setRunning = usePulseStore((s) => s.setRunning);
   const addAgentLog = usePulseStore((s) => s.addAgentLog);
@@ -86,6 +87,42 @@ export function ChatView() {
       })
       .catch((err) => console.error('[ChatView] Failed to load messages:', err));
   }, [activeConversationId, setMessages]);
+
+  // 恢复 plan panel（刷新页面后的 fallback）
+  useEffect(() => {
+    if (!activeConversationId) return;
+
+    // 已经在显示 → 跳过
+    const { planPanel } = usePulseStore.getState();
+    if (planPanel.visible && planPanel.assessment) return;
+
+    // 找到 store 中的 conversation
+    const conv = usePulseStore.getState().conversations.find(
+      (c) => c.id === activeConversationId
+    );
+    // 已执行（有 project）或已归档 → 不恢复
+    if (conv?.project_id || (conv && conv.status !== 'active')) return;
+
+    // 快速路径：store 中已有 assessment（localStorage 恢复）
+    if (conv?.complexity_assessment) {
+      showPlanPanel(conv.complexity_assessment);
+      return;
+    }
+
+    // 慢速路径：从 API 拉取
+    const currentConvId = activeConversationId;
+    fetch(`/api/conversations/${currentConvId}/plan`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.success || !json.data?.assessment) return;
+        // 防竞态：用户可能已切走
+        const currentState = usePulseStore.getState();
+        if (currentState.activeConversationId !== currentConvId) return;
+        if (currentState.planPanel.visible && currentState.planPanel.assessment) return;
+        showPlanPanel(json.data.assessment);
+      })
+      .catch(() => {});
+  }, [activeConversationId, showPlanPanel]);
 
   // Auto-scroll to bottom — only on new messages, not on streaming step updates.
   // Also skip if the user has scrolled up (not near bottom).
@@ -248,6 +285,12 @@ export function ChatView() {
         case "plan_update": {
           if (event.data.status === "pending_approval") {
             showPlanPanel(event.data.assessment);
+            // 持久化 assessment 到 conversation 对象 (→ localStorage)
+            const updateConv = usePulseStore.getState().updateConversation;
+            updateConv(conversationId, {
+              complexity_assessment: event.data.assessment,
+              execution_mode: event.data.assessment.execution_mode,
+            });
           }
           break;
         }
@@ -346,6 +389,14 @@ export function ChatView() {
             toolArgs: event.data.tool_args,
             agentName: event.data.agent_name,
           });
+          break;
+        }
+
+        case "solution_proposal": {
+          if (event.data.status === "pending_selection") {
+            const proposal = event.data.proposal as CodeSolutionProposal;
+            showSolutionPanel(proposal);
+          }
           break;
         }
 

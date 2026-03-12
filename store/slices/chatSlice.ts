@@ -9,11 +9,12 @@ import type {
   TeamStatus,
   StructuredRequirements,
   StructuredAgentStep,
+  CodeSolutionProposal,
 } from '@/lib/core/types';
 
 export type PlanStepStatus = 'pending' | 'active' | 'completed' | 'skipped';
 
-/** Snapshot of all 6 right-side panel states — used for per-conversation caching. */
+/** Snapshot of all right-side panel states — used for per-conversation caching. */
 export interface PanelSnapshot {
   planPanel: ChatSlice['planPanel'];
   clarificationPanel: ChatSlice['clarificationPanel'];
@@ -21,6 +22,7 @@ export interface PanelSnapshot {
   toolApprovalPanel: ChatSlice['toolApprovalPanel'];
   architectPanel: ChatSlice['architectPanel'];
   teamPanel: ChatSlice['teamPanel'];
+  solutionPanel: ChatSlice['solutionPanel'];
   teamCollaboration: ChatSlice['teamCollaboration'];
   streamingSteps: ChatSlice['streamingSteps'];
 }
@@ -87,6 +89,14 @@ export interface ChatSlice {
     communications: AgentMailMessage[];
   };
 
+  // Solution proposal panel state (code solution selection)
+  solutionPanel: {
+    visible: boolean;
+    proposal: CodeSolutionProposal | null;
+    selectedSolutionId: string | null;
+    status: 'pending' | 'approved' | 'rejected' | 'idle';
+  };
+
   // Streaming steps (shared by StreamingStepIndicator and TeamCollaborationView)
   streamingSteps: StructuredAgentStep[];
 
@@ -134,6 +144,12 @@ export interface ChatSlice {
   updateTeamStatus: (status: TeamStatus) => void;
   addTeamCommunication: (message: AgentMailMessage) => void;
 
+  showSolutionPanel: (proposal: CodeSolutionProposal) => void;
+  hideSolutionPanel: () => void;
+  selectSolution: (solutionId: string) => void;
+  approveSolution: () => void;
+  rejectSolution: () => void;
+
   addStreamingStep: (step: StructuredAgentStep) => void;
   clearStreamingSteps: () => void;
   setTeamCollaborationActive: (active: boolean) => void;
@@ -150,6 +166,7 @@ const DEFAULT_PANELS: PanelSnapshot = {
   toolApprovalPanel: { visible: false, approvalId: null, toolName: null, toolArgs: null, agentName: null, status: 'idle' },
   architectPanel: { visible: false, status: 'idle', stepsCompleted: 0, errorMessage: null, attempt: 0 },
   teamPanel: { visible: false, teamId: null, agents: [], communications: [] },
+  solutionPanel: { visible: false, proposal: null, selectedSolutionId: null, status: 'idle' },
   teamCollaboration: { active: false, collapsed: false },
   streamingSteps: [],
 };
@@ -204,6 +221,13 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     communications: [],
   },
 
+  solutionPanel: {
+    visible: false,
+    proposal: null,
+    selectedSolutionId: null,
+    status: 'idle',
+  },
+
   streamingSteps: [],
 
   teamCollaboration: {
@@ -232,6 +256,7 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         toolApprovalPanel: state.toolApprovalPanel,
         architectPanel: state.architectPanel,
         teamPanel: state.teamPanel,
+        solutionPanel: state.solutionPanel,
         teamCollaboration: state.teamCollaboration,
         streamingSteps: state.streamingSteps,
       };
@@ -242,6 +267,7 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         || snapshot.toolApprovalPanel.visible || snapshot.toolApprovalPanel.approvalId !== null
         || snapshot.architectPanel.visible || snapshot.architectPanel.status !== 'idle'
         || snapshot.teamPanel.visible || snapshot.teamPanel.teamId !== null
+        || snapshot.solutionPanel.visible || snapshot.solutionPanel.proposal !== null
         || snapshot.teamCollaboration.active;
 
       if (hasState) {
@@ -485,6 +511,36 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         ...state.teamPanel,
         communications: [...state.teamPanel.communications, message],
       },
+    })),
+
+  showSolutionPanel: (proposal) =>
+    set({
+      solutionPanel: {
+        visible: true,
+        proposal,
+        selectedSolutionId: null,
+        status: 'pending',
+      },
+    }),
+
+  hideSolutionPanel: () =>
+    set((state) => ({
+      solutionPanel: { ...state.solutionPanel, visible: false },
+    })),
+
+  selectSolution: (solutionId) =>
+    set((state) => ({
+      solutionPanel: { ...state.solutionPanel, selectedSolutionId: solutionId },
+    })),
+
+  approveSolution: () =>
+    set((state) => ({
+      solutionPanel: { ...state.solutionPanel, status: 'approved' },
+    })),
+
+  rejectSolution: () =>
+    set((state) => ({
+      solutionPanel: { ...state.solutionPanel, status: 'rejected', visible: false },
     })),
 
   addStreamingStep: (step) =>

@@ -105,6 +105,12 @@ export interface MetaPipelineOptions {
   assessmentContext?: string;
   /** Workspace for file-system scoped tools (read_file, list_files). */
   workspace?: Workspace;
+  /** Agent execution mode from user preferences (gates Architect tool set). */
+  execMode?: 'simple' | 'medium';
+  /** Team ID for team-aware tools (view_team_status). */
+  teamId?: string;
+  /** Trust level from user preferences (controls solution proposal behavior). */
+  trustLevel?: 'auto' | 'collaborative';
 }
 
 /**
@@ -341,6 +347,9 @@ export async function runArchitectPhase(
     blackboard: options.blackboard,
     initialMessages: options.initialMessages,
     workspace: options.workspace,
+    execMode: options.execMode,
+    teamId: options.teamId,
+    trustLevel: options.trustLevel,
   });
 
   const rawArchitectResult = await architect.run(architectInput, {

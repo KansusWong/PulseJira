@@ -337,6 +337,7 @@ export type ChatEventType =
   | 'dm_decision'
   | 'tool_approval_required'
   | 'tool_approval_resolved'
+  | 'solution_proposal'
   | 'architect_failed'
   | 'architect_resuming'
   | 'error'
@@ -352,7 +353,7 @@ export interface ChatEvent {
 export interface StructuredAgentStep {
   id: string;
   agent: string;
-  kind: 'thinking' | 'tool_call' | 'tool_result' | 'completion';
+  kind: 'thinking' | 'tool_call' | 'tool_result' | 'completion' | 'text';
   stepNumber?: number;
   toolName?: string;
   toolLabel?: string;
@@ -387,4 +388,31 @@ export interface UserIntervention {
   target_task?: string;
   instruction?: string;
   priority?: 'high' | 'medium' | 'low';
+}
+
+/** Code file change in a solution proposal. */
+export interface CodeFileChange {
+  path: string;              // File path relative to workspace
+  action: 'create' | 'edit' | 'delete';
+  content?: string;          // New content (for create/edit)
+  original_content?: string; // Original content (for edit, to show diff)
+  description?: string;      // Description of the change
+}
+
+/** Single code implementation solution. */
+export interface CodeSolution {
+  id: string;                // Unique solution ID
+  name: string;              // Solution name (e.g., "Solution A: Use Redux")
+  rationale: string;         // Why this solution
+  trade_offs: string[];      // Pros and cons
+  files: CodeFileChange[];   // File changes
+  estimated_lines: number;   // Estimated total lines of code
+  risk_level: 'low' | 'medium' | 'high';
+}
+
+/** Code solution proposal with multiple options for user selection. */
+export interface CodeSolutionProposal {
+  context: string;           // Problem context / requirement background
+  solutions: CodeSolution[]; // List of solutions (typically 2-3)
+  recommended_index: number; // Index of recommended solution
 }

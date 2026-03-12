@@ -1523,6 +1523,7 @@ export class ChatEngine {
         workspace,
         execMode,
         teamId,
+        trustLevel,
         logger: async (msg: string) => {
           const step = this.transformAgentLog(msg);
           if (step) {
@@ -1548,6 +1549,25 @@ export class ChatEngine {
 
           // Drain pending checkpoint writes before marking complete
           await checkpointQueue;
+
+          // Check for solution proposal in blackboard (collaborative mode only)
+          const solutionProposal = blackboard.read('architect.solution_proposal');
+          if (solutionProposal && trustLevel === 'collaborative') {
+            // Send solution_proposal SSE event
+            channel.push({
+              type: 'solution_proposal',
+              data: {
+                status: 'pending_selection',
+                proposal: solutionProposal,
+              },
+            });
+
+            // Save proposal to conversation for state restoration
+            await this.updateConversation(conversationId, {
+              solution_proposal: solutionProposal,
+              solution_status: 'pending',
+            } as any).catch(err => console.error('[ChatEngine] Save solution proposal failed:', err));
+          }
 
           // Mark completed, store result, clear checkpoint
           await this.updateConversation(conversationId, {
