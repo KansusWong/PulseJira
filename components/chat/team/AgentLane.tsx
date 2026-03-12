@@ -194,10 +194,10 @@ export function AgentLane({ agentName, status, currentTask, steps }: Props) {
                 {hasResult && (
                   <div
                     className={`ml-4 text-[10px] ${
-                      success ? "text-zinc-600" : "text-red-400/70"
-                    }`}
+                      success ? "text-zinc-500" : "text-red-400/70"
+                    } break-words`}
                   >
-                    └ {success ? "完成" : `失败: ${item.resultStep!.resultPreview || "?"}`}
+                    └ {success ? item.resultStep!.resultPreview || "完成" : `失败: ${item.resultStep!.resultPreview || "?"}`}
                   </div>
                 )}
               </div>
