@@ -390,6 +390,23 @@ export class ChatEngine {
     conversationId: string,
     mode: ExecutionMode,
   ): AsyncGenerator<ChatEvent> {
+    // Atomic lock: only one request can convert a conversation from 'active' to 'converted'
+    if (supabaseConfigured) {
+      const { data: locked } = await supabase
+        .from('conversations')
+        .update({ status: 'converted', updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+        .eq('status', 'active')
+        .select()
+        .single();
+
+      if (!locked) {
+        yield { type: 'error', data: { message: '该计划已在执行中。' } };
+        yield { type: 'done', data: { conversation_id: conversationId } };
+        return;
+      }
+    }
+
     const conversation = await this.getOrCreateConversation(conversationId);
     const messages = await this.getMessages(conversationId);
     const assessment = conversation.complexity_assessment;
@@ -423,7 +440,6 @@ export class ChatEngine {
 
         await this.updateConversation(conversationId, {
           project_id: project.id,
-          status: 'converted',
         } as any);
 
         // Update context so downstream handlers have the project_id
@@ -452,6 +468,23 @@ export class ChatEngine {
     conversationId: string,
     requirements: StructuredRequirements,
   ): AsyncGenerator<ChatEvent> {
+    // Atomic lock: only one request can convert a conversation from 'active' to 'converted'
+    if (supabaseConfigured) {
+      const { data: locked } = await supabase
+        .from('conversations')
+        .update({ status: 'converted', updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+        .eq('status', 'active')
+        .select()
+        .single();
+
+      if (!locked) {
+        yield { type: 'error', data: { message: '该计划已在执行中。' } };
+        yield { type: 'done', data: { conversation_id: conversationId } };
+        return;
+      }
+    }
+
     const conversation = await this.getOrCreateConversation(conversationId);
 
     let projectId = conversation.project_id;
@@ -483,7 +516,6 @@ export class ChatEngine {
     // Link conversation to project + store structured requirements
     await this.updateConversation(conversation.id, {
       project_id: projectId,
-      status: 'converted',
       structured_requirements: requirements,
     } as any);
 
@@ -757,6 +789,23 @@ export class ChatEngine {
       }
 
       if (!project) {
+        // Atomic lock: prevent duplicate project creation for the same conversation
+        if (supabaseConfigured) {
+          const { data: locked } = await supabase
+            .from('conversations')
+            .update({ status: 'converted', updated_at: new Date().toISOString() })
+            .eq('id', conversationId)
+            .eq('status', 'active')
+            .select()
+            .single();
+
+          if (!locked) {
+            channel.push({ type: 'error', data: { message: '该任务已在执行中。' } });
+            channel.close();
+            return;
+          }
+        }
+
         channel.push({ type: 'agent_log', data: { message: '正在生成项目名称...' } });
         const projectName = await generateProjectName(context.userMessage, { isLight: true });
         channel.push({ type: 'agent_log', data: { message: '正在创建轻量项目...' } });
@@ -943,7 +992,7 @@ export class ChatEngine {
         systemPrompt: CLARIFICATION_SYSTEM_PROMPT,
         tools: [],
         maxLoops: 1,
-        model: process.env.LLM_MODEL_NAME ?? 'gpt-4o',
+        model: process.env.LLM_MODEL_NAME ?? 'glm-5',
       });
 
       // Build context with all Q&A so far
@@ -1393,6 +1442,8 @@ export class ChatEngine {
         conversationHistory: architectHistory,
         assessmentContext: architectAssessmentCtx,
         workspace,
+        execMode,
+        teamId,
         logger: async (msg: string) => {
           const step = this.transformAgentLog(msg);
           if (step) {
@@ -1520,25 +1571,39 @@ export class ChatEngine {
    * Validates state, updates approval status, then runs Architect phase.
    */
   async *executeDmApproval(conversationId: string): AsyncGenerator<ChatEvent> {
+    // Atomic lock: only one request can approve DM from 'pending' to 'approved'
+    if (supabaseConfigured) {
+      const { data: locked } = await supabase
+        .from('conversations')
+        .update({ dm_approval_status: 'approved', updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+        .eq('dm_approval_status', 'pending')
+        .select()
+        .single();
+
+      if (!locked) {
+        yield { type: 'error', data: { message: 'DM 审批已处理。' } };
+        yield { type: 'done', data: { conversation_id: conversationId } };
+        return;
+      }
+    }
+
     const conversation = await this.getOrCreateConversation(conversationId);
 
-    // Validate: must have a PROCEED decision with pending approval
+    // Validate: must have a PROCEED decision
     const dmDecision = conversation.dm_decision as DecisionOutput | null | undefined;
     if (!dmDecision || dmDecision.decision !== 'PROCEED') {
       yield { type: 'error', data: { message: 'No PROCEED decision found for this conversation.' } };
       yield { type: 'done', data: { conversation_id: conversationId } };
       return;
     }
-    if (conversation.dm_approval_status !== 'pending') {
+
+    // Non-DB mode fallback: check status from in-memory conversation
+    if (!supabaseConfigured && conversation.dm_approval_status !== 'pending') {
       yield { type: 'error', data: { message: `DM approval is not pending (current: ${conversation.dm_approval_status}).` } };
       yield { type: 'done', data: { conversation_id: conversationId } };
       return;
     }
-
-    // Mark as approved
-    await this.updateConversation(conversationId, {
-      dm_approval_status: 'approved',
-    } as any);
 
     // Build context for architect phase
     const messages = await this.getMessages(conversationId);

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import {
@@ -49,11 +50,14 @@ export function PlanPanel() {
 
   const router = useRouter();
   const { t } = useTranslation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!assessment) return null;
 
   const handleApprove = async () => {
+    if (isSubmitting) return;
     if (!activeConversationId) return;
+    setIsSubmitting(true);
     approvePlan();
     setStreaming(true);
     try {
@@ -81,6 +85,7 @@ export function PlanPanel() {
       // Don't update state — user can retry
     } finally {
       setStreaming(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -199,14 +204,16 @@ export function PlanPanel() {
         <div className="flex items-center gap-2 px-4 py-3 border-t border-zinc-800/50">
           <button
             onClick={handleApprove}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors"
+            disabled={isSubmitting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <CheckCircle2 className="w-4 h-4" />
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {t('plan.approve')}
           </button>
           <button
             onClick={handleReject}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors"
+            disabled={isSubmitting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
             {t('plan.reject')}

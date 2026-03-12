@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   X,
   CheckCircle2,
@@ -37,8 +37,11 @@ export function DMDecisionPanel() {
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
 
   const { t } = useTranslation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleApprove = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     approveDm();
 
     if (activeConversationId) {
@@ -54,11 +57,17 @@ export function DMDecisionPanel() {
         await processSSEResponse(res, activeConversationId);
       } catch {
         // Error handling via SSE stream
+      } finally {
+        setIsSubmitting(false);
       }
+    } else {
+      setIsSubmitting(false);
     }
-  }, [activeConversationId, approveDm]);
+  }, [activeConversationId, approveDm, isSubmitting]);
 
   const handleReject = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     rejectDm();
 
     if (activeConversationId) {
@@ -73,9 +82,13 @@ export function DMDecisionPanel() {
         );
       } catch {
         // Ignore
+      } finally {
+        setIsSubmitting(false);
       }
+    } else {
+      setIsSubmitting(false);
     }
-  }, [activeConversationId, rejectDm]);
+  }, [activeConversationId, rejectDm, isSubmitting]);
 
   if (!decision) return null;
 
@@ -210,14 +223,16 @@ export function DMDecisionPanel() {
         <div className="flex items-center gap-2 px-4 py-3 border-t border-zinc-800/50">
           <button
             onClick={handleApprove}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors"
+            disabled={isSubmitting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <CheckCircle2 className="w-4 h-4" />
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {t("dm.approve")}
           </button>
           <button
             onClick={handleReject}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors"
+            disabled={isSubmitting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
             {t("dm.reject")}
