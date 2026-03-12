@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from '@/lib/i18n';
@@ -12,6 +12,7 @@ import { StreamingStepIndicator } from "./StreamingStepIndicator";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
 
 export function ChatView() {
+  const { t } = useTranslation();
   const router = useRouter();
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
   const messages = usePulseStore((s) =>
@@ -47,6 +48,20 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Fetch user execution mode preference
+  const [execMode, setExecMode] = useState<'simple' | 'medium' | null>(null);
+
+  useEffect(() => {
+    fetch('/api/settings/preferences')
+      .then(r => r.json())
+      .then(json => {
+        if (json.success && json.data?.preferences) {
+          setExecMode(json.data.preferences.agentExecutionMode || 'simple');
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Abort active stream if conversation changes or is deleted
   useEffect(() => {
@@ -385,6 +400,24 @@ export function ChatView() {
     <div className="flex flex-col h-full">
       {/* Messages area */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        {/* Mode badge — sticky top-left */}
+        {execMode && (
+          <div className="sticky top-0 z-10 px-4 pt-3">
+            <span className={
+              execMode === 'medium'
+                ? "inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20"
+                : "inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-green-500/10 text-green-500 border border-green-500/20"
+            }>
+              <span className={
+                execMode === 'medium'
+                  ? "w-1.5 h-1.5 rounded-full bg-yellow-400"
+                  : "w-1.5 h-1.5 rounded-full bg-green-400"
+              } />
+              {execMode === 'medium' ? t('chat.modeTeam') : t('chat.modeSimple')}
+            </span>
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <EmptyState onSend={handleSend} />
         ) : (

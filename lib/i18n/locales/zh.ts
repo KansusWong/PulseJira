@@ -96,6 +96,8 @@ const zh: TranslationDict = {
   'chat.sendWillInterrupt': '发送新消息将中断当前生成',
   'chat.signalSummary': '/signal-summary 获取每日信号',
   'chat.commands': '命令',
+  'chat.modeSimple': '简单模式',
+  'chat.modeTeam': '团队模式',
 
   // ── Message Bubble ──
   'chat.role.user': '你',

@@ -96,6 +96,8 @@ const en: TranslationDict = {
   'chat.sendWillInterrupt': 'Sending will interrupt current generation',
   'chat.signalSummary': '/signal-summary for daily signals',
   'chat.commands': 'Commands',
+  'chat.modeSimple': 'Simple',
+  'chat.modeTeam': 'Team',
 
   // ── Message Bubble ──
   'chat.role.user': 'You',
