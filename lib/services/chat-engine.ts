@@ -1836,11 +1836,21 @@ export class ChatEngine {
       if (id) insertPayload.id = id;
       const { data, error } = await supabase
         .from('conversations')
-        .insert(insertPayload)
+        .upsert(insertPayload, { onConflict: 'id', ignoreDuplicates: true })
         .select()
         .single();
 
       if (data) return data as Conversation;
+
+      // upsert with ignoreDuplicates may return null for existing rows — re-fetch
+      if (id) {
+        const { data: existing } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('id', id)
+          .single();
+        if (existing) return existing as Conversation;
+      }
       console.error('[ChatEngine] Failed to create conversation:', error);
     }
 
