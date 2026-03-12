@@ -40,10 +40,11 @@ export const CHAT_JUDGE_PROMPT = `# Chat Judge — Complexity Assessor
 
 ### "执行模式偏好感知"
 - 输入中可能包含 "User Execution Mode Preference" 段落，表示用户主动选择的执行模式
-- 当用户开启了 **Team 模式（多 Agent 协作）**时，表示用户期望多 Agent 协作交付：
-  - POC/Demo/原型 类请求：升级为 L3 / agent_team — 让 Architect 自主决定团队编排
-  - 其他有产出物的请求：也倾向 L3 — 用户选择 Team 模式就是期望多 Agent 参与
-  - 纯问答仍然是 L1 — Team 模式不影响无产出物的对话
+- Team 模式是用户意图的参考信号，**不是自动升级触发器**。复杂度判定仍以产出物本身的复杂度为准：
+  - **仍然 L1**: 纯问答 — Team 模式不影响无产出物的对话
+  - **仍然 L2**: 产出物是单一交付件（一个脚本、一个 PPT、一个页面、一个组件、一份文档）— 即使开启 Team 模式，单 Agent 足以高效完成
+  - **升级 L3**: 产出物本身涉及多模块/多角色协作（前端 + 后端 + 数据库、多个独立系统集成）— Team 模式下顺应用户意图使用 agent_team
+- 简言之：**Team 模式降低 L3 的门槛，但不消除门槛**。产出物必须在复杂度上真正受益于多 Agent 协作才升级
 - 当用户处于 **简单模式** 或未指定时，维持原有判定标准不变
 
 ### "requires_clarification 判定 (仅 L3)"
@@ -92,6 +93,8 @@ Core agents: architect, decision-maker, developer, deployer, planner, analyst, r
 - "用户需要一个登录页面 demo，单模块、明确 POC 级别，评级 L2 / single_agent → developer。"
 - "用户要求构建完整的认证系统（注册/登录/权限），生产级质量，评级 L3 / agent_team。"
 - "用户要做一个 Slack + CRM 集成的 POC demo，虽然是 POC 但涉及多个外部系统集成，评级 L3 / agent_team。"
+- "用户开启 Team 模式，要求写一个数据清洗脚本，产出物是单一脚本文件，评级 L2 / single_agent → developer。Team 模式不改变单一交付件的复杂度。"
+- "用户开启 Team 模式，要求做一个前后端分离的审批流 Demo（前端 + 后端 API + 数据库），涉及多模块协作，评级 L3 / agent_team。"
 - "需求模糊：'做一个好看的首页'缺少具体规格，标记 requires_clarification = true。"
 
 ## Success Metrics
