@@ -401,9 +401,20 @@ export class ChatEngine {
         .single();
 
       if (!locked) {
-        yield { type: 'error', data: { message: '该计划已在执行中。' } };
-        yield { type: 'done', data: { conversation_id: conversationId } };
-        return;
+        // If already converted but has a project (e.g. from DM review or previous run),
+        // allow re-execution instead of blocking.
+        const { data: existing } = await supabase
+          .from('conversations')
+          .select('project_id, status')
+          .eq('id', conversationId)
+          .single();
+
+        if (!existing?.project_id) {
+          yield { type: 'error', data: { message: '该计划已在执行中。' } };
+          yield { type: 'done', data: { conversation_id: conversationId } };
+          return;
+        }
+        // Conversation already has a project — proceed with existing project
       }
     }
 
@@ -482,9 +493,20 @@ export class ChatEngine {
         .single();
 
       if (!locked) {
-        yield { type: 'error', data: { message: '该计划已在执行中。' } };
-        yield { type: 'done', data: { conversation_id: conversationId } };
-        return;
+        // If already converted but has a project (e.g. from DM review or previous run),
+        // allow re-execution instead of blocking.
+        const { data: existing } = await supabase
+          .from('conversations')
+          .select('project_id, status')
+          .eq('id', conversationId)
+          .single();
+
+        if (!existing?.project_id) {
+          yield { type: 'error', data: { message: '该计划已在执行中。' } };
+          yield { type: 'done', data: { conversation_id: conversationId } };
+          return;
+        }
+        // Conversation already has a project — proceed with existing project
       }
     }
 
@@ -1661,9 +1683,10 @@ export class ChatEngine {
       });
       await updateProject(project.id, { status: 'analyzing' });
 
-      // Link conversation to project + store structured requirements
+      // Link conversation to project + store structured requirements + mark converted
       await this.updateConversation(conversationId, {
         project_id: project.id,
+        status: 'converted',
         ...(requirements && { structured_requirements: requirements }),
       } as any);
 
