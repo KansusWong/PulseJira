@@ -67,7 +67,7 @@ export function PlanPanel() {
       const res = await fetch(`/api/conversations/${activeConversationId}/plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
+        body: JSON.stringify({ action: "approve", execution_mode: assessment.execution_mode }),
       });
       await processSSEResponse(res, activeConversationId, {
         onProjectCreated: (data) => {

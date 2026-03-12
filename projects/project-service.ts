@@ -55,19 +55,28 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
 
 export async function updateProject(
   projectId: string,
-  updates: Partial<Pick<Project, 'name' | 'description' | 'status' | 'prepare_result' | 'plan_result' | 'signal_id'>>
+  updates: Partial<Pick<Project, 'name' | 'description' | 'status' | 'prepare_result' | 'plan_result' | 'signal_id' | 'agent_logs' | 'pipeline_checkpoint'>>
 ): Promise<Project> {
-  const { data, error } = await supabase
-    .from('projects')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', projectId)
-    .select()
-    .single();
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', projectId)
+        .select()
+        .single();
 
-  if (error) {
-    throw new Error(`Failed to update project: ${error.message}`);
+      if (!error) return data;
+      if (attempt === MAX_RETRIES) throw new Error(`Failed to update project: ${error.message}`);
+      console.error(`[ProjectService] updateProject attempt ${attempt}/${MAX_RETRIES} failed:`, error.message);
+    } catch (e: any) {
+      if (attempt === MAX_RETRIES) throw new Error(`Failed to update project: ${e.message}`);
+      console.error(`[ProjectService] updateProject attempt ${attempt}/${MAX_RETRIES} network error:`, e.message);
+    }
+    await new Promise(r => setTimeout(r, 500 * attempt));
   }
-  return data;
+  throw new Error('Failed to update project: exhausted retries');
 }
 
 export async function deleteProject(projectId: string): Promise<void> {

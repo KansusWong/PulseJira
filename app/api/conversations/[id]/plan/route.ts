@@ -44,7 +44,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   if (action === 'approve') {
     const conversation = await chatEngine.getOrCreateConversation(params.id);
-    const mode = conversation.execution_mode || 'single_agent';
+    // Use DB execution_mode first, fall back to frontend-provided mode
+    // (covers the case where the DB update for assessment failed silently)
+    const mode = conversation.execution_mode || body.execution_mode || 'single_agent';
     return makeSSEResponseFromGenerator(
       chatEngine.executePlan(params.id, mode),
       { signal: req.signal },

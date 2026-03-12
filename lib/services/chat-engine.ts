@@ -805,6 +805,9 @@ export class ChatEngine {
   private async *handleSingleAgentWithProject(context: ChatContext): AsyncGenerator<ChatEvent> {
     const channel = new EventChannel<ChatEvent>();
     const conversationId = context.conversation.id;
+    let abandoned = false;
+    let createdProjectId: string | null = null;
+    let agentCompleted = false;
 
     try {
       // Reuse existing light project if conversation already has one
@@ -828,9 +831,20 @@ export class ChatEngine {
             .single();
 
           if (!locked) {
-            channel.push({ type: 'error', data: { message: '该任务已在执行中。' } });
-            channel.close();
-            return;
+            // If already converted (e.g. executePlan already did CAS), allow proceeding
+            // as long as no project has been created yet
+            const { data: current } = await supabase
+              .from('conversations')
+              .select('project_id, status')
+              .eq('id', conversationId)
+              .single();
+
+            if (current?.project_id || current?.status !== 'converted') {
+              channel.push({ type: 'error', data: { message: '该任务已在执行中。' } });
+              channel.close();
+              return;
+            }
+            // status=converted but no project yet — safe to proceed
           }
         }
 
@@ -843,6 +857,7 @@ export class ChatEngine {
           is_light: true,
           conversation_id: conversationId,
         });
+        createdProjectId = project.id;
 
         // Mark as analyzing immediately so the API returns the correct status
         await updateProject(project.id, { status: 'analyzing' });
@@ -941,6 +956,14 @@ export class ChatEngine {
 
       agentPromise
         .then(async (result) => {
+          agentCompleted = true;
+
+          // If the SSE stream was abandoned (client disconnected), skip side effects
+          if (abandoned) {
+            unsubscribe();
+            return;
+          }
+
           const responseText = ChatEngine.extractResponse(result);
           const isExportable = /```[\s\S]*?```/.test(responseText) || responseText.length > 800;
           const metadata = isExportable ? { exportable: true } : undefined;
@@ -972,6 +995,12 @@ export class ChatEngine {
           unsubscribe();
         })
         .catch(async (error: unknown) => {
+          // If the SSE stream was abandoned, skip side effects
+          if (abandoned) {
+            unsubscribe();
+            return;
+          }
+
           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 
           // Fix 2: Update placeholder message with error info
@@ -1005,6 +1034,17 @@ export class ChatEngine {
     } catch (error: any) {
       channel.close();
       yield { type: 'error', data: { message: error.message } };
+    } finally {
+      // If the generator was abandoned (client disconnected / SSE stream aborted)
+      // and the agent hasn't completed yet, mark the project as draft so it
+      // doesn't appear as an active project in the sidebar.
+      if (!agentCompleted && createdProjectId) {
+        abandoned = true;
+        channel.close();
+        console.log('[ChatEngine] L2 agent abandoned, reverting project to draft:', createdProjectId);
+        updateProject(createdProjectId, { status: 'draft' }).catch((err) =>
+          console.error('[ChatEngine] Revert abandoned project failed:', err));
+      }
     }
   }
 
@@ -1903,10 +1943,22 @@ export class ChatEngine {
   ): Promise<void> {
     if (!supabaseConfigured) return;
 
-    await supabase
-      .from('conversations')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id);
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const { error } = await supabase
+          .from('conversations')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', id);
+
+        if (!error) return;
+        console.error(`[ChatEngine] updateConversation attempt ${attempt}/${MAX_RETRIES} failed:`, error.message);
+      } catch (e: any) {
+        console.error(`[ChatEngine] updateConversation attempt ${attempt}/${MAX_RETRIES} network error:`, e.message);
+      }
+      if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 500 * attempt));
+    }
+    console.error('[ChatEngine] updateConversation failed after retries', { id, keys: Object.keys(updates) });
   }
 
   // createTeam removed — use teamCoordinator.formTeam() instead
