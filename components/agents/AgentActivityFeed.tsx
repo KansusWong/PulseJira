@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { AgentStepCard } from "./AgentStepCard";
+import { LogBubbleList } from "./LogBubbleList";
 import type { AgentLogEntry } from "@/store/slices/agentSlice";
 
 interface AgentActivityFeedProps {
@@ -24,16 +24,8 @@ export function AgentActivityFeed({ logs }: AgentActivityFeedProps) {
   }
 
   return (
-    <div className="space-y-1 py-2">
-      {logs.map((entry) => (
-        <AgentStepCard
-          key={entry.id}
-          agent={entry.agent}
-          message={entry.message}
-          type={entry.type}
-          timestamp={entry.timestamp}
-        />
-      ))}
+    <div className="py-2">
+      <LogBubbleList logs={logs} />
       <div ref={endRef} />
     </div>
   );

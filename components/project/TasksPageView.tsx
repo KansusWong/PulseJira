@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Loader2, CheckCircle2, AlertCircle, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 import { TaskLogGroup } from "@/components/agents/TaskLogGroup";
-import { AgentStepCard } from "@/components/agents/AgentStepCard";
+import { LogBubbleList } from "@/components/agents/LogBubbleList";
 import { useTranslation } from "@/lib/i18n";
 import type { KanbanTask } from "@/store/slices/kanbanSlice";
 import type { AgentLogEntry } from "@/store/slices/agentSlice";
@@ -129,16 +129,8 @@ export function TasksPageView({
           <div className="px-4 py-2 text-[10px] font-mono font-bold text-zinc-600 uppercase tracking-wider border-b border-border">
             {t('kanban.systemLogs')}
           </div>
-          <div className="px-4 py-2 space-y-1 max-h-40 overflow-y-auto">
-            {system.map((entry) => (
-              <AgentStepCard
-                key={entry.id}
-                agent={entry.agent}
-                message={entry.message}
-                type={entry.type}
-                timestamp={entry.timestamp}
-              />
-            ))}
+          <div className="px-4 py-2 max-h-40 overflow-y-auto">
+            <LogBubbleList logs={system} />
           </div>
         </div>
       )}

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import clsx from "clsx";
 import { ChevronDown, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
-import { AgentStepCard } from "./AgentStepCard";
+import { LogBubbleList } from "./LogBubbleList";
 import type { AgentLogEntry } from "@/store/slices/agentSlice";
 
 interface TaskLogGroupProps {
@@ -120,16 +120,8 @@ export function TaskLogGroup({ title, status, logs, defaultOpen, index, total }:
       </button>
 
       {open && logs.length > 0 && (
-        <div className="border-t border-border px-4 py-2 space-y-1 max-h-80 overflow-y-auto">
-          {logs.map((entry) => (
-            <AgentStepCard
-              key={entry.id}
-              agent={entry.agent}
-              message={entry.message}
-              type={entry.type}
-              timestamp={entry.timestamp}
-            />
-          ))}
+        <div className="border-t border-border px-4 py-2 max-h-80 overflow-y-auto">
+          <LogBubbleList logs={logs} />
         </div>
       )}
 
