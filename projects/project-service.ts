@@ -104,6 +104,13 @@ export async function deleteProject(projectId: string): Promise<void> {
     .update({ project_id: null })
     .eq('project_id', projectId);
 
+  // Delete agent_teams linked to this project (no ON DELETE CASCADE in schema;
+  // cascade will remove agent_mailbox and team_tasks via their own FK constraints)
+  await supabase
+    .from('agent_teams')
+    .delete()
+    .eq('project_id', projectId);
+
   const { error } = await supabase
     .from('projects')
     .delete()
