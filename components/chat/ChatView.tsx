@@ -25,6 +25,7 @@ export function ChatView() {
   const addConversation = usePulseStore((s) => s.addConversation);
   const showPlanPanel = usePulseStore((s) => s.showPlanPanel);
   const showTeamPanel = usePulseStore((s) => s.showTeamPanel);
+  const updateTeamStatus = usePulseStore((s) => s.updateTeamStatus);
   const showClarificationForm = usePulseStore((s) => s.showClarificationForm);
   const showDmPanel = usePulseStore((s) => s.showDmPanel);
   const showToolApproval = usePulseStore((s) => s.showToolApproval);
@@ -248,7 +249,7 @@ export function ChatView() {
         setTeamCollaborationActive(false);
       }
     },
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, clearStreamingSteps, setTeamCollaborationActive]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, updateTeamStatus, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, clearStreamingSteps, setTeamCollaborationActive]
   );
 
   const handleSSEEvent = useCallback(
@@ -296,7 +297,12 @@ export function ChatView() {
         }
 
         case "team_update": {
-          showTeamPanel(event.data.team_id, event.data.agents || []);
+          const currentPanel = usePulseStore.getState().teamPanel;
+          if (currentPanel.visible && currentPanel.teamId === event.data.team_id) {
+            updateTeamStatus({ agents: event.data.agents || [] } as any);
+          } else {
+            showTeamPanel(event.data.team_id, event.data.agents || []);
+          }
           setTeamCollaborationActive(true);
           break;
         }
@@ -416,6 +422,37 @@ export function ChatView() {
 
         case "architect_resuming": {
           hideArchitectPanel();
+          break;
+        }
+
+        case "sub_agent_start": {
+          const agentName = event.data.agent_name || "sub-agent";
+          const task = event.data.task || "";
+          addStreamingStep({
+            id: `sub-start-${agentName}-${Date.now()}`,
+            agent: agentName,
+            kind: "thinking",
+            message: task ? `子智能体启动: ${task}` : `子智能体「${agentName}」启动中...`,
+            timestamp: Date.now(),
+          });
+          break;
+        }
+
+        case "sub_agent_complete": {
+          const agentName = event.data.agent_name || "sub-agent";
+          const success = event.data.status === "success";
+          const durationMs = event.data.duration_ms;
+          const durationStr = durationMs ? ` (${(durationMs / 1000).toFixed(1)}s)` : "";
+          addStreamingStep({
+            id: `sub-done-${agentName}-${Date.now()}`,
+            agent: agentName,
+            kind: "completion",
+            success,
+            message: success
+              ? `子智能体「${agentName}」已完成${durationStr}`
+              : `子智能体「${agentName}」执行失败${event.data.error ? `: ${event.data.error}` : ""}`,
+            timestamp: Date.now(),
+          });
           break;
         }
 

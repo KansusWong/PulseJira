@@ -353,6 +353,8 @@ export type ChatEventType =
   | 'solution_proposal'
   | 'architect_failed'
   | 'architect_resuming'
+  | 'sub_agent_start'
+  | 'sub_agent_complete'
   | 'error'
   | 'done';
 

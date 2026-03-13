@@ -26,6 +26,7 @@ import { toolApprovalService } from '@/lib/services/tool-approval';
 import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
 import { Blackboard } from '@/lib/blackboard';
 import { emitWebhookEvent } from '@/lib/services/webhook';
+import { startTrace, recordEvent, completeTrace } from '@/lib/services/trace';
 import { workspaceManager } from '@/lib/sandbox/workspace-manager';
 import type { Workspace } from '@/lib/sandbox/types';
 import { teamCoordinator } from '@/lib/services/team-coordinator';
@@ -943,15 +944,37 @@ export class ChatEngine {
       // Subscribe to sub-agent events on the messageBus
       const unsubscribe = messageBus.subscribe('single-agent', (message) => {
         if (message.type === 'sub_agent_start') {
+          const agentName = message.payload?.agent_name || message.to;
+          // Dedicated SSE event for frontend sub-agent tracking
+          channel.push({
+            type: 'sub_agent_start',
+            data: {
+              agent_name: agentName,
+              task: message.payload?.task,
+            },
+          });
+          // Also send as agent_log for backward compatibility
           channel.push({
             type: 'agent_log',
-            data: { message: `子智能体「${message.payload?.agent_name || message.to}」启动中...` },
+            data: { message: `子智能体「${agentName}」启动中...` },
           });
         } else if (message.type === 'sub_agent_complete') {
+          const agentName = message.payload?.agent_name || message.from;
           const status = message.payload?.status === 'success' ? '已完成' : '执行失败';
+          // Dedicated SSE event for frontend sub-agent tracking
+          channel.push({
+            type: 'sub_agent_complete',
+            data: {
+              agent_name: agentName,
+              status: message.payload?.status,
+              duration_ms: message.payload?.duration_ms,
+              error: message.payload?.error,
+            },
+          });
+          // Also send as agent_log for backward compatibility
           channel.push({
             type: 'agent_log',
-            data: { message: `子智能体「${message.payload?.agent_name || message.from}」${status}` },
+            data: { message: `子智能体「${agentName}」${status}` },
           });
         }
       });
@@ -1284,6 +1307,17 @@ export class ChatEngine {
     });
     const teamId = team.id;
 
+    // Initialize execution trace for team pipeline (so Traces tab shows data)
+    const projectId = context.conversation.project_id;
+    const traceId = `trace-meta-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+    if (projectId) {
+      startTrace(traceId, projectId, 'meta');
+      recordEvent(traceId, 'team_formed', 'team-coordinator', {
+        team_id: teamId,
+        members: suggestedAgents,
+      });
+    }
+
     yield {
       type: 'team_update',
       data: {
@@ -1315,12 +1349,75 @@ export class ChatEngine {
           type: 'plan_step_progress',
           data: message.payload,
         });
+        if (projectId) {
+          recordEvent(traceId, 'plan_step_progress', message.from || 'architect', message.payload);
+        }
       } else if (message.type === 'agent_log' && message.payload?.message) {
         const step = this.transformAgentLog(message.payload.message);
         if (step) {
           channel.push({ type: 'agent_log', data: { message: step.message, step } });
+          if (projectId) {
+            recordEvent(traceId, step.kind || 'agent_log', step.agent || 'architect', { message: step.message, toolName: step.toolName });
+          }
         }
       }
+    });
+
+    // Track team members for dynamic sub-agent updates
+    const knownAgents = new Map<string, 'idle' | 'working' | 'completed' | 'failed'>();
+    for (const name of suggestedAgents) {
+      knownAgents.set(name, 'idle');
+    }
+
+    // Subscribe to meta-pipeline channel for sub-agent lifecycle events
+    const unsubMetaPipeline = messageBus.subscribe('meta-pipeline', (message) => {
+      const agentName = message.payload?.agent_name;
+      if (!agentName) return;
+
+      if (message.type === 'sub_agent_start') {
+        knownAgents.set(agentName, 'working');
+        teamCoordinator.updateAgentStatus(teamId, agentName, 'working').catch(() => {});
+        // Dedicated SSE event for frontend sub-agent tracking
+        channel.push({
+          type: 'sub_agent_start',
+          data: {
+            agent_name: agentName,
+            task: message.payload?.task,
+          },
+        });
+        if (projectId) {
+          recordEvent(traceId, 'sub_agent_start', agentName, { task: message.payload?.task });
+        }
+      } else if (message.type === 'sub_agent_complete') {
+        const finalStatus = message.payload?.status === 'success' ? 'completed' : 'failed';
+        knownAgents.set(agentName, finalStatus);
+        teamCoordinator.updateAgentStatus(teamId, agentName, finalStatus).catch(() => {});
+        // Dedicated SSE event for frontend sub-agent tracking
+        channel.push({
+          type: 'sub_agent_complete',
+          data: {
+            agent_name: agentName,
+            status: message.payload?.status,
+            duration_ms: message.payload?.duration_ms,
+            error: message.payload?.error,
+          },
+        });
+        if (projectId) {
+          recordEvent(traceId, 'sub_agent_complete', agentName, { status: message.payload?.status });
+        }
+      } else {
+        return; // Ignore other event types
+      }
+
+      // Emit updated team roster to frontend
+      channel.push({
+        type: 'team_update',
+        data: {
+          team_id: teamId,
+          status: 'active',
+          agents: Array.from(knownAgents.entries()).map(([name, status]) => ({ name, status })),
+        },
+      });
     });
 
     try {
@@ -1594,11 +1691,20 @@ export class ChatEngine {
             });
           }
 
+          // Complete execution trace on success
+          if (projectId) {
+            await completeTrace(traceId, 'completed', {
+              steps_completed: result.steps_completed,
+              steps_failed: result.steps_failed,
+            });
+          }
+
           channel.push({
             type: 'message',
             data: { role: 'assistant', content: responseText },
           });
           unsubLog();
+          unsubMetaPipeline();
           channel.close();
         })
         .catch(async (error: unknown) => {
@@ -1624,6 +1730,11 @@ export class ChatEngine {
           // Mark architect agent as failed
           teamCoordinator.updateAgentStatus(teamId, 'architect', 'failed').catch(() => {});
 
+          // Complete execution trace on failure
+          if (projectId) {
+            await completeTrace(traceId, 'failed', { error: errorMsg, steps_completed: lastCheckpointStep });
+          }
+
           channel.push({
             type: 'architect_failed',
             data: {
@@ -1637,6 +1748,7 @@ export class ChatEngine {
             data: { message: errorMsg },
           });
           unsubLog();
+          unsubMetaPipeline();
           channel.close();
         });
 
