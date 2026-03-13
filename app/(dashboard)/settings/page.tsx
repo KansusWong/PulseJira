@@ -244,8 +244,8 @@ export default function SettingsPage() {
       <div className="py-8 px-6 w-full">
         <div
           className={clsx(
-            "transition-all duration-300 ease-out",
-            contentReady ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
+            "transition-opacity duration-300 ease-out",
+            contentReady ? "opacity-100" : "opacity-0"
           )}
         >
           {/* Setup Tab */}
