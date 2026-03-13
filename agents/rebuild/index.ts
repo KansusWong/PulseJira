@@ -53,6 +53,7 @@ const GLOBAL_TOOL_NAMES = [
  */
 export function createRebuilDAgent(options?: {
   workspace?: string;
+  projectId?: string;
   model?: string;
   maxLoops?: number;
   extraTools?: BaseTool[];
@@ -75,7 +76,7 @@ export function createRebuilDAgent(options?: {
     tools.push(new RunTestsTool(ws));
     tools.push(new GlobTool(ws));
     tools.push(new GrepTool(ws));
-    tools.push(new MemoryTool(ws));
+    tools.push(new MemoryTool(ws, options?.projectId));
     const blackboard = new Blackboard(crypto.randomUUID(), null);
     tools.push(new BlackboardReadTool(blackboard));
     tools.push(new BlackboardWriteTool(blackboard, 'rebuild'));

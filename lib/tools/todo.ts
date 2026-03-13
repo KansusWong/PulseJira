@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
 import type { ToolContext } from '../core/tool-context';
 import { selectDesc } from './tool-desc-version';
+import { todoDbStore } from '@/lib/services/todo-store';
 
 // =====================================================================
 // Types & TodoList class
@@ -154,6 +155,9 @@ export class TodoWriteTool extends BaseTool<WriteInput, string> {
     const completed = todoList.items.filter(t => t.status === 'completed').length;
     const cancelled = todoList.items.filter(t => t.status === 'cancelled').length;
 
+    // Persist to DB (fire-and-forget)
+    todoDbStore.persistAll(conversationId, todoList.items, ctx?.projectId);
+
     return `\u2713 Task list updated: ${todoList.items.length} tasks (${pending} pending, ${inProgress} in progress, ${completed} completed, ${cancelled} cancelled)`;
   }
 }
@@ -182,7 +186,16 @@ export class TodoReadTool extends BaseTool<any, string> {
 
   protected async _run(_input: any, ctx?: ToolContext): Promise<string> {
     const conversationId = ctx?.sessionId || 'default';
-    const todoList = getTodoList(conversationId);
+    let todoList = getTodoList(conversationId);
+
+    // Hydrate from DB if in-memory list is empty (session restored)
+    if (todoList.items.length === 0) {
+      const dbItems = await todoDbStore.hydrate(conversationId, ctx?.projectId);
+      if (dbItems.length > 0) {
+        todoStore.set(conversationId, new TodoList(dbItems));
+        todoList = todoStore.get(conversationId)!;
+      }
+    }
 
     if (todoList.items.length === 0) {
       return 'No tasks in the list. Use todo_write to create tasks.';

@@ -2,7 +2,8 @@
  * MemoryTool — cross-session memory store for the agent.
  *
  * Supports 5 operations: store, recall, list, update, delete.
- * Persists to {workspace}/memories/entries.json.
+ * Persists to Supabase when configured (via memory-store service),
+ * falls back to {workspace}/memories/entries.json otherwise.
  * Search uses a combined score: match_score * 0.6 + (importance/10) * 0.4
  */
 
@@ -11,6 +12,8 @@ import path from 'path';
 import { BaseTool } from '../core/base-tool';
 import type { ToolContext } from '../core/tool-context';
 import { selectDesc } from './tool-desc-version';
+import { memoryStore } from '@/lib/services/memory-store';
+import type { MemoryEntry } from '@/lib/services/memory-store';
 
 // eslint-disable-next-line no-eval
 const fs: any = eval('require')('fs');
@@ -34,20 +37,6 @@ Memories are persisted to disk and survive across sessions.`;
 const MEMORY_DESC_V2 = 'Store/recall/list/update/delete persistent memories. Scored search by keywords + importance.';
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface MemoryEntry {
-  id: string;
-  content: string;
-  tags: string[];
-  category: 'fact' | 'procedure' | 'context';
-  importance: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ---------------------------------------------------------------------------
 // Schema
 // ---------------------------------------------------------------------------
 
@@ -65,7 +54,7 @@ const schema = z.object({
 type Input = z.infer<typeof schema>;
 
 // ---------------------------------------------------------------------------
-// Persistence helpers
+// Persistence helpers (filesystem fallback)
 // ---------------------------------------------------------------------------
 
 function getMemoryFilePath(wsRoot: string): string {
@@ -137,13 +126,46 @@ export class MemoryTool extends BaseTool<Input, string> {
   schema = schema;
 
   private workspaceRoot?: string;
+  private projectId?: string;
+  /** Whether DB-backed entries have been merged into the in-memory list. */
+  private dbHydrated = false;
 
-  constructor(cwd?: string) {
+  constructor(cwd?: string, projectId?: string) {
     super();
     if (cwd) {
       this.workspaceRoot = path.normalize(cwd);
     }
+    this.projectId = projectId;
     this.description = selectDesc(MEMORY_DESC_V1, MEMORY_DESC_V2);
+  }
+
+  /** Resolve the effective projectId from constructor or runtime context. */
+  private getProjectId(ctx?: ToolContext): string | undefined {
+    return this.projectId || ctx?.projectId;
+  }
+
+  /**
+   * Ensure in-memory entries include DB data.
+   * Only queries DB once per tool instance.
+   */
+  private async ensureHydrated(wsRoot: string, ctx?: ToolContext): Promise<MemoryEntry[]> {
+    const pid = this.getProjectId(ctx);
+
+    if (!this.dbHydrated && pid) {
+      this.dbHydrated = true;
+      const dbEntries = await memoryStore.hydrate(pid);
+      // Merge: DB entries that are not already on disk
+      const fsEntries = loadMemories(wsRoot);
+      const fsIds = new Set(fsEntries.map(e => e.id));
+      for (const entry of dbEntries) {
+        if (!fsIds.has(entry.id)) {
+          fsEntries.push(entry);
+        }
+      }
+      return fsEntries;
+    }
+
+    return loadMemories(wsRoot);
   }
 
   protected async _run(input: Input, ctx?: ToolContext): Promise<string> {
@@ -151,21 +173,21 @@ export class MemoryTool extends BaseTool<Input, string> {
 
     switch (input.command) {
       case 'store':
-        return this._store(wsRoot, input);
+        return this._store(wsRoot, input, ctx);
       case 'recall':
-        return this._recall(wsRoot, input);
+        return this._recall(wsRoot, input, ctx);
       case 'list':
-        return this._list(wsRoot, input);
+        return this._list(wsRoot, input, ctx);
       case 'update':
-        return this._update(wsRoot, input);
+        return this._update(wsRoot, input, ctx);
       case 'delete':
-        return this._delete(wsRoot, input);
+        return this._delete(wsRoot, input, ctx);
       default:
         return `Error: Unknown command "${input.command}". Use: store, recall, list, update, delete.`;
     }
   }
 
-  private _store(wsRoot: string, input: Input): string {
+  private _store(wsRoot: string, input: Input, ctx?: ToolContext): string {
     if (!input.content) {
       return 'Error: content is required for store command.';
     }
@@ -186,15 +208,19 @@ export class MemoryTool extends BaseTool<Input, string> {
     entries.push(entry);
     saveMemories(wsRoot, entries);
 
+    // Persist to DB (fire-and-forget)
+    const pid = this.getProjectId(ctx);
+    memoryStore.persist(pid, entry);
+
     return `\u2713 \u5DF2\u5B58\u50A8\u8BB0\u5FC6 [${entry.id}]: "${entry.content.slice(0, 50)}${entry.content.length > 50 ? '...' : ''}" (tags: ${entry.tags.join(', ') || 'none'}, importance: ${entry.importance})`;
   }
 
-  private _recall(wsRoot: string, input: Input): string {
+  private async _recall(wsRoot: string, input: Input, ctx?: ToolContext): Promise<string> {
     if (!input.query) {
       return 'Error: query is required for recall command.';
     }
 
-    const entries = loadMemories(wsRoot);
+    const entries = await this.ensureHydrated(wsRoot, ctx);
     if (entries.length === 0) {
       return '\u6CA1\u6709\u5B58\u50A8\u7684\u8BB0\u5FC6\u3002';
     }
@@ -225,8 +251,8 @@ export class MemoryTool extends BaseTool<Input, string> {
     return `\u627E\u5230 ${results.length} \u6761\u76F8\u5173\u8BB0\u5FC6:\n\n${lines.join('\n\n')}`;
   }
 
-  private _list(wsRoot: string, input: Input): string {
-    let entries = loadMemories(wsRoot);
+  private async _list(wsRoot: string, input: Input, ctx?: ToolContext): Promise<string> {
+    let entries = await this.ensureHydrated(wsRoot, ctx);
 
     if (entries.length === 0) {
       return '\u6CA1\u6709\u5B58\u50A8\u7684\u8BB0\u5FC6\u3002';
@@ -265,7 +291,7 @@ export class MemoryTool extends BaseTool<Input, string> {
     return output;
   }
 
-  private _update(wsRoot: string, input: Input): string {
+  private _update(wsRoot: string, input: Input, ctx?: ToolContext): string {
     if (!input.id) {
       return 'Error: id is required for update command.';
     }
@@ -288,10 +314,14 @@ export class MemoryTool extends BaseTool<Input, string> {
 
     saveMemories(wsRoot, entries);
 
+    // Persist to DB (fire-and-forget)
+    const pid = this.getProjectId(ctx);
+    memoryStore.persist(pid, entry);
+
     return `\u2713 \u5DF2\u66F4\u65B0\u8BB0\u5FC6 [${entry.id}]: "${entry.content.slice(0, 50)}${entry.content.length > 50 ? '...' : ''}"`;
   }
 
-  private _delete(wsRoot: string, input: Input): string {
+  private _delete(wsRoot: string, input: Input, ctx?: ToolContext): string {
     if (!input.id) {
       return 'Error: id is required for delete command.';
     }
@@ -305,6 +335,10 @@ export class MemoryTool extends BaseTool<Input, string> {
 
     const removed = entries.splice(idx, 1)[0];
     saveMemories(wsRoot, entries);
+
+    // Remove from DB (fire-and-forget)
+    const pid = this.getProjectId(ctx);
+    memoryStore.remove(pid, removed.id);
 
     return `\u2713 \u5DF2\u5220\u9664\u8BB0\u5FC6 [${removed.id}]: "${removed.content.slice(0, 50)}${removed.content.length > 50 ? '...' : ''}"`;
   }
