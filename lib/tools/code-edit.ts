@@ -1,24 +1,41 @@
 /**
- * CodeEditTool — edits an existing file using search-and-replace within a workspace.
+ * EditTool — edits an existing file using search-and-replace within a workspace.
+ *
+ * New interface: single old_str/new_str with optional replace_all flag.
+ * For multi-edit operations, use the multi_edit tool instead.
  */
 
 import { z } from 'zod';
 import type { Stats } from 'fs';
 import path from 'path';
 import { BaseTool } from '../core/base-tool';
+import type { ToolContext } from '../core/tool-context';
+import { selectDesc } from './tool-desc-version';
+import type { FileOperationResult } from './file-operation-result';
+import { formatFileResult } from './file-operation-result';
 
 // Bypass Turbopack TP1004 — dynamic fs usage is inherent to this server-side tool
 // eslint-disable-next-line no-eval
 const fs: any = eval('require')('fs');
 
-const editSchema = z.object({
-  search: z.string().describe('Exact string to find in the file'),
-  replace: z.string().describe('String to replace it with'),
-});
+// ---------------------------------------------------------------------------
+// V1 / V2 descriptions
+// ---------------------------------------------------------------------------
+
+const EDIT_DESC_V1 = `Edit an EXISTING file by replacing a specific string.
+The file MUST already exist. Provide old_str (exact match) and new_str (replacement).
+Use replace_all=true to replace all occurrences.
+For multiple edits in one file, use multi_edit instead.
+Use \`write\` to create new files.
+Returns structured result with affected line numbers.`;
+
+const EDIT_DESC_V2 = 'Edit an existing file via search-and-replace. Use replace_all=true for multiple occurrences.';
 
 const schema = z.object({
-  file_path: z.string().describe('Relative path within the workspace'),
-  edits: z.array(editSchema).describe('List of search-and-replace operations to apply sequentially'),
+  path: z.string().describe('Relative path within the workspace'),
+  old_str: z.string().describe('Exact string to find in the file'),
+  new_str: z.string().describe('String to replace it with (must differ from old_str)'),
+  replace_all: z.boolean().optional().default(false).describe('Replace all occurrences (default: false, replaces first only)'),
 });
 
 type Input = z.infer<typeof schema>;
@@ -30,25 +47,28 @@ function isPathInside(root: string, target: string): boolean {
 
 function assertRelativeFilePath(filePath: string): void {
   if (!filePath || path.isAbsolute(filePath)) {
-    throw new Error('file_path must be a relative path inside the workspace.');
+    throw new Error('path must be a relative path inside the workspace.');
   }
 
   if (filePath.includes('\0')) {
-    throw new Error('file_path contains invalid null bytes.');
+    throw new Error('path contains invalid null bytes.');
   }
 }
 
 export class CodeEditTool extends BaseTool<Input, string> {
-  name = 'code_edit';
-  description = 'Edit an EXISTING file by applying search-and-replace operations. The file MUST already exist — if it does not, this tool will fail. Use code_write to create new files. Before calling this tool, verify the file exists using read_file or list_files.';
+  name = 'edit';
+  description = selectDesc(EDIT_DESC_V1, EDIT_DESC_V2);
   schema = schema;
   requiresApproval = true;
 
-  private workspaceRoot: string;
+  private workspaceRoot?: string;
 
-  constructor(cwd: string) {
+  constructor(cwd?: string) {
     super();
-    this.workspaceRoot = this.normalizeWorkspaceRoot(cwd);
+    if (cwd) {
+      this.workspaceRoot = this.normalizeWorkspaceRoot(cwd);
+    }
+    this.description = selectDesc(EDIT_DESC_V1, EDIT_DESC_V2);
   }
 
   private normalizeWorkspaceRoot(cwd: string): string {
@@ -65,11 +85,18 @@ export class CodeEditTool extends BaseTool<Input, string> {
     return path.normalize(normalized);
   }
 
-  private resolveExistingFile(filePath: string): string {
+  private getWorkspaceRoot(ctx?: ToolContext): string {
+    const root = this.workspaceRoot || ctx?.workspacePath;
+    if (!root) throw new Error('No workspace root: provide cwd in constructor or ToolContext.');
+    return root;
+  }
+
+  private resolveExistingFile(filePath: string, ctx?: ToolContext): string {
     assertRelativeFilePath(filePath);
 
-    const resolved = path.normalize(path.join(this.workspaceRoot, filePath));
-    if (!isPathInside(this.workspaceRoot, resolved)) {
+    const wsRoot = this.getWorkspaceRoot(ctx);
+    const resolved = path.normalize(path.join(wsRoot, filePath));
+    if (!isPathInside(wsRoot, resolved)) {
       throw new Error(`Path "${filePath}" is outside the workspace boundary.`);
     }
 
@@ -77,7 +104,7 @@ export class CodeEditTool extends BaseTool<Input, string> {
     try {
       stats = fs.lstatSync(resolved);
     } catch {
-      throw new Error(`File not found: ${filePath}. Use code_write to create new files.`);
+      throw new Error(`File not found: ${filePath}. Use \`write\` to create new files.`);
     }
     if (stats.isDirectory()) {
       throw new Error(`Path "${filePath}" points to a directory, not a file.`);
@@ -90,22 +117,62 @@ export class CodeEditTool extends BaseTool<Input, string> {
     return resolved;
   }
 
-  protected async _run(input: Input): Promise<string> {
-    const resolved = this.resolveExistingFile(input.file_path);
+  /** Calculate the line number where old_str starts in the content. */
+  private _calcStartLine(content: string, oldStr: string): number {
+    const idx = content.indexOf(oldStr);
+    if (idx < 0) return -1;
+    return content.substring(0, idx).split('\n').length;
+  }
 
-    let content = await fs.promises.readFile(resolved, 'utf-8');
-    const results: string[] = [];
+  protected async _run(input: Input, ctx?: ToolContext): Promise<string> {
+    const resolved = this.resolveExistingFile(input.path, ctx);
 
-    for (const edit of input.edits) {
-      if (content.includes(edit.search)) {
-        content = content.replace(edit.search, edit.replace);
-        results.push(`Replaced: "${edit.search.slice(0, 50)}..." → "${edit.replace.slice(0, 50)}..."`);
-      } else {
-        results.push(`Not found: "${edit.search.slice(0, 80)}..."`);
+    let content: string = await fs.promises.readFile(resolved, 'utf-8');
+
+    if (input.old_str === input.new_str) {
+      return 'Error: old_str and new_str are identical. No changes needed.';
+    }
+
+    if (!content.includes(input.old_str)) {
+      // Provide file preview to help LLM correct its match
+      const lines = content.split('\n');
+      const preview = lines.slice(0, 30).map((l, i) => `${String(i + 1).padStart(4, ' ')}\u2502 ${l}`).join('\n');
+      return `Error: old_str not found in ${input.path}.\n\nFile preview (first 30 lines):\n${preview}\n\nCheck your old_str matches the file content exactly (including whitespace and indentation).`;
+    }
+
+    // Count occurrences
+    const occurrences = content.split(input.old_str).length - 1;
+
+    if (occurrences > 1 && !input.replace_all) {
+      return `Error: old_str matches ${occurrences} locations in ${input.path}. Use replace_all=true to replace all, or provide more context in old_str to make it unique.`;
+    }
+
+    // Calculate affected lines before replacement
+    const linesAffected: number[] = [];
+    const startLine = this._calcStartLine(content, input.old_str);
+    if (startLine > 0) {
+      const oldLines = input.old_str.split('\n').length;
+      for (let i = 0; i < oldLines; i++) {
+        linesAffected.push(startLine + i);
       }
     }
 
+    if (input.replace_all) {
+      content = content.split(input.old_str).join(input.new_str);
+    } else {
+      content = content.replace(input.old_str, input.new_str);
+    }
+
     await fs.promises.writeFile(resolved, content, 'utf-8');
-    return `Edited ${input.file_path}:\n${results.join('\n')}`;
+    const replacedCount = input.replace_all ? occurrences : 1;
+
+    const result: FileOperationResult = {
+      success: true,
+      message: `Edited ${input.path}: replaced ${replacedCount} occurrence(s).`,
+      filePath: input.path,
+      linesAffected,
+    };
+
+    return formatFileResult(result);
   }
 }

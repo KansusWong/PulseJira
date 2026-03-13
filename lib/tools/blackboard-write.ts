@@ -5,6 +5,7 @@ import {
   type BlackboardEntry,
 } from '../blackboard/types';
 import type { Blackboard } from '../blackboard/blackboard';
+import type { ToolContext } from '../core/tool-context';
 
 /**
  * Write an entry to the shared blackboard.
@@ -26,12 +27,15 @@ export class BlackboardWriteTool extends BaseTool<BlackboardWriteInput, Blackboa
     this.agentName = agentName;
   }
 
-  protected async _run(input: BlackboardWriteInput): Promise<BlackboardEntry> {
-    return this.blackboard.write({
+  protected async _run(input: BlackboardWriteInput, ctx?: ToolContext): Promise<BlackboardEntry> {
+    const bb = this.blackboard || ctx?.blackboard;
+    if (!bb) throw new Error('No blackboard: provide in constructor or ToolContext.');
+    const author = this.agentName || ctx?.agentName || 'unknown';
+    return bb.write({
       key: input.key,
       value: input.value,
       type: input.type,
-      author: this.agentName,
+      author,
       tags: input.tags,
     });
   }

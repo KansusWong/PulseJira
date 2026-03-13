@@ -2,9 +2,8 @@
  * Tool registry entry point.
  *
  * Registers built-in tools, then re-exports the dynamic registry API.
- * Existing callers using `getTools('web_search', 'read_file')` continue
- * to work — the function signature is the same, but now backed by a Map
- * instead of a closed Record.
+ * New tool names (read, write, edit, ls, bash) are primary;
+ * old names (read_file, code_write, code_edit, list_files, run_command) are aliases.
  */
 
 import { registerTool, getTools, getTool, getToolNames, isToolRegistered } from './tool-registry';
@@ -41,14 +40,34 @@ import { PersistSkillTool } from './persist-skill';
 import { PromoteFeatureTool } from './promote-feature';
 import { CreateSubAgentTool } from './create-sub-agent';
 
-// --- Register built-in tools (global, no workspace dependency) ---
-registerTool('web_search', () => new WebSearchTool());
+// --- New tools (Phase 2) ---
+import { MultiEditTool } from './multi-edit';
+import { GlobTool } from './glob';
+import { GrepTool } from './grep';
+import { EnterPlanModeTool, ExitPlanModeTool, AskUserQuestionTool } from './plan-mode';
+import { TodoWriteTool, TodoReadTool } from './todo';
+import { TaskTool } from './task';
+import { MemoryTool } from './memory';
+
+// ==========================================================================
+// Phase 1: Renamed tools (new primary names + old aliases)
+// ==========================================================================
+
+// New names
+registerTool('read', () => new FileReadTool());
+registerTool('ls', () => new FileListTool());
+// Old aliases (backward compat)
 registerTool('read_file', () => new FileReadTool());
 registerTool('list_files', () => new FileListTool());
+// Note: write, edit, bash are workspace-scoped — registered below only as aliases
+// for getTools() compatibility. Actual instances are created with workspace context.
+
+// --- Global tools (no workspace dependency) ---
+registerTool('web_search', () => new WebSearchTool());
 registerTool('finish_planning', () => new FinishPlanningTool());
 registerTool('finish_implementation', () => new FinishImplementationTool());
 
-// --- Deploy tools (no workspace dependency) ---
+// --- Deploy tools ---
 registerTool('finish_deploy', () => new FinishDeployTool());
 registerTool('merge_pr', () => new MergePRTool());
 registerTool('check_ci', () => new CheckCITool());
@@ -81,6 +100,20 @@ registerTool('persist_skill', () => new PersistSkillTool());
 registerTool('promote_feature', () => new PromoteFeatureTool());
 registerTool('create_sub_agent', () => new CreateSubAgentTool());
 
+// ==========================================================================
+// Phase 2: New tools
+// ==========================================================================
+registerTool('multi_edit', () => new MultiEditTool());
+registerTool('glob', () => new GlobTool());
+registerTool('grep', () => new GrepTool());
+registerTool('enter_plan_mode', () => new EnterPlanModeTool());
+registerTool('exit_plan_mode', () => new ExitPlanModeTool());
+registerTool('ask_user_question', () => new AskUserQuestionTool());
+registerTool('todo_write', () => new TodoWriteTool());
+registerTool('todo_read', () => new TodoReadTool());
+registerTool('task', () => new TaskTool());
+registerTool('memory', () => new MemoryTool());
+
 // --- Workspace-scoped tool factories ---
 // These are NOT registered globally because they require runtime context.
 // Import and instantiate them directly when creating workspace-scoped agents.
@@ -90,7 +123,7 @@ export { CodeWriteTool } from './code-write';
 export { CodeEditTool } from './code-edit';
 export { GitCommitTool } from './git-commit';
 export { GitCreatePRTool } from './git-create-pr';
-export { RunCommandTool } from './run-command';
+export { RunCommandTool, BashBackgroundTool } from './run-command';
 export { RunTestsTool } from './run-tests';
 export { FinishImplementationTool } from './finish-implementation';
 export { FinishDeployTool } from './finish-deploy';
@@ -98,6 +131,19 @@ export { MergePRTool } from './merge-pr';
 export { CheckCITool } from './check-ci';
 export { TriggerDeployTool } from './trigger-deploy';
 export { CheckHealthTool } from './check-health';
+
+// New tool exports
+export { MultiEditTool } from './multi-edit';
+export { GlobTool } from './glob';
+export { GrepTool } from './grep';
+export { EnterPlanModeTool, ExitPlanModeTool, AskUserQuestionTool } from './plan-mode';
+export { TodoWriteTool, TodoReadTool, getActiveTodoSnapshot } from './todo';
+export { TaskTool } from './task';
+export { MemoryTool } from './memory';
+
+// Shared infrastructure exports
+export { getToolDescVersion, setToolDescVersion, selectDesc } from './tool-desc-version';
+export { SubagentRegistry } from './subagent-registry';
 
 // --- Re-export registry API ---
 export { registerTool, getTools, getTool, getToolNames, isToolRegistered };

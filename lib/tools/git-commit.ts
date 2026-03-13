@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
 import { GitWorkspace } from '../sandbox/git-workspace';
+import type { ToolContext } from '../core/tool-context';
 
 const schema = z.object({
   message: z.string().describe('Commit message describing the changes'),
@@ -19,12 +20,14 @@ export class GitCommitTool extends BaseTool<Input, string> {
   schema = schema;
   requiresApproval = true;
 
-  constructor(private cwd: string) {
+  constructor(private cwd?: string) {
     super();
   }
 
-  protected async _run(input: Input): Promise<string> {
-    const git = new GitWorkspace(this.cwd);
+  protected async _run(input: Input, ctx?: ToolContext): Promise<string> {
+    const workspace = this.cwd || ctx?.workspacePath;
+    if (!workspace) throw new Error('No workspace: provide cwd in constructor or ToolContext.');
+    const git = new GitWorkspace(workspace);
 
     if (input.files && input.files.length > 0) {
       await git.add(input.files);

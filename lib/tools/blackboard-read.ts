@@ -5,6 +5,7 @@ import {
   type BlackboardEntry,
 } from '../blackboard/types';
 import type { Blackboard } from '../blackboard/blackboard';
+import type { ToolContext } from '../core/tool-context';
 
 /**
  * Read entries from the shared blackboard.
@@ -24,8 +25,10 @@ export class BlackboardReadTool extends BaseTool<BlackboardReadInput, Blackboard
     this.blackboard = blackboard;
   }
 
-  protected async _run(input: BlackboardReadInput): Promise<BlackboardEntry[]> {
-    return this.blackboard.query({
+  protected async _run(input: BlackboardReadInput, ctx?: ToolContext): Promise<BlackboardEntry[]> {
+    const bb = this.blackboard || ctx?.blackboard;
+    if (!bb) throw new Error('No blackboard: provide in constructor or ToolContext.');
+    return bb.query({
       key: input.key,
       keyPrefix: input.keyPrefix,
       type: input.type,
