@@ -23,9 +23,12 @@ import { SearchDecisionsTool } from './search-decisions';
 import { SearchCodeArtifactsTool } from './search-code-artifacts';
 import { SearchCodePatternsTool } from './search-code-patterns';
 import { FinishRetrievalTool } from './finish-retrieval';
+import { FetchDailyDataTool } from './fetch-daily-data';
+import { FinishDailyReportTool } from './finish-daily-report';
 import { RAGRetrieveTool } from './rag-retrieve';
 import { StoreCodePatternTool } from './store-code-pattern';
 import { DiscoverSkillsTool } from './discover-skills';
+import { ReadSkillResourceTool } from './read-skill-resource';
 import { FinishDecisionTool } from './finish-decision';
 import { FinishArchitectTool } from './finish-architect';
 import { ListAgentsTool } from './list-agents';
@@ -36,6 +39,7 @@ import { CreateSkillTool } from './create-skill';
 import { PersistAgentTool } from './persist-agent';
 import { PersistSkillTool } from './persist-skill';
 import { PromoteFeatureTool } from './promote-feature';
+import { CreateSubAgentTool } from './create-sub-agent';
 
 // --- Register built-in tools (global, no workspace dependency) ---
 registerTool('web_search', () => new WebSearchTool());
@@ -58,8 +62,11 @@ registerTool('search_code_artifacts', () => new SearchCodeArtifactsTool());
 registerTool('search_code_patterns', () => new SearchCodePatternsTool());
 registerTool('finish_retrieval', () => new FinishRetrievalTool());
 registerTool('rag_retrieve', () => new RAGRetrieveTool());
+registerTool('fetch_daily_data', () => new FetchDailyDataTool());
+registerTool('finish_daily_report', () => new FinishDailyReportTool());
 registerTool('store_code_pattern', () => new StoreCodePatternTool());
 registerTool('discover_skills', () => new DiscoverSkillsTool());
+registerTool('read_skill_resource', () => new ReadSkillResourceTool());
 
 // --- Meta-agent tools ---
 registerTool('finish_decision', () => new FinishDecisionTool());
@@ -72,6 +79,7 @@ registerTool('create_skill', () => new CreateSkillTool());
 registerTool('persist_agent', () => new PersistAgentTool());
 registerTool('persist_skill', () => new PersistSkillTool());
 registerTool('promote_feature', () => new PromoteFeatureTool());
+registerTool('create_sub_agent', () => new CreateSubAgentTool());
 
 // --- Workspace-scoped tool factories ---
 // These are NOT registered globally because they require runtime context.

@@ -4,6 +4,8 @@ export interface AgentContext {
   signalId?: string;
   traceId?: string;
   projectId?: string;
+  /** Workspace root path — used by ToolContext for file I/O scoping. */
+  workspacePath?: string;
   logger?: (message: string) => Promise<void> | void;
   /** Optional callback to record token usage for this run (agentName/projectId/model + tokens). */
   recordUsage?: (params: {
@@ -196,6 +198,17 @@ export interface DynamicSkillDefinition {
   instructions: string;
   tags: string[];
   persistent: boolean;
+  /** Optional resources to persist alongside the skill. */
+  resources?: {
+    references?: Array<{ path: string; content: string }>;
+    scripts?: Array<{ path: string; content: string }>;
+    assets?: Array<{ path: string; content: string }>;
+  };
+  /** Optional resource configuration for the skill. */
+  resourceConfig?: {
+    inject_references?: boolean;
+    max_inject_size?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -416,3 +429,9 @@ export interface CodeSolutionProposal {
   solutions: CodeSolution[]; // List of solutions (typically 2-3)
   recommended_index: number; // Index of recommended solution
 }
+
+// ---------------------------------------------------------------------------
+// Re-export ToolContext for convenience
+// ---------------------------------------------------------------------------
+
+export type { ToolContext } from './tool-context';
