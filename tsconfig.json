@@ -33,6 +33,7 @@
     ".crawl4ai-browsers",
     ".crawl4ai-home",
     ".cursor",
-    ".history"
+    ".history",
+    "skills/**/references"
   ]
 }
