@@ -72,9 +72,8 @@ const BLOCKED_SUB_TOOLS = new Set([
 const DEFAULT_SUB_TOOLS = [
   'read', 'ls', 'glob', 'grep', 'web_search',
   'todo_write', 'todo_read',
-  'search_vision_knowledge', 'search_decisions',
-  'search_code_artifacts', 'search_code_patterns',
-  'rag_retrieve', 'discover_skills', 'read_skill_resource',
+  'semantic_search',
+  'discover_skills', 'read_skill_resource',
 ];
 
 /** Concurrency limiter. */

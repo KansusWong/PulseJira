@@ -90,7 +90,7 @@ registerTemplate({
   description: '系统的决策入口。聚合多源信息（市场调研、对抗分析、历史知识），输出结构化决策。支持批量信号聚合。',
   runMode: 'react',
   defaultMaxLoops: 15,
-  defaultTools: ['spawn_agent', 'list_agents', 'web_search', 'search_vision_knowledge', 'search_decisions', 'finish_decision'],
+  defaultTools: ['spawn_agent', 'list_agents', 'web_search', 'semantic_search', 'finish_decision'],
   defaultSkills: [],
   promptTemplate: `你是 Decision Maker — 系统的决策入口。
 
@@ -215,7 +215,7 @@ registerTemplate({
   description: '合并原 researcher + blue-team + critic + arbitrator + knowledge-curator。',
   runMode: 'react',
   defaultMaxLoops: 10,
-  defaultTools: ['web_search', 'search_vision_knowledge', 'search_decisions'],
+  defaultTools: ['web_search', 'semantic_search'],
   defaultSkills: ['market-scan', 'build-case', 'adversarial-review', 'render-verdict', 'multi-hop-retrieval'],
   promptTemplate: `你是 Analyst — 信号评估全链路引擎。
 

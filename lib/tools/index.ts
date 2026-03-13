@@ -17,11 +17,6 @@ import { MergePRTool } from './merge-pr';
 import { CheckCITool } from './check-ci';
 import { TriggerDeployTool } from './trigger-deploy';
 import { CheckHealthTool } from './check-health';
-import { SearchVisionKnowledgeTool } from './search-vision-knowledge';
-import { SearchDecisionsTool } from './search-decisions';
-import { SearchCodeArtifactsTool } from './search-code-artifacts';
-import { SearchCodePatternsTool } from './search-code-patterns';
-import { FinishRetrievalTool } from './finish-retrieval';
 import { FetchDailyDataTool } from './fetch-daily-data';
 import { FinishDailyReportTool } from './finish-daily-report';
 import { StoreCodePatternTool } from './store-code-pattern';
@@ -39,14 +34,31 @@ import { PersistSkillTool } from './persist-skill';
 import { PromoteFeatureTool } from './promote-feature';
 import { CreateSubAgentTool } from './create-sub-agent';
 
-// --- New tools (Phase 2) ---
+// --- Phase 2 tools ---
 import { MultiEditTool } from './multi-edit';
 import { GlobTool } from './glob';
 import { GrepTool } from './grep';
 import { EnterPlanModeTool, ExitPlanModeTool, AskUserQuestionTool } from './plan-mode';
 import { TodoWriteTool, TodoReadTool } from './todo';
 import { TaskTool } from './task';
-import { MemoryTool } from './memory';
+
+// --- Phase 3: New tools (core-tools alignment) ---
+import { WebFetchTool } from './web-fetch';
+import { SemanticSearchTool } from './semantic-search';
+import { ExecuteCodeTool } from './execute-code';
+import { ExecutePythonTool } from './execute-python';
+import { PythonReplTool } from './python-repl';
+import { CheckExecutorTool } from './check-executor';
+import { ResetPythonEnvTool } from './reset-python-env';
+import { ShowPythonVarsTool } from './show-python-vars';
+import { BrowserTool } from './browser';
+import { BrowseUrlTool } from './browse-url';
+import { AnalyzeImageTool } from './analyze-image';
+import { GenerateImageTool } from './generate-image';
+import { EditImageTool } from './edit-image';
+import { GenerateVideoTool } from './generate-video';
+import { AutomationTool } from './automation';
+import { ComputerUseTool } from './computer-use';
 
 // ==========================================================================
 // Phase 1: Renamed tools (new primary names + old aliases)
@@ -73,12 +85,8 @@ registerTool('check_ci', () => new CheckCITool());
 registerTool('trigger_deploy', () => new TriggerDeployTool());
 registerTool('check_health', () => new CheckHealthTool());
 
-// --- Agentic RAG tools ---
-registerTool('search_vision_knowledge', () => new SearchVisionKnowledgeTool());
-registerTool('search_decisions', () => new SearchDecisionsTool());
-registerTool('search_code_artifacts', () => new SearchCodeArtifactsTool());
-registerTool('search_code_patterns', () => new SearchCodePatternsTool());
-registerTool('finish_retrieval', () => new FinishRetrievalTool());
+// --- Knowledge & RAG tools (unified semantic_search replaces 5 old tools) ---
+registerTool('semantic_search', () => new SemanticSearchTool());
 registerTool('fetch_daily_data', () => new FetchDailyDataTool());
 registerTool('finish_daily_report', () => new FinishDailyReportTool());
 registerTool('store_code_pattern', () => new StoreCodePatternTool());
@@ -99,7 +107,7 @@ registerTool('promote_feature', () => new PromoteFeatureTool());
 registerTool('create_sub_agent', () => new CreateSubAgentTool());
 
 // ==========================================================================
-// Phase 2: New tools
+// Phase 2: Planning, Todo, Task tools
 // ==========================================================================
 registerTool('multi_edit', () => new MultiEditTool());
 registerTool('glob', () => new GlobTool());
@@ -110,7 +118,26 @@ registerTool('ask_user_question', () => new AskUserQuestionTool());
 registerTool('todo_write', () => new TodoWriteTool());
 registerTool('todo_read', () => new TodoReadTool());
 registerTool('task', () => new TaskTool());
-registerTool('memory', () => new MemoryTool());
+// NOTE: memory is now workspace-scoped only (registered in createRebuilDAgent)
+
+// ==========================================================================
+// Phase 3: New core-tools alignment
+// ==========================================================================
+registerTool('web_fetch', () => new WebFetchTool());
+registerTool('execute_code', () => new ExecuteCodeTool());
+registerTool('execute_python', () => new ExecutePythonTool());
+registerTool('python_repl', () => new PythonReplTool());
+registerTool('check_executor', () => new CheckExecutorTool());
+registerTool('reset_python_env', () => new ResetPythonEnvTool());
+registerTool('show_python_vars', () => new ShowPythonVarsTool());
+registerTool('browser', () => new BrowserTool());
+registerTool('browse_url', () => new BrowseUrlTool());
+registerTool('analyze_image', () => new AnalyzeImageTool());
+registerTool('generate_image', () => new GenerateImageTool());
+registerTool('edit_image', () => new EditImageTool());
+registerTool('generate_video', () => new GenerateVideoTool());
+registerTool('automation', () => new AutomationTool());
+registerTool('computer_use', () => new ComputerUseTool());
 
 // --- Workspace-scoped tool factories ---
 // These are NOT registered globally because they require runtime context.
@@ -138,6 +165,25 @@ export { EnterPlanModeTool, ExitPlanModeTool, AskUserQuestionTool } from './plan
 export { TodoWriteTool, TodoReadTool, getActiveTodoSnapshot } from './todo';
 export { TaskTool } from './task';
 export { MemoryTool } from './memory';
+
+// Phase 3 tool exports
+export { WebFetchTool } from './web-fetch';
+export { ReadDocumentTool } from './read-document';
+export { SemanticSearchTool } from './semantic-search';
+export { ExecuteCodeTool } from './execute-code';
+export { ExecutePythonTool } from './execute-python';
+export { PythonReplTool } from './python-repl';
+export { CheckExecutorTool } from './check-executor';
+export { ResetPythonEnvTool } from './reset-python-env';
+export { ShowPythonVarsTool } from './show-python-vars';
+export { BrowserTool } from './browser';
+export { BrowseUrlTool } from './browse-url';
+export { AnalyzeImageTool } from './analyze-image';
+export { GenerateImageTool } from './generate-image';
+export { EditImageTool } from './edit-image';
+export { GenerateVideoTool } from './generate-video';
+export { AutomationTool } from './automation';
+export { ComputerUseTool } from './computer-use';
 
 // Shared infrastructure exports
 export { getToolDescVersion, setToolDescVersion, selectDesc } from './tool-desc-version';

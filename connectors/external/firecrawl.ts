@@ -217,3 +217,39 @@ export function isCrawl4AIAvailable(): boolean {
 
 // Backward-compatible alias for old imports.
 export const isFirecrawlAvailable = isCrawl4AIAvailable;
+
+/**
+ * Fetch a single URL and return its content as markdown.
+ * Used by web_fetch and browse_url tools.
+ */
+export async function crawl4aiFetchUrl(url: string): Promise<string> {
+  const { valid, reason } = validateExternalUrl(url);
+  if (!valid) {
+    throw new Error(`Blocked URL: ${url} — ${reason}`);
+  }
+
+  const endpoint = getEndpoint();
+  if (!endpoint) return '';
+
+  try {
+    if (isCrawlEndpoint(endpoint)) {
+      const results = await crawlViaOfficialEndpoint(endpoint, [url]);
+      return results[0]?.markdown || '';
+    }
+
+    // Generic gateway mode
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [url], query: url, limit: 1 }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!response.ok) return '';
+    const payload = await response.json();
+    const results = normalizeResults(payload);
+    return results[0]?.markdown || '';
+  } catch {
+    return '';
+  }
+}

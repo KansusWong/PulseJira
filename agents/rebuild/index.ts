@@ -9,8 +9,7 @@
 import { BaseAgent } from '@/lib/core/base-agent';
 import type { BaseTool } from '@/lib/core/base-tool';
 import { getTools, isToolRegistered } from '@/lib/tools/index';
-import { REBUILD_SYSTEM_PROMPT_V1, REBUILD_SYSTEM_PROMPT_V2 } from './prompts/system';
-import { getToolDescVersion } from '@/lib/tools/tool-desc-version';
+import { REBUILD_SYSTEM_PROMPT_V1 } from './prompts/system';
 
 // Workspace-scoped tools (require runtime context)
 import { CodeWriteTool } from '@/lib/tools/code-write';
@@ -26,19 +25,26 @@ import { GrepTool } from '@/lib/tools/grep';
 import { BlackboardReadTool } from '@/lib/tools/blackboard-read';
 import { BlackboardWriteTool } from '@/lib/tools/blackboard-write';
 import { MemoryTool } from '@/lib/tools/memory';
+import { ReadDocumentTool } from '@/lib/tools/read-document';
 import { Blackboard } from '@/lib/blackboard';
 
 /** Tools that can be resolved from global registry (no workspace needed). */
 const GLOBAL_TOOL_NAMES = [
   'web_search',
+  'web_fetch',
+  'browse_url',
   'enter_plan_mode', 'exit_plan_mode', 'ask_user_question',
   'todo_write', 'todo_read',
   'task',
-  'memory',
-  'rag_retrieve', 'discover_skills', 'read_skill_resource',
-  'search_vision_knowledge', 'search_decisions',
-  'search_code_artifacts', 'search_code_patterns',
+  'discover_skills', 'read_skill_resource',
   'store_code_pattern',
+  'semantic_search',
+  'execute_code', 'execute_python', 'python_repl',
+  'check_executor', 'reset_python_env', 'show_python_vars',
+  'browser',
+  'analyze_image', 'generate_image', 'edit_image', 'generate_video',
+  'automation',
+  'computer_use',
 ];
 
 /**
@@ -48,8 +54,9 @@ const GLOBAL_TOOL_NAMES = [
  * @param options.model - LLM model name override
  * @param options.maxLoops - Maximum execution steps (default 30)
  * @param options.extraTools - Additional tools to include
+ * @param options.systemPrompt - Override system prompt (replaces V1/V2 default)
  * @param options.soulPrompt - Optional soul.md content to append to system prompt
- * @param options.descVersion - Tool description version ('v1' or 'v2', default: auto from global)
+ * @param options.extraTools - Additional tools to inject
  */
 export function createRebuilDAgent(options?: {
   workspace?: string;
@@ -57,9 +64,11 @@ export function createRebuilDAgent(options?: {
   model?: string;
   maxLoops?: number;
   extraTools?: BaseTool[];
+  systemPrompt?: string;
   soulPrompt?: string;
   poolTags?: string[];
-  descVersion?: 'v1' | 'v2';
+  /** @deprecated No longer used — V1 is the only prompt version */
+  descVersion?: string;
 }) {
   const ws = options?.workspace;
   const tools: BaseTool[] = [];
@@ -77,6 +86,7 @@ export function createRebuilDAgent(options?: {
     tools.push(new GlobTool(ws));
     tools.push(new GrepTool(ws));
     tools.push(new MemoryTool(ws, options?.projectId));
+    tools.push(new ReadDocumentTool(ws));
     const blackboard = new Blackboard(crypto.randomUUID(), null);
     tools.push(new BlackboardReadTool(blackboard));
     tools.push(new BlackboardWriteTool(blackboard, 'rebuild'));
@@ -105,9 +115,8 @@ export function createRebuilDAgent(options?: {
     tools.push(...options.extraTools);
   }
 
-  // Build system prompt based on version
-  const version = options?.descVersion || getToolDescVersion();
-  let systemPrompt = version === 'v1' ? REBUILD_SYSTEM_PROMPT_V1 : REBUILD_SYSTEM_PROMPT_V2;
+  // Build system prompt (allow override)
+  let systemPrompt = options?.systemPrompt ?? REBUILD_SYSTEM_PROMPT_V1;
   if (options?.soulPrompt) {
     systemPrompt += `\n\n## Agent Soul\n\n${options.soulPrompt}`;
   }

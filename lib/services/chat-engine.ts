@@ -23,6 +23,9 @@ import { workspaceManager } from '@/lib/sandbox/workspace-manager';
 import type { Workspace } from '@/lib/sandbox/types';
 import { getEnvironmentContext } from '@/lib/utils/environment';
 import { createRebuilDAgent } from '@/agents/rebuild';
+import { loadAgentConfig } from '@/lib/config/agent-config';
+import { loadSoul } from '@/agents/utils';
+import { CreateWorkspaceTool } from '@/lib/tools/create-workspace';
 import type {
   Conversation,
   ChatMessage,
@@ -217,46 +220,26 @@ export class ChatEngine {
     const conversationId = context.conversation.id;
 
     try {
-      // --- 1. Create/reuse Project (every conversation gets one) ---
+      // --- 1. Reuse existing Project + Workspace (only when already exists) ---
       let projectId = context.conversation.project_id;
-
-      if (!projectId) {
-        yield { type: 'agent_log', data: { message: '正在创建项目...' } };
-        const projectName = await generateProjectName(context.userMessage);
-        const project = await createProject({
-          name: projectName,
-          description: context.userMessage,
-          is_light: false,
-          conversation_id: conversationId,
-        });
-        projectId = project.id;
-
-        await updateProject(project.id, { status: 'analyzing' });
-        await this.updateConversation(conversationId, {
-          project_id: project.id,
-        } as any);
-        context.conversation = { ...context.conversation, project_id: project.id };
-
-        yield {
-          type: 'project_created',
-          data: { project_id: project.id, name: project.name, is_light: false },
-        };
-      }
-
-      // --- 2. Create workspace ---
       let workspace: Workspace | undefined;
-      try {
-        const project = projectId ? await getProject(projectId) : null;
-        const dirName = project?.name?.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, '-') || `project-${conversationId.slice(0, 8)}`;
-        workspace = await workspaceManager.createLocal({
-          projectId: projectId || conversationId,
-          localDir: dirName,
-        });
-      } catch (err: any) {
-        console.error('[ChatEngine] Workspace creation failed:', err.message);
-      }
 
-      // --- 3. Build RebuilD agent ---
+      if (projectId) {
+        try {
+          const project = await getProject(projectId);
+          const dirName = project?.name?.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, '-')
+            || `project-${conversationId.slice(0, 8)}`;
+          workspace = await workspaceManager.createLocal({
+            projectId,
+            localDir: dirName,
+          });
+        } catch (err: any) {
+          console.error('[ChatEngine] Workspace load failed:', err.message);
+        }
+      }
+      // No projectId → no project/workspace creation → lightweight agent
+
+      // --- 2. Build RebuilD agent ---
 
       // Read trust level for approval gate
       let trustLevel: 'auto' | 'collaborative' = 'collaborative';
@@ -322,9 +305,31 @@ export class ChatEngine {
         return approved;
       };
 
+      const configOverride = loadAgentConfig('rebuild');
+      const soulContent = configOverride.soul ?? loadSoul('rebuild');
+
+      // Shared reference — create_workspace tool writes into this
+      const workspaceRef: { path?: string; projectId?: string } = {};
+
+      const onProjectCreated = (pid: string, name: string) => {
+        // Update conversation with new project_id
+        this.updateConversation(conversationId, { project_id: pid } as any);
+        channel.push({ type: 'project_created', data: { project_id: pid, name, is_light: false } });
+      };
+
+      // If no workspace exists, provide the create_workspace tool so the agent
+      // can decide whether to create one. Already-existing workspaces skip this.
+      const extraTools = workspace ? [] : [
+        new CreateWorkspaceTool(conversationId, workspaceRef, onProjectCreated),
+      ];
+
       const agent = createRebuilDAgent({
         workspace: workspace?.localPath,
-        maxLoops: 30,
+        maxLoops: configOverride.maxLoops ?? 30,
+        model: configOverride.model,
+        systemPrompt: configOverride.systemPrompt,
+        soulPrompt: soulContent || undefined,
+        extraTools,
       });
 
       // --- 4. Build input with conversation history ---
@@ -359,7 +364,7 @@ export class ChatEngine {
       const agentPromise = agent.run(
         `${historyContext}\n\n[user]: ${context.userMessage}`,
         {
-          projectId,
+          projectId: projectId || undefined,
           logger: channelLogger,
           onApprovalRequired,
           workspacePath: workspace?.localPath,
@@ -385,17 +390,60 @@ export class ChatEngine {
           // Clean response (strip markers for display)
           const cleanResponse = stripMarkers(responseText);
 
-          if (cleanResponse) {
-            const isExportable = /```[\s\S]*?```/.test(cleanResponse) || cleanResponse.length > 800;
-            const metadata = isExportable ? { exportable: true } : undefined;
-            await this.saveMessage(conversationId, 'assistant', cleanResponse, metadata).catch((err) =>
-              console.error('[ChatEngine] Save response failed:', err));
-            channel.push({ type: 'message', data: { role: 'assistant', content: cleanResponse, metadata: metadata ?? null } });
+          // --- Phase 2: If lightweight agent created a workspace, upgrade to full agent ---
+          if (workspaceRef.path && !workspace) {
+            projectId = workspaceRef.projectId!;
+
+            // Send phase 1 response if any (before phase 2 starts)
+            if (cleanResponse) {
+              channel.push({ type: 'message', data: { role: 'assistant', content: cleanResponse, metadata: null } });
+            }
+
+            const fullAgent = createRebuilDAgent({
+              workspace: workspaceRef.path,
+              maxLoops: configOverride.maxLoops ?? 30,
+              model: configOverride.model,
+              systemPrompt: configOverride.systemPrompt,
+              soulPrompt: soulContent || undefined,
+            });
+
+            // Continue execution with workspace tools available
+            const phase2Result = await fullAgent.run(
+              `工作空间已创建（${workspaceRef.path}），现在可以使用文件操作工具。请继续执行用户的原始任务。\n\n原始请求：${context.userMessage}`,
+              {
+                projectId,
+                logger: channelLogger,
+                onApprovalRequired,
+                workspacePath: workspaceRef.path,
+              },
+            );
+
+            const phase2Text = ChatEngine.extractResponse(phase2Result);
+            const cleanPhase2 = stripMarkers(phase2Text);
+
+            if (cleanPhase2) {
+              const isExportable = /```[\s\S]*?```/.test(cleanPhase2) || cleanPhase2.length > 800;
+              const metadata = isExportable ? { exportable: true } : undefined;
+              await this.saveMessage(conversationId, 'assistant', cleanPhase2, metadata).catch((err) =>
+                console.error('[ChatEngine] Save phase2 response failed:', err));
+              channel.push({ type: 'message', data: { role: 'assistant', content: cleanPhase2, metadata: metadata ?? null } });
+            }
+          } else {
+            // No phase 2 — process result directly
+            if (cleanResponse) {
+              const isExportable = /```[\s\S]*?```/.test(cleanResponse) || cleanResponse.length > 800;
+              const metadata = isExportable ? { exportable: true } : undefined;
+              await this.saveMessage(conversationId, 'assistant', cleanResponse, metadata).catch((err) =>
+                console.error('[ChatEngine] Save response failed:', err));
+              channel.push({ type: 'message', data: { role: 'assistant', content: cleanResponse, metadata: metadata ?? null } });
+            }
           }
 
-          // Update project status
-          updateProject(projectId!, { status: 'active' }).catch((err) =>
-            console.error('[ChatEngine] Set project active failed:', err));
+          // Update project status (only if project exists)
+          if (projectId) {
+            updateProject(projectId, { status: 'active' }).catch((err) =>
+              console.error('[ChatEngine] Set project active failed:', err));
+          }
 
           channel.close();
           unsubscribe();
@@ -458,13 +506,28 @@ export class ChatEngine {
     create_agent: '创建智能体',
     create_skill: '创建技能',
     // Knowledge tools
-    rag_retrieve: 'RAG 检索',
+    semantic_search: '语义搜索',
     discover_skills: '发现技能',
-    search_vision_knowledge: '检索知识库',
-    search_decisions: '检索决策记录',
-    search_code_artifacts: '检索代码产物',
-    search_code_patterns: '检索代码模式',
     store_code_pattern: '存储代码模式',
+    // New tools
+    web_fetch: '获取网页内容',
+    browse_url: '浏览网页',
+    execute_code: '执行代码',
+    execute_python: '执行Python',
+    python_repl: 'Python表达式',
+    check_executor: '检查执行器',
+    reset_python_env: '重置Python环境',
+    show_python_vars: '查看Python变量',
+    browser: '浏览器操作',
+    analyze_image: '分析图片',
+    generate_image: '生成图片',
+    edit_image: '编辑图片',
+    generate_video: '生成视频',
+    automation: '自动化流水线',
+    computer_use: '桌面控制',
+    read_document: '读取文档',
+    // Workspace
+    create_workspace: '创建工作空间',
     // Misc
     fetch_daily_data: '获取日报数据',
     finish_planning: '完成规划',
