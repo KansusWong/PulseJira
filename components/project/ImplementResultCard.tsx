@@ -55,7 +55,7 @@ interface ImplementResultCardProps {
   repoOwner?: string;
   repoName?: string;
   // Remote mode
-  onDeployStart: () => void;
+  onDeployStart?: () => void;
   isDeploying?: boolean;
   deployResult?: {
     state: string;

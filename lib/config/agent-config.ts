@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { loadSoul } from '@/agents/utils';
 import { getAllAgents } from './agent-registry';
 import { getAgentSkillOverrides, mergeAgentSkills } from './agent-skill-overrides';
@@ -8,8 +6,7 @@ import { resolveRedTeamDefaultModel } from '@/lib/services/red-team-llm';
 // Ensure built-in agents are registered before anything reads the registry
 import './builtin-agents';
 
-const CONFIG_PATH = path.join(process.cwd(), 'agents', 'config.json');
-const DEFAULT_MODEL = process.env.LLM_MODEL_NAME || 'gpt-4o';
+const DEFAULT_MODEL = process.env.LLM_MODEL_NAME || 'glm-5';
 
 export interface AgentOverride {
   model?: string;
@@ -38,52 +35,26 @@ export interface AgentRegistryEntry {
   createdBy?: string;
 }
 
-function readConfigFile(): Record<string, AgentOverride> {
-  try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch (e) {
-    console.warn('[agent-config] Failed to read config.json, using defaults:', e);
-  }
+/**
+ * Load the override config for a single agent.
+ * With the legacy config.json removed, returns empty override.
+ */
+export function loadAgentConfig(_agentId: string): AgentOverride {
   return {};
 }
 
-function writeConfigFile(configs: Record<string, AgentOverride>): void {
-  const dir = path.dirname(CONFIG_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(configs, null, 2), 'utf-8');
+/**
+ * Save all agent overrides (no-op after legacy config.json removal).
+ */
+export function saveAgentConfig(_configs: Record<string, AgentOverride>): void {
+  // no-op — legacy config.json has been removed
 }
 
 /**
- * Load the override config for a single agent.
- * Falls back to defaults for any unset field.
+ * Save a single agent's override (no-op after legacy config.json removal).
  */
-export function loadAgentConfig(agentId: string): AgentOverride {
-  const allConfigs = readConfigFile();
-  return allConfigs[agentId] || {};
-}
-
-/**
- * Save all agent overrides to config.json.
- */
-export function saveAgentConfig(configs: Record<string, AgentOverride>): void {
-  writeConfigFile(configs);
-}
-
-/**
- * Save a single agent's override, merging into the existing config file.
- * Removes the agent entry entirely if the override is empty.
- */
-export function saveOneAgentConfig(agentId: string, override: AgentOverride): void {
-  const existing = readConfigFile();
-  if (Object.keys(override).length === 0) {
-    delete existing[agentId];
-  } else {
-    existing[agentId] = override;
-  }
-  writeConfigFile(existing);
+export function saveOneAgentConfig(_agentId: string, _override: AgentOverride): void {
+  // no-op — legacy config.json has been removed
 }
 
 /**
@@ -91,14 +62,12 @@ export function saveOneAgentConfig(agentId: string, override: AgentOverride): vo
  * Used by the Settings API to power the frontend.
  */
 export function getAgentRegistry(): AgentRegistryEntry[] {
-  const overrides = readConfigFile();
   const agents = getAllAgents();
   const criticModel = resolveRedTeamDefaultModel(DEFAULT_MODEL);
 
   return agents
-    .filter((meta) => !meta.internal)
+    .filter((meta) => !meta.internal && !meta.hidden)
     .map((meta) => {
-    const override = overrides[meta.id] || {};
     const soul = loadSoul(meta.id);
     const defaultModel = meta.id === 'critic' ? criticModel : (meta.defaultModel || DEFAULT_MODEL);
     const mergedSkills = mergeAgentSkills(meta.skills, getAgentSkillOverrides(meta.id));
@@ -112,9 +81,9 @@ export function getAgentRegistry(): AgentRegistryEntry[] {
         model: defaultModel,
         maxLoops: meta.defaultMaxLoops,
         soul,
-        systemPrompt: meta.defaultPrompt,
+        systemPrompt: meta.defaultPrompt || '',
       },
-      override,
+      override: {},
       tools: meta.tools,
       skills: mergedSkills,
       isAIGenerated: meta.isAIGenerated,

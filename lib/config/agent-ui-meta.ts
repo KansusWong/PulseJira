@@ -19,6 +19,18 @@ export interface AgentUIMeta {
 }
 
 export const BUILTIN_AGENT_UI: Record<string, AgentUIMeta> = {
+  // --- RebuilD (primary agent) ---
+  rebuild: {
+    label: 'RD',
+    emoji: '\u{1F528}',
+    color: 'bg-emerald-600',
+    borderColor: 'border-emerald-600',
+    badgeClass: 'bg-emerald-600/20 text-emerald-400',
+    stepCardClass: 'border-l-emerald-600 text-emerald-400',
+    stage: 'meta',
+    stageOrder: 0,
+  },
+  // --- Legacy agents (kept for backward compatibility with existing logs) ---
   'chat-assistant': {
     label: 'CA',
     emoji: '\u{1F4AC}',
@@ -27,7 +39,7 @@ export const BUILTIN_AGENT_UI: Record<string, AgentUIMeta> = {
     badgeClass: 'bg-blue-500/20 text-blue-400',
     stepCardClass: 'border-l-blue-500 text-blue-400',
     stage: 'meta',
-    stageOrder: 0,
+    stageOrder: 1,
   },
   'decision-maker': {
     label: 'DM',
@@ -58,16 +70,6 @@ export const BUILTIN_AGENT_UI: Record<string, AgentUIMeta> = {
     stepCardClass: 'border-l-gray-500 text-gray-400',
     stage: 'meta',
     stageOrder: 3,
-  },
-  analyst: {
-    label: 'AN',
-    emoji: '\u{1F50D}',
-    color: 'bg-green-500',
-    borderColor: 'border-green-500',
-    badgeClass: 'bg-green-500/20 text-green-400',
-    stepCardClass: 'border-l-green-500 text-green-400',
-    stage: 'prepare',
-    stageOrder: 1,
   },
   planner: {
     label: 'PL',
@@ -116,32 +118,37 @@ export const BUILTIN_AGENT_UI: Record<string, AgentUIMeta> = {
  * Includes backward compatibility for all 11 merged agents.
  */
 export const AGENT_ALIASES: Record<string, string> = {
-  // Planner aliases (merged pm + tech-lead + orchestrator)
-  product_manager: 'planner',
-  pm: 'planner',
-  tech_lead: 'planner',
-  'tech-lead': 'planner',
-  orchestrator: 'planner',
+  // All legacy agents now route to RebuilD in UI
+  'chat-assistant': 'rebuild',
+  'decision-maker': 'rebuild',
+  architect: 'rebuild',
+  'chat-judge': 'rebuild',
+  planner: 'rebuild',
+  developer: 'rebuild',
+  reviewer: 'rebuild',
+  deployer: 'rebuild',
 
-  // Analyst aliases (merged researcher + blue-team + critic + arbitrator + knowledge-curator)
-  researcher: 'analyst',
-  blue_team: 'analyst',
-  'blue-team': 'analyst',
-  critic: 'analyst',
-  arbitrator: 'analyst',
-  knowledge_curator: 'analyst',
-  'knowledge-curator': 'analyst',
-
-  // Reviewer aliases (merged qa-engineer + code-reviewer + supervisor)
-  qa_engineer: 'reviewer',
-  'qa-engineer': 'reviewer',
-  code_reviewer: 'reviewer',
-  'code-reviewer': 'reviewer',
-  supervisor: 'reviewer',
-
-  // Chat Judge aliases
-  complexity_assessor: 'chat-judge',
-  'complexity-assessor': 'chat-judge',
+  // Legacy sub-agent aliases
+  product_manager: 'rebuild',
+  pm: 'rebuild',
+  tech_lead: 'rebuild',
+  'tech-lead': 'rebuild',
+  orchestrator: 'rebuild',
+  analyst: 'rebuild',
+  researcher: 'rebuild',
+  blue_team: 'rebuild',
+  'blue-team': 'rebuild',
+  critic: 'rebuild',
+  arbitrator: 'rebuild',
+  knowledge_curator: 'rebuild',
+  'knowledge-curator': 'rebuild',
+  qa_engineer: 'rebuild',
+  'qa-engineer': 'rebuild',
+  code_reviewer: 'rebuild',
+  'code-reviewer': 'rebuild',
+  supervisor: 'rebuild',
+  complexity_assessor: 'rebuild',
+  'complexity-assessor': 'rebuild',
 };
 
 /** Default UI style for AI-generated (dynamic) agents. */

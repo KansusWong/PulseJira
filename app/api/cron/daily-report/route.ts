@@ -17,7 +17,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createAnalystAgent } from '@/agents/analyst';
+import { createRebuilDAgent } from '@/agents/rebuild';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { emitWebhookEvent, webhookService } from '@/lib/services/webhook';
 import type { FinishDailyReportInput } from '@/lib/tools/finish-daily-report';
@@ -97,6 +97,9 @@ async function recordRun(dateStr: string): Promise<void> {
     );
 }
 
+// Bump this version whenever the report schema changes to auto-invalidate old caches.
+const REPORT_SCHEMA_VERSION = 2;
+
 async function getCachedReport(dateStr: string, locale: Locale): Promise<FinishDailyReportInput | null> {
   if (!supabaseConfigured) return null;
   try {
@@ -107,7 +110,13 @@ async function getCachedReport(dateStr: string, locale: Locale): Promise<FinishD
       .single();
     if (data) {
       const cached = JSON.parse(data.value);
-      if (cached?.date === dateStr && cached?.report) return cached.report;
+      if (
+        cached?.date === dateStr &&
+        cached?.report &&
+        cached?.schemaVersion === REPORT_SCHEMA_VERSION
+      ) {
+        return cached.report;
+      }
     }
   } catch {
     // no cache
@@ -120,7 +129,11 @@ async function cacheReport(dateStr: string, locale: Locale, report: FinishDailyR
   await supabase
     .from('system_config')
     .upsert(
-      { key: `daily_report_cache_${locale}`, value: JSON.stringify({ date: dateStr, report }), updated_at: new Date().toISOString() },
+      {
+        key: `daily_report_cache_${locale}`,
+        value: JSON.stringify({ date: dateStr, report, schemaVersion: REPORT_SCHEMA_VERSION }),
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: 'key' },
     );
 }
@@ -138,8 +151,8 @@ const LABELS = {
     deploymentsCompleted: '部署完成',
     decisionsMade: '决策完成',
     codeChanges: '代码变更',
-    costAnalysis: '成本分析',
-    totalCost: '总成本',
+    tokenUsage: 'Token 消耗',
+    totalTokens: '总消耗',
     trend: '趋势',
     topAgent: 'Top Agent',
     decisionTrend: '决策趋势',
@@ -158,8 +171,8 @@ const LABELS = {
     deploymentsCompleted: 'Deployments Completed',
     decisionsMade: 'Decisions Made',
     codeChanges: 'Code Changes',
-    costAnalysis: 'Cost Analysis',
-    totalCost: 'Total Cost',
+    tokenUsage: 'Token Usage',
+    totalTokens: 'Total',
     trend: 'Trend',
     topAgent: 'Top Agent',
     decisionTrend: 'Decision Trend',
@@ -173,46 +186,17 @@ const LABELS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Dynamic USD → CNY exchange rate
+// Token formatting helpers
 // ---------------------------------------------------------------------------
 
-const FALLBACK_USD_TO_CNY = 7.2;
-let cachedRate: { value: number; expiry: number } | null = null;
-
-/**
- * Fetch live USD→CNY rate from a free API, cached for 12 hours.
- * Falls back to FALLBACK_USD_TO_CNY on failure.
- */
-async function getUsdToCny(): Promise<number> {
-  if (cachedRate && Date.now() < cachedRate.expiry) return cachedRate.value;
-  try {
-    const res = await fetch('https://open.er-api.com/v6/latest/USD', {
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const rate = json?.rates?.CNY;
-      if (typeof rate === 'number' && rate > 0) {
-        cachedRate = { value: rate, expiry: Date.now() + 12 * 3600_000 };
-        return rate;
-      }
-    }
-  } catch {
-    // network / timeout — use fallback
-  }
-  return FALLBACK_USD_TO_CNY;
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
 
-function formatCost(usd: number, locale: Locale, usdToCny: number): string {
-  if (locale === 'zh') {
-    return `¥${(usd * usdToCny).toFixed(4)}`;
-  }
-  return `$${usd.toFixed(4)}`;
-}
-
-async function formatReportForWebhook(report: FinishDailyReportInput, locale: Locale = 'zh'): Promise<string> {
-  const usdToCny = locale === 'zh' ? await getUsdToCny() : 0;
-  const l = LABELS[locale];
+function formatReportForWebhook(report: FinishDailyReportInput, _locale: Locale = 'zh'): string {
+  const l = LABELS[_locale];
   const lines: string[] = [
     `### ${l.executiveSummary}`,
     report.executive_summary,
@@ -223,15 +207,17 @@ async function formatReportForWebhook(report: FinishDailyReportInput, locale: Lo
     `- ${l.decisionsMade}: ${report.delivery_outcomes.decisions_made}`,
     `- ${l.codeChanges}: ${report.delivery_outcomes.code_changes_summary}`,
     '',
-    `### ${l.costAnalysis}`,
-    `- ${l.totalCost}: ${formatCost(report.cost_analysis.total_cost_usd, locale, usdToCny)}`,
+    `### ${l.tokenUsage}`,
+    `- ${l.totalTokens}: ${formatTokens(report.cost_analysis.total_tokens ?? 0)} tokens`,
     `- ${l.trend}: ${report.cost_analysis.cost_trend_note}`,
   ];
 
   if (report.cost_analysis.top_cost_agents.length > 0) {
     lines.push(`- ${l.topAgent}:`);
     for (const a of report.cost_analysis.top_cost_agents.slice(0, 3)) {
-      lines.push(`  - ${a.agent_name}: ${formatCost(a.cost_usd, locale, usdToCny)} (${a.percentage}%)`);
+      const tokenStr = formatTokens(a.tokens ?? 0);
+      const summary = a.work_summary ? ` — ${a.work_summary}` : '';
+      lines.push(`  - ${a.agent_name}: ${tokenStr} tokens (${a.percentage}%)${summary}`);
     }
   }
 
@@ -328,7 +314,7 @@ export async function POST(req: Request) {
     let result = await getCachedReport(today, locale);
 
     if (!result) {
-      const agent = createAnalystAgent({ mode: 'daily-report', locale });
+      const agent = createRebuilDAgent({ maxLoops: 10 });
       const userMessage = locale === 'en'
         ? `Please generate the daily project progress report for ${today}. Call fetch_daily_data to retrieve data, analyze it, then submit the structured report via finish_daily_report.`
         : `请生成 ${today} 的每日项目进展报告。调用 fetch_daily_data 获取数据，分析后通过 finish_daily_report 提交结构化报告。`;
@@ -339,7 +325,7 @@ export async function POST(req: Request) {
     }
 
     const reportTitle = locale === 'en' ? `Daily Report — ${today}` : `每日报告 — ${today}`;
-    const detail = await formatReportForWebhook(result, locale);
+    const detail = formatReportForWebhook(result, locale);
 
     if (isManual) {
       // Send to the specific webhook only
@@ -366,7 +352,7 @@ export async function POST(req: Request) {
         report_date: today,
         executive_summary: result.executive_summary,
         task_count: result.task_deliverables?.length ?? 0,
-        total_cost_usd: result.cost_analysis?.total_cost_usd ?? 0,
+        total_tokens: result.cost_analysis?.total_tokens ?? 0,
         detail,
       },
     });

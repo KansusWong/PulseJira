@@ -24,7 +24,9 @@ export async function GET(
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    // Return empty data instead of 404 — the conversation may not yet
+    // be persisted (frontend creates the ID optimistically).
+    return NextResponse.json({ success: true, data: null });
   }
 
   return NextResponse.json({
@@ -42,25 +44,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const body = await req.json();
   const { action } = body; // 'approve' | 'reject' | 'modify'
 
-  if (action === 'approve') {
-    const conversation = await chatEngine.getOrCreateConversation(params.id);
-    // Use DB execution_mode first, fall back to frontend-provided mode
-    // (covers the case where the DB update for assessment failed silently)
-    const mode = conversation.execution_mode || body.execution_mode || 'single_agent';
+  // All legacy plan/DM/architect actions now route through handleMessage
+  // which sends everything to RebuilD.
+  if (['approve', 'confirm_requirements', 'approve_dm', 'start_dm_review', 'resume_architect'].includes(action)) {
+    const userMessage = body.requirements?.summary || body.message || 'Please continue with the approved plan.';
     return makeSSEResponseFromGenerator(
-      chatEngine.executePlan(params.id, mode),
-      { signal: req.signal },
-    );
-  }
-
-  if (action === 'confirm_requirements') {
-    const { requirements } = body;
-    if (!requirements) {
-      return NextResponse.json({ success: false, error: 'Missing requirements' }, { status: 400 });
-    }
-
-    return makeSSEResponseFromGenerator(
-      chatEngine.confirmAndExecute(params.id, requirements),
+      chatEngine.handleMessage(params.id, userMessage),
       { signal: req.signal },
     );
   }
@@ -77,27 +66,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .eq('id', params.id);
     }
     return NextResponse.json({ success: true, data: { status: 'rejected' } });
-  }
-
-  if (action === 'approve_dm') {
-    return makeSSEResponseFromGenerator(
-      chatEngine.executeDmApproval(params.id),
-      { signal: req.signal },
-    );
-  }
-
-  if (action === 'start_dm_review') {
-    return makeSSEResponseFromGenerator(
-      chatEngine.executeDmReview(params.id, body.requirements),
-      { signal: req.signal },
-    );
-  }
-
-  if (action === 'resume_architect') {
-    return makeSSEResponseFromGenerator(
-      chatEngine.resumeArchitectPhase(params.id),
-      { signal: req.signal },
-    );
   }
 
   if (action === 'reject_dm') {

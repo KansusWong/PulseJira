@@ -16,7 +16,6 @@
 
 import { NextResponse } from 'next/server';
 import { collectAll } from '@/lib/services/signal-collector';
-import { processNewSignals } from '@/lib/services/signal-processor';
 import { generateDemoSignals, isDemoMode, demoSignalStore } from '@/lib/services/demo-signals';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 
@@ -152,8 +151,6 @@ export async function POST(req: Request) {
   if (!demoMode) {
     try {
       const collectResult = await collectAll();
-      // Simplified processing: no full meta pipeline, just lightweight screening
-      const processResult = await processNewSignals();
 
       // Record the successful collection timestamp
       await setConfigValue('signal_last_collected_at', new Date().toISOString());
@@ -164,7 +161,7 @@ export async function POST(req: Request) {
           mode: 'live',
           is_demo: false,
           collection: collectResult,
-          processing: processResult,
+          processing: { processed: 0, projectsCreated: 0, rejected: 0, errors: 0 },
           message:
             collectResult.collected > 0
               ? undefined

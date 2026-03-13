@@ -3,19 +3,16 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BrainCircuit, Loader2 } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { ProjectHeader } from "@/components/project/ProjectHeader";
 import { PageSwitcher } from "@/components/project/PageSwitcher";
 import { TasksPageView } from "@/components/project/TasksPageView";
 import { AgentProgressBar } from "@/components/agents/AgentProgressBar";
 import { AgentActivityFeed } from "@/components/agents/AgentActivityFeed";
-import { PrepareResultCard } from "@/components/agents/PrepareResultCard";
-import { PlanResultCard } from "@/components/agents/PlanResultCard";
 import { ImplementResultCard } from "@/components/project/ImplementResultCard";
 import { TracesPageView } from "@/components/traces/TracesPageView";
+import { DmReviewDrawer } from "@/components/project/DmReviewDrawer";
 import type { ImplementResultData, PreviewSessionData } from "@/components/project/ImplementResultCard";
-import type { PrepareResult } from "@/store/usePulseStore.new";
 import type { Project } from "@/projects/types";
 import { useTranslation } from "@/lib/i18n";
 
@@ -38,8 +35,6 @@ export default function ProjectDetailPage() {
   const addProject = usePulseStore((s) => s.addProject);
   const updateProjectInStore = usePulseStore((s) => s.updateProjectInStore);
   const removeProject = usePulseStore((s) => s.removeProject);
-  const deployToKanban = usePulseStore((s) => s.deployToKanban);
-  const getProjectTaskProgress = usePulseStore((s) => s.getProjectTaskProgress);
   const updateTaskStatus = usePulseStore((s) => s.updateTaskStatus);
   const addTasks = usePulseStore((s) => s.addTasks);
   const setTasks = usePulseStore((s) => s.setTasks);
@@ -188,8 +183,6 @@ export default function ProjectDetailPage() {
     }
   }, [hasMounted, projectId, allTasks, setTasks]);
 
-  const [prepareResult, setPrepareResult] = useState<PrepareResult | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [implementResult, setImplementResult] = useState<ImplementResultData | null>(null);
   // Remote deploy
   const [isDeploying, setIsDeploying] = useState(false);
@@ -199,14 +192,14 @@ export default function ProjectDetailPage() {
   // Push PR
   const [isPushingPR, setIsPushingPR] = useState(false);
   const [pushPRResult, setPushPRResult] = useState<{ prUrl: string; prNumber: number } | null>(null);
+  // DM Review drawer (for conversation-sourced projects)
+  const [dmDrawerOpen, setDmDrawerOpen] = useState(false);
 
   const project = hasMounted ? projects.find((p) => p.id === projectId) : undefined;
 
   useEffect(() => {
     const p = usePulseStore.getState().projects.find((proj) => proj.id === projectId);
     if (!p) {
-      setPrepareResult(null);
-      setAnalysisResult(null);
       setImplementResult(null);
       setDeployResult(null);
       setPreviewStatus(null);
@@ -214,20 +207,9 @@ export default function ProjectDetailPage() {
       return;
     }
 
-    setPrepareResult(
-      p.prepare_result
-        ? { ...(p.prepare_result as PrepareResult), signalId: (p.prepare_result as any)?.signalId || p.signal_id }
-        : null
-    );
-
     if (p.implement_result) {
       setImplementResult(p.implement_result as unknown as ImplementResultData);
-      setAnalysisResult(p.plan_result ?? null);
-    } else if (p.plan_result) {
-      setAnalysisResult(p.plan_result);
-      setImplementResult(null);
     } else {
-      setAnalysisResult(null);
       setImplementResult(null);
     }
     setDeployResult(null);
@@ -235,34 +217,26 @@ export default function ProjectDetailPage() {
     setPushPRResult(null);
 
     // Recover stale execution states when no agent is running.
-    // "implementing"/"active" without result → interrupted mid-run
-    // "implemented" with failed result → pipeline crashed, not truly implemented
-    // But if there's a pipeline_checkpoint, keep "analyzing" so "Continue" button shows
-    const hasCheckpoint = !!(p as any).pipeline_checkpoint;
     const isStaleExecution =
       !usePulseStore.getState().isRunning &&
-      !hasCheckpoint &&
       (
         (["implementing", "active"].includes(p.status) && !p.implement_result) ||
         (p.status === "implemented" && p.implement_result?.status === "failed")
       );
 
     if (isStaleExecution) {
-      const recoveredStatus = p.plan_result ? "planned" : "draft";
-      updateProjectInStore(projectId, { status: recoveredStatus });
+      updateProjectInStore(projectId, { status: "draft" });
       if (!projectId.startsWith("local-")) {
         fetch(`/api/projects/${projectId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: recoveredStatus }),
+          body: JSON.stringify({ status: "draft" }),
         }).catch((err) => console.error('[project-page] Update project status failed:', err));
       }
     }
 
-    // Restore kanban tasks: prefer implementation_plan (has true final statuses)
-    // over plan_result (all tasks would be created as 'todo').
+    // Restore kanban tasks from implementation_plan
     const implPlan = (p as any).implementation_plan;
-    console.log('[DEBUG] task restore — fetchStatus:', fetchStatus, 'implPlan tasks:', implPlan?.tasks?.length ?? 0, 'plan_result tasks:', p.plan_result?.tasks?.length ?? 0);
     if (implPlan?.tasks?.length && !usePulseStore.getState().isRunning) {
       const statusMap: Record<string, "todo" | "in-progress" | "done"> = {
         pending: "todo",
@@ -281,11 +255,6 @@ export default function ProjectDetailPage() {
       }));
       const otherTasks = usePulseStore.getState().tasks.filter((t) => t.projectId !== projectId);
       setTasks([...otherTasks, ...restored]);
-    } else if (p.plan_result?.tasks?.length) {
-      const projectTasks = usePulseStore.getState().tasks.filter((t) => t.projectId === projectId);
-      if (projectTasks.length === 0) {
-        usePulseStore.getState().deployToKanban(p.plan_result, projectId);
-      }
     }
   }, [projectId, fetchStatus, updateProjectInStore, setTasks]);
 
@@ -373,229 +342,14 @@ export default function ProjectDetailPage() {
   const handleExecute = async () => {
     if (!project) return;
 
-    // Check for checkpoint → resume
-    const projectCheckpoint = (project as any).pipeline_checkpoint;
-    if (projectCheckpoint) {
-      if (projectCheckpoint.stage === 'plan') {
-        // Resume plan stage
-        const dummyPrepare = prepareResult || (project.prepare_result as PrepareResult);
-        if (dummyPrepare) {
-          await handleAcceptAndPlan(dummyPrepare, true);
-        }
-        return;
-      }
-      // Resume prepare stage
-      resetAgentState();
-      backendIdToTitleRef.current.clear();
-      setPrepareResult(null);
-      setAnalysisResult(null);
-      setRunning(true, projectId);
-      setStage("prepare");
-
-      try {
-        const response = await fetch(`/api/projects/${project.id}/execute`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stage: "prepare",
-            description: project.description,
-            urls: [],
-            resume: true,
-          }),
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const data = await readSSEStream(response);
-        if (data) {
-          setPrepareResult({ ...data, signalId: data.signalId });
-          updateProjectInStore(projectId, { status: "analyzing", prepare_result: data, pipeline_checkpoint: null });
-          resetAgentState();
-        }
-      } catch (e: any) {
-        addAgentLog({ agent: "pm", type: "log", message: `Error: ${e.message}` });
-      } finally {
-        setRunning(false);
-      }
+    // Conversation-sourced projects: route to DM review flow
+    if ((project as any).conversation_id) {
+      setDmDrawerOpen(true);
       return;
     }
-
-    if (prepareResult) {
-      await handleAcceptAndPlan(prepareResult);
-      return;
-    }
-
-    resetAgentState();
-    backendIdToTitleRef.current.clear();
-    setPrepareResult(null);
-    setAnalysisResult(null);
-    setRunning(true, projectId);
-    setStage("prepare");
-
-    try {
-      const endpoint = project.id.startsWith("local-")
-        ? "/api/analyze"
-        : `/api/projects/${project.id}/execute`;
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stage: "prepare",
-          description: project.description,
-          urls: [],
-        }),
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await readSSEStream(response);
-      if (data) {
-        setPrepareResult({ ...data, signalId: data.signalId });
-        updateProjectInStore(projectId, { status: "analyzing", prepare_result: data });
-        resetAgentState();
-      }
-    } catch (e: any) {
-      addAgentLog({ agent: "pm", type: "log", message: `Error: ${e.message}` });
-    } finally {
-      setRunning(false);
-    }
   };
 
-  const handleAcceptAndPlan = async (currentPrepare: PrepareResult, resumeMode = false) => {
-    if (!project) return;
-    resetAgentState();
-    setRunning(true, projectId);
-    setStage("plan");
 
-    const mrdPitch = currentPrepare.blue_case?.mrd?.executive_pitch || '';
-    const confirmedProposal = [
-      currentPrepare.blue_case?.proposal ? `Proposal: ${currentPrepare.blue_case.proposal}` : '',
-      mrdPitch ? `\nMRD Executive Pitch: ${mrdPitch}` : '',
-      currentPrepare.arbitrator_rationale ? `\nArbitrator Rationale: ${currentPrepare.arbitrator_rationale}` : '',
-      currentPrepare.business_verdict ? `\nBusiness Verdict: ${currentPrepare.business_verdict}` : '',
-    ].filter(Boolean).join('\n') || project.description;
-
-    try {
-      const endpoint = project.id.startsWith("local-")
-        ? "/api/analyze"
-        : `/api/projects/${project.id}/execute`;
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stage: "plan",
-          description: project.description,
-          signalId: currentPrepare.signalId || (prepareResult as any)?.signalId || project.signal_id,
-          confirmed_proposal: confirmedProposal,
-          ...(resumeMode && { resume: true }),
-        }),
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await readSSEStream(response);
-      if (data) {
-        setAnalysisResult(data);
-        updateProjectInStore(projectId, { status: "planned", plan_result: data, pipeline_checkpoint: null });
-        resetAgentState();
-      }
-    } catch (e: any) {
-      addAgentLog({ agent: "pm", type: "log", message: `Error: ${e.message}` });
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const handleProceed = async (editedResult: PrepareResult) => {
-    await handleAcceptAndPlan(editedResult);
-  };
-
-  const resetStaleTasks = useCallback(() => {
-    const cur = usePulseStore.getState().tasks;
-    const hasStale = cur.some((t) => t.projectId === projectId && t.status === "in-progress");
-    if (hasStale) {
-      setTasks(
-        cur.map((t) =>
-          t.projectId === projectId && t.status === "in-progress"
-            ? { ...t, status: "todo" as const }
-            : t
-        )
-      );
-    }
-  }, [projectId, setTasks]);
-
-  const handleImplementLocal = async (resumeMode = false) => {
-    if (!project) return;
-    resetAgentState();
-    backendIdToTitleRef.current.clear();
-
-    if (!resumeMode) {
-      const otherTasks = allTasks.filter((t) => t.projectId !== projectId);
-      setTasks(otherTasks);
-    } else {
-      // Reset failed/in-progress tasks to todo for visual feedback
-      setTasks(
-        allTasks.map((t) =>
-          t.projectId === projectId && t.status !== "done"
-            ? { ...t, status: "todo" as const }
-            : t
-        )
-      );
-    }
-    setImplementResult(null);
-    setDeployResult(null);
-    setPreviewStatus(null);
-    setPushPRResult(null);
-    setRunning(true, projectId);
-    setStage("implement");
-    setCurrentPage(1);
-
-    try {
-      const response = await fetch(`/api/projects/${project.id}/implement`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_name: project.name, resume: resumeMode }),
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await readSSEStream(response);
-      if (data) {
-        const implResult: ImplementResultData = {
-          status: data.status,
-          summary: data.summary,
-          prUrl: data.prUrl,
-          prNumber: data.prNumber,
-          tasksCompleted: data.plan?.tasks?.filter((t: any) => t.status === "completed").length ?? 0,
-          tasksTotal: data.plan?.tasks?.length ?? 0,
-          filesChanged: data.filesChanged || [],
-          testsPassing: data.testsPassing ?? null,
-        };
-        setImplementResult(implResult);
-        updateProjectInStore(projectId, {
-          status: data.status === "success" ? "implemented" : "planned",
-          implement_result: implResult,
-          implementation_plan: data.plan,
-        });
-      } else {
-        addAgentLog({ agent: "system", type: "log", message: t('projectDetail.connectionLost') });
-        updateProjectInStore(projectId, { status: "planned" });
-        resetStaleTasks();
-      }
-    } catch (e: any) {
-      addAgentLog({ agent: "orchestrator", type: "log", message: `Error: ${e.message}` });
-      updateProjectInStore(projectId, { status: "planned" });
-      resetStaleTasks();
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const handleResumeImplement = async () => {
-    await handleImplementLocal(true);
-  };
 
   // ── Local preview handlers ──
 
@@ -691,49 +445,6 @@ export default function ProjectDetailPage() {
       .catch((err) => console.error('[project-page] Fetch preview status failed:', err));
   }, [hasMounted, projectId, implementResult]);
 
-  // ── Remote deploy handler ──
-
-  const handleDeployToProduction = async () => {
-    if (!project || !implementResult?.prNumber) return;
-    setIsDeploying(true);
-    setStage("deploy");
-    setRunning(true, projectId);
-
-    try {
-      const prUrl = implementResult.prUrl || "";
-      const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull/);
-      const repoOwner = match?.[1] || "";
-      const repoName = match?.[2] || "";
-
-      const response = await fetch(`/api/projects/${project.id}/deploy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pr_number: implementResult.prNumber,
-          pr_url: implementResult.prUrl,
-          repo_owner: repoOwner,
-          repo_name: repoName,
-          target: "vercel",
-        }),
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await readSSEStream(response);
-      if (data) {
-        setDeployResult({ state: data.state, deploymentUrl: data.deploymentUrl });
-        if (data.state === "success") {
-          updateProjectInStore(projectId, { status: "deployed" });
-        }
-      }
-    } catch (e: any) {
-      addAgentLog({ agent: "deployer", type: "log", message: `Error: ${e.message}` });
-      setDeployResult({ state: "failed" });
-    } finally {
-      setIsDeploying(false);
-      setRunning(false);
-    }
-  };
 
   // ── Push PR handler ──
 
@@ -771,11 +482,6 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleLaunch = async () => {
-    deployToKanban(analysisResult, projectId);
-    updateProjectInStore(projectId, { status: "active" });
-    await handleImplementLocal();
-  };
 
   const handleDelete = async () => {
     if (!project) return;
@@ -804,14 +510,7 @@ export default function ProjectDetailPage() {
     );
   }
 
-  // Only "deployed" is a truly terminal launched state.
-  // "implementing"/"implemented" are recoverable intermediate states —
-  // the user should be able to re-launch after a restart.
-  const isLaunched = !!project && project.status === "deployed";
-  const isPlanRunning = isRunning && currentStage === "plan" && !!prepareResult;
   const isImplementStage = isRunning && currentStage === "implement";
-  const isLaunching = isImplementStage;
-  const kanbanProgress = getProjectTaskProgress(projectId);
   const projectTasks = allTasks.filter((t) => t.projectId === projectId);
   const hasTasks = projectTasks.length > 0;
 
@@ -819,11 +518,8 @@ export default function ProjectDetailPage() {
     <div className="flex flex-col h-full">
       <ProjectHeader
         project={project}
-        onExecute={handleExecute}
         onDelete={handleDelete}
         isRunning={isRunning}
-        hasPrepareResult={!!prepareResult}
-        hasCheckpoint={!!(project as any).pipeline_checkpoint}
         conversationId={project.conversation_id}
         onPromote={async (data) => {
           try {
@@ -855,8 +551,8 @@ export default function ProjectDetailPage() {
       {/* ────── Page 1: Overview ────── */}
       {currentPage === 0 && (
         <div className="flex-1 overflow-y-auto p-4">
-          {/* Progress bar — only for non-plan, non-implement stages (e.g. prepare) */}
-          {!isPlanRunning && !isImplementStage && (
+          {/* Progress bar */}
+          {!isImplementStage && (
             <AgentProgressBar
               currentStage={currentStage}
               currentStep={currentStep}
@@ -865,81 +561,29 @@ export default function ProjectDetailPage() {
             />
           )}
 
-          {/* Agent activity — only for non-plan, non-implement stages */}
-          {!isPlanRunning && !isImplementStage && agentLogs.length > 0 && (
+          {/* Agent activity */}
+          {!isImplementStage && agentLogs.length > 0 && (
             <div className="mb-6">
               <AgentActivityFeed logs={agentLogs} />
             </div>
           )}
 
           {/* Running indicator */}
-          {isRunning && !isPlanRunning && !isImplementStage && agentLogs.length === 0 && (
+          {isRunning && !isImplementStage && agentLogs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="p-4 rounded-full bg-zinc-900 border border-zinc-800 animate-pulse mb-4">
                 <BrainCircuit className="w-8 h-8 text-blue-500" />
               </div>
-              <p className="text-zinc-400 animate-pulse">Analyzing signals...</p>
+              <p className="text-zinc-400 animate-pulse">Processing...</p>
             </div>
           )}
-
-          {/* Prepare result */}
-          {prepareResult && (
-            <div className="mb-6">
-              <PrepareResultCard
-                result={prepareResult}
-                onProceed={handleProceed}
-                onUpdate={setPrepareResult}
-                hideAction={isRunning || !!analysisResult}
-              />
-            </div>
-          )}
-
-          {/* Plan stage progress + logs */}
-          {isPlanRunning && (
-            <div className="mb-6">
-              <AgentProgressBar
-                currentStage={currentStage}
-                currentStep={currentStep}
-                totalSteps={totalSteps}
-                activeAgents={activeAgents}
-              />
-              {agentLogs.length > 0 ? (
-                <div className="mt-4">
-                  <AgentActivityFeed logs={agentLogs} />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="p-4 rounded-full bg-zinc-900 border border-zinc-800 animate-pulse mb-4">
-                    <BrainCircuit className="w-8 h-8 text-blue-500" />
-                  </div>
-                  <p className="text-zinc-400 animate-pulse">{t('projectDetail.generatingPlan')}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Plan result */}
-          <AnimatePresence mode="wait">
-            {analysisResult && (
-              <div>
-                <PlanResultCard
-                  result={analysisResult}
-                  onLaunch={handleLaunch}
-                  isLaunching={isLaunching}
-                  isLaunched={isLaunched}
-                  kanbanProgress={kanbanProgress.total > 0 ? kanbanProgress : null}
-                />
-              </div>
-            )}
-          </AnimatePresence>
 
           {/* Empty state */}
-          {!isRunning && !prepareResult && !analysisResult && !implementResult && agentLogs.length === 0 && (
+          {!isRunning && !implementResult && agentLogs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <BrainCircuit className="w-12 h-12 text-zinc-800 mb-4" />
               <h2 className="text-lg font-bold text-zinc-400 mb-2">{project.name}</h2>
               <p className="text-sm text-zinc-600 mb-6">{project.description}</p>
-              <p className="text-xs text-zinc-700">Click &quot;{t('project.header.startAnalysis')}&quot; to start the analysis pipeline.</p>
             </div>
           )}
         </div>
@@ -966,7 +610,6 @@ export default function ProjectDetailPage() {
             isRunning={isRunning}
             isImplementStage={isImplementStage}
             onUpdateStatus={updateTaskStatus}
-            onRetry={handleResumeImplement}
           />
 
           {/* Implementation result summary */}
@@ -975,7 +618,6 @@ export default function ProjectDetailPage() {
               <ImplementResultCard
                 result={implementResult}
                 projectId={projectId}
-                onDeployStart={handleDeployToProduction}
                 isDeploying={isDeploying}
                 deployResult={deployResult}
                 previewStatus={previewStatus}
@@ -985,7 +627,6 @@ export default function ProjectDetailPage() {
                 onPushPR={handlePushPR}
                 isPushingPR={isPushingPR}
                 pushPRResult={pushPRResult}
-                onRetry={handleResumeImplement}
               />
             </div>
           )}
@@ -997,6 +638,14 @@ export default function ProjectDetailPage() {
         <div className="flex-1 overflow-y-auto">
           <TracesPageView projectId={projectId} />
         </div>
+      )}
+
+      {/* DM Review drawer for conversation-sourced projects */}
+      {dmDrawerOpen && (project as any).conversation_id && (
+        <DmReviewDrawer
+          conversationId={(project as any).conversation_id}
+          onClose={() => setDmDrawerOpen(false)}
+        />
       )}
     </div>
   );

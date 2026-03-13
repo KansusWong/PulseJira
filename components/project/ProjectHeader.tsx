@@ -4,22 +4,19 @@ import { useState, useRef, useEffect } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useTranslation } from '@/lib/i18n';
-import { ArrowRight, Shield, Trash2, Upload, X } from "lucide-react";
+import { Shield, Trash2, Upload, X } from "lucide-react";
 import type { Project } from "@/projects/types";
 import { DmReviewDrawer } from "@/components/project/DmReviewDrawer";
 
 interface ProjectHeaderProps {
   project: Project;
-  onExecute: () => void;
   onDelete: () => void;
   isRunning: boolean;
-  hasPrepareResult?: boolean;
-  hasCheckpoint?: boolean;
   onPromote?: (data: { feature_name: string; feature_type: 'skill' | 'agent'; feature_description: string }) => void;
   conversationId?: string;
 }
 
-export function ProjectHeader({ project, onExecute, onDelete, isRunning, hasPrepareResult, hasCheckpoint, onPromote, conversationId }: ProjectHeaderProps) {
+export function ProjectHeader({ project, onDelete, isRunning, onPromote, conversationId }: ProjectHeaderProps) {
   const { t } = useTranslation();
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -52,7 +49,6 @@ export function ProjectHeader({ project, onExecute, onDelete, isRunning, hasPrep
     return () => document.removeEventListener("mousedown", handleClick);
   }, [confirmingDelete]);
 
-  const canExecute = (['draft', 'analyzing', 'planned'].includes(project.status) && !hasPrepareResult) || hasCheckpoint;
   const canPromote = ['implemented', 'deployed'].includes(project.status);
 
   const handlePromoteSubmit = async () => {
@@ -94,16 +90,6 @@ export function ProjectHeader({ project, onExecute, onDelete, isRunning, hasPrep
             <Button variant="ghost" size="sm" onClick={() => setDmDrawerOpen(true)} disabled={isRunning}>
               <Shield className="w-3 h-3 mr-1" />
               {t('dm.drawerTitle')}
-            </Button>
-          )}
-          {canExecute && (
-            <Button onClick={onExecute} disabled={isRunning} size="sm">
-              {isRunning
-                ? t('project.header.running')
-                : hasCheckpoint
-                  ? t('project.header.continueExecution')
-                  : t('project.header.startAnalysis')}
-              <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           )}
           <div className="relative" ref={deleteRef}>
