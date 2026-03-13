@@ -19,6 +19,7 @@ export interface VideoGenOptions {
   aspectRatio?: string;
   duration?: string;
   outputDir?: string;
+  seed?: number;
 }
 
 export interface VideoResult {
@@ -67,6 +68,9 @@ export class VideoService {
       aspect_ratio: options.aspectRatio || '16:9',
       duration: options.duration || '5',
     };
+    if (options.seed !== undefined) {
+      body.seed = options.seed;
+    }
 
     // Image-to-video mode
     if (options.image) {

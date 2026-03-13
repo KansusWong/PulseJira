@@ -524,7 +524,11 @@ export class ChatEngine {
     edit_image: '编辑图片',
     generate_video: '生成视频',
     automation: '自动化流水线',
-    computer_use: '桌面控制',
+    screenshot: '截图',
+    mouse_click: '鼠标点击',
+    keyboard_type: '键盘输入',
+    keyboard_hotkey: '快捷键',
+    mouse_move: '鼠标移动',
     read_document: '读取文档',
     // Workspace
     create_workspace: '创建工作空间',

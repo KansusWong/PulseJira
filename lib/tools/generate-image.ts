@@ -14,10 +14,11 @@ import { getImageService } from '../services/image-service';
 const schema = z.object({
   prompt: z.string().describe('Detailed description of the image to generate'),
   filename: z.string().optional().describe('Output filename (default: auto-generated)'),
-  aspect_ratio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4']).default('1:1')
+  aspect_ratio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4', '21:9']).default('1:1')
     .describe('Image aspect ratio (default: 1:1)'),
   quality: z.enum(['standard', 'hd']).default('standard')
     .describe('Image quality: standard or hd'),
+  seed: z.number().optional().describe('Random seed for reproducible generation'),
 });
 
 type Input = z.infer<typeof schema>;
@@ -44,6 +45,7 @@ export class GenerateImageTool extends BaseTool<Input, string> {
         filename: input.filename,
         aspectRatio: input.aspect_ratio,
         quality: input.quality,
+        seed: input.seed,
         outputDir,
       });
 

@@ -12,13 +12,17 @@ import type { ToolContext } from '../core/tool-context';
 import { getAutomationService } from '../services/automation-service';
 
 const schema = z.object({
-  action: z.enum(['create', 'list', 'update', 'configure', 'pause', 'resume', 'delete', 'history'])
-    .describe('Pipeline management action'),
+  action: z.enum([
+    'create', 'activate', 'list', 'update', 'configure',
+    'pause', 'resume', 'delete', 'rebind', 'history', 'publish',
+  ]).describe('Pipeline management action'),
   name: z.string().optional().describe('Pipeline name (required for create)'),
-  pipeline_id: z.string().optional().describe('Pipeline ID (required for update/delete/pause/resume/history)'),
+  pipeline_id: z.string().optional().describe('Pipeline ID (required for update/delete/pause/resume/history/activate/rebind)'),
+  instance_id: z.string().optional().describe('Pipeline instance ID (for activate/rebind)'),
   config_json: z.string().optional()
     .describe('JSON configuration: { trigger_type, trigger_config: { expression }, task_design, execution_config }'),
   variables: z.string().optional().describe('JSON variables override for the pipeline'),
+  target_agent_id: z.string().optional().describe('Target agent ID (for rebind/publish)'),
 });
 
 type Input = z.infer<typeof schema>;
@@ -28,13 +32,16 @@ export class AutomationTool extends BaseTool<Input, string> {
   description = `Create and manage automated pipelines with cron or webhook triggers.
 Actions:
   - create: Create a new pipeline (requires name + config_json)
+  - activate: Activate a pipeline instance (requires pipeline_id)
   - list: List all pipelines
   - update: Update pipeline configuration (requires pipeline_id + config_json)
   - configure: Alias for update
   - pause: Pause a pipeline (requires pipeline_id)
   - resume: Resume a paused pipeline (requires pipeline_id)
   - delete: Delete a pipeline (requires pipeline_id)
+  - rebind: Rebind a pipeline to a different agent (requires pipeline_id + target_agent_id)
   - history: View execution history (requires pipeline_id)
+  - publish: Publish a pipeline for sharing (requires pipeline_id)
 
 config_json example: {"trigger_type":"cron","trigger_config":{"expression":"0 9 * * 1-5"},"task_design":"Generate daily standup report"}`;
   schema = schema;
@@ -46,6 +53,8 @@ config_json example: {"trigger_type":"cron","trigger_config":{"expression":"0 9 
       switch (input.action) {
         case 'create':
           return await this.handleCreate(service, input, ctx);
+        case 'activate':
+          return await this.handleActivate(service, input);
         case 'list':
           return await this.handleList(service);
         case 'update':
@@ -57,8 +66,12 @@ config_json example: {"trigger_type":"cron","trigger_config":{"expression":"0 9 
           return await this.handleResume(service, input);
         case 'delete':
           return await this.handleDelete(service, input);
+        case 'rebind':
+          return await this.handleRebind(service, input);
         case 'history':
           return await this.handleHistory(service, input);
+        case 'publish':
+          return await this.handlePublish(service, input);
         default:
           return `Error: Unknown action "${input.action}".`;
       }
@@ -86,7 +99,7 @@ config_json example: {"trigger_type":"cron","trigger_config":{"expression":"0 9 
 
     const pipeline = await service.createPipeline({
       name: input.name,
-      agentId: ctx?.agentName || 'rebuild',
+      agentId: input.target_agent_id || ctx?.agentName || 'rebuild',
       triggerType: config.trigger_type || 'cron',
       triggerConfig: config.trigger_config || {},
       taskDesign: config.task_design || '',
@@ -95,6 +108,15 @@ config_json example: {"trigger_type":"cron","trigger_config":{"expression":"0 9 
     });
 
     return `Pipeline created:\n  ID: ${pipeline.id}\n  Name: ${pipeline.name}\n  Trigger: ${pipeline.triggerType}\n  Status: ${pipeline.status}`;
+  }
+
+  private async handleActivate(
+    service: ReturnType<typeof getAutomationService>,
+    input: Input,
+  ): Promise<string> {
+    if (!input.pipeline_id) return 'Error: pipeline_id is required for activate action.';
+    await service.resumePipeline(input.pipeline_id);
+    return `Pipeline ${input.pipeline_id} activated.${input.instance_id ? ` Instance: ${input.instance_id}` : ''}`;
   }
 
   private async handleList(service: ReturnType<typeof getAutomationService>): Promise<string> {
@@ -162,6 +184,20 @@ config_json example: {"trigger_type":"cron","trigger_config":{"expression":"0 9 
     return `Pipeline ${input.pipeline_id} deleted.`;
   }
 
+  private async handleRebind(
+    service: ReturnType<typeof getAutomationService>,
+    input: Input,
+  ): Promise<string> {
+    if (!input.pipeline_id) return 'Error: pipeline_id is required for rebind action.';
+    if (!input.target_agent_id) return 'Error: target_agent_id is required for rebind action.';
+
+    const pipeline = await service.updatePipeline(input.pipeline_id, {
+      agentId: input.target_agent_id,
+    } as any);
+
+    return `Pipeline ${input.pipeline_id} rebound to agent: ${input.target_agent_id}.`;
+  }
+
   private async handleHistory(
     service: ReturnType<typeof getAutomationService>,
     input: Input,
@@ -177,5 +213,19 @@ config_json example: {"trigger_type":"cron","trigger_config":{"expression":"0 9 
       `  [${r.id.slice(0, 8)}] ${r.status} | ${r.triggerType} | ${r.createdAt}`
     );
     return `Execution history (${runs.length}):\n${lines.join('\n')}`;
+  }
+
+  private async handlePublish(
+    service: ReturnType<typeof getAutomationService>,
+    input: Input,
+  ): Promise<string> {
+    if (!input.pipeline_id) return 'Error: pipeline_id is required for publish action.';
+
+    // Mark pipeline as published by updating its status/config
+    const pipeline = await service.updatePipeline(input.pipeline_id, {
+      executionConfig: { published: true, published_at: new Date().toISOString() },
+    } as any);
+
+    return `Pipeline ${input.pipeline_id} published.${input.target_agent_id ? ` Target agent: ${input.target_agent_id}` : ''}`;
   }
 }

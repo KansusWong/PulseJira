@@ -20,12 +20,16 @@ export interface ImageGenOptions {
   aspectRatio?: string;
   quality?: string;
   outputDir?: string;
+  seed?: number;
 }
 
 export interface ImageEditOptions {
   filename?: string;
+  aspectRatio?: string;
+  quality?: string;
   strength?: number;
   outputDir?: string;
+  seed?: number;
 }
 
 export interface ImageResult {
@@ -136,8 +140,21 @@ export class ImageService {
       '9:16': '1024x1792',
       '4:3': '1024x768',
       '3:4': '768x1024',
+      '21:9': '2016x864',
     };
     const size = sizeMap[options.aspectRatio || '1:1'] || '1024x1024';
+
+    const reqBody: Record<string, any> = {
+      model: process.env.IMAGE_MODEL_NAME || 'dall-e-3',
+      prompt,
+      n: 1,
+      size,
+      quality: options.quality || 'standard',
+      response_format: 'b64_json',
+    };
+    if (options.seed !== undefined) {
+      reqBody.seed = options.seed;
+    }
 
     const response = await fetch(this.apiUrl, {
       method: 'POST',
@@ -145,14 +162,7 @@ export class ImageService {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({
-        model: process.env.IMAGE_MODEL_NAME || 'dall-e-3',
-        prompt,
-        n: 1,
-        size,
-        quality: options.quality || 'standard',
-        response_format: 'b64_json',
-      }),
+      body: JSON.stringify(reqBody),
       signal: AbortSignal.timeout(120_000),
     });
 

@@ -16,8 +16,13 @@ const schema = z.object({
   images: z.union([z.string(), z.array(z.string())])
     .describe('Source image path(s) to edit'),
   filename: z.string().optional().describe('Output filename'),
+  aspect_ratio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4', '21:9']).optional()
+    .describe('Output aspect ratio (default: same as source)'),
+  quality: z.enum(['standard', 'hd']).default('standard')
+    .describe('Output quality: standard or hd'),
   strength: z.number().min(0).max(1).default(0.5)
     .describe('Edit strength: 0 (subtle) to 1 (dramatic). Default: 0.5'),
+  seed: z.number().optional().describe('Random seed for reproducible editing'),
 });
 
 type Input = z.infer<typeof schema>;
@@ -52,7 +57,10 @@ export class EditImageTool extends BaseTool<Input, string> {
 
       const result = await service.editImage(input.prompt, imagePaths, {
         filename: input.filename,
+        aspectRatio: input.aspect_ratio,
+        quality: input.quality,
         strength: input.strength,
+        seed: input.seed,
         outputDir,
       });
 

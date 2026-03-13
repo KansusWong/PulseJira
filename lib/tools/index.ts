@@ -58,7 +58,11 @@ import { GenerateImageTool } from './generate-image';
 import { EditImageTool } from './edit-image';
 import { GenerateVideoTool } from './generate-video';
 import { AutomationTool } from './automation';
-import { ComputerUseTool } from './computer-use';
+import { ScreenshotTool } from './screenshot';
+import { MouseClickTool } from './mouse-click';
+import { KeyboardTypeTool } from './keyboard-type';
+import { KeyboardHotkeyTool } from './keyboard-hotkey';
+import { MouseMoveTool } from './mouse-move';
 
 // ==========================================================================
 // Phase 1: Renamed tools (new primary names + old aliases)
@@ -137,7 +141,11 @@ registerTool('generate_image', () => new GenerateImageTool());
 registerTool('edit_image', () => new EditImageTool());
 registerTool('generate_video', () => new GenerateVideoTool());
 registerTool('automation', () => new AutomationTool());
-registerTool('computer_use', () => new ComputerUseTool());
+registerTool('screenshot', () => new ScreenshotTool());
+registerTool('mouse_click', () => new MouseClickTool());
+registerTool('keyboard_type', () => new KeyboardTypeTool());
+registerTool('keyboard_hotkey', () => new KeyboardHotkeyTool());
+registerTool('mouse_move', () => new MouseMoveTool());
 
 // --- Workspace-scoped tool factories ---
 // These are NOT registered globally because they require runtime context.
@@ -183,7 +191,11 @@ export { GenerateImageTool } from './generate-image';
 export { EditImageTool } from './edit-image';
 export { GenerateVideoTool } from './generate-video';
 export { AutomationTool } from './automation';
-export { ComputerUseTool } from './computer-use';
+export { ScreenshotTool } from './screenshot';
+export { MouseClickTool } from './mouse-click';
+export { KeyboardTypeTool } from './keyboard-type';
+export { KeyboardHotkeyTool } from './keyboard-hotkey';
+export { MouseMoveTool } from './mouse-move';
 
 // Shared infrastructure exports
 export { getToolDescVersion, setToolDescVersion, selectDesc } from './tool-desc-version';

@@ -4,6 +4,12 @@ import { crawl4aiSearch, isCrawl4AIAvailable } from '@/connectors/external/firec
 
 const WebSearchInputSchema = z.object({
   query: z.string().describe('Search query to find information on the web'),
+  search_depth: z.enum(['basic', 'advanced']).default('basic')
+    .describe('Search depth: basic (fast, top results) or advanced (deeper, more thorough)'),
+  max_results: z.number().min(1).max(20).default(5)
+    .describe('Maximum number of search results to return (default: 5)'),
+  include_answer: z.boolean().default(true)
+    .describe('Include a direct answer summary from search results (default: true)'),
 });
 
 type WebSearchInput = z.infer<typeof WebSearchInputSchema>;
@@ -38,13 +44,20 @@ export class WebSearchTool extends BaseTool<WebSearchInput, string> {
       return 'No search capability available (CRAWL4AI_API_URL not configured).';
     }
 
-    const results = await crawl4aiSearch(this.enhanceQuery(input.query), 3);
+    const numResults = Math.min(input.max_results || 5, 20);
+    const results = await crawl4aiSearch(this.enhanceQuery(input.query), numResults);
     if (results.length === 0) return 'No results found.';
 
-    return results
+    const formatted = results
       .map((item) =>
         `Source: ${item.url}\nTitle: ${item.title}\nContent: ${item.markdown}...`
       )
       .join('\n\n');
+
+    if (input.include_answer !== false) {
+      return `[Search: ${results.length} results | depth: ${input.search_depth || 'basic'}]\n\n${formatted}`;
+    }
+
+    return formatted;
   }
 }

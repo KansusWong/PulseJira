@@ -15,10 +15,11 @@ const schema = z.object({
   prompt: z.string().describe('Video description (what the video should show)'),
   filename: z.string().optional().describe('Output filename'),
   image: z.string().optional().describe('First frame image path for image-to-video mode'),
-  aspect_ratio: z.enum(['16:9', '9:16', '1:1']).default('16:9')
+  aspect_ratio: z.enum(['16:9', '9:16', '1:1', '4:3', '3:4', '2:3', '3:2']).default('16:9')
     .describe('Video aspect ratio (default: 16:9)'),
   duration: z.enum(['5', '10']).default('5')
     .describe('Video duration in seconds: 5 or 10'),
+  seed: z.number().optional().describe('Random seed for reproducible generation'),
 });
 
 type Input = z.infer<typeof schema>;
@@ -48,6 +49,7 @@ export class GenerateVideoTool extends BaseTool<Input, string> {
         image: input.image,
         aspectRatio: input.aspect_ratio,
         duration: input.duration,
+        seed: input.seed,
         outputDir,
       });
 

@@ -44,7 +44,7 @@ const GLOBAL_TOOL_NAMES = [
   'browser',
   'analyze_image', 'generate_image', 'edit_image', 'generate_video',
   'automation',
-  'computer_use',
+  'screenshot', 'mouse_click', 'keyboard_type', 'keyboard_hotkey', 'mouse_move',
 ];
 
 /**
