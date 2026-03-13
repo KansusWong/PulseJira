@@ -818,6 +818,77 @@ DO $$ BEGIN
 END $$;
 
 -- ############################################################################
+-- SECTION 16.5: Vision Knowledge & Decisions (core RAG source tables)
+-- ############################################################################
+
+-- ----------------------------------------------------------------------------
+-- 16.5.1  vision_knowledge — core vision/manifesto chunks
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS vision_knowledge (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  content    text NOT NULL,
+  embedding  vector(256),
+  metadata   jsonb,
+  created_at timestamptz DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_vision_knowledge_embedding ON vision_knowledge
+  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- ----------------------------------------------------------------------------
+-- 16.5.2  decisions — embedding index for semantic search
+-- ----------------------------------------------------------------------------
+-- (decisions table is a PREREQUISITE, but ensure embedding column + index exist)
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS embedding vector(256);
+
+CREATE INDEX IF NOT EXISTS idx_decisions_embedding ON decisions
+  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- ############################################################################
+-- SECTION 16.6: Automation Pipelines
+-- ############################################################################
+
+-- ----------------------------------------------------------------------------
+-- 16.6.1  automation_pipelines
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS automation_pipelines (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             TEXT NOT NULL,
+  agent_id         TEXT NOT NULL,
+  trigger_type     TEXT NOT NULL CHECK (trigger_type IN ('cron', 'webhook')),
+  trigger_config   JSONB NOT NULL DEFAULT '{}',
+  task_design      TEXT NOT NULL,
+  variables_schema JSONB DEFAULT '{}',
+  variables        JSONB DEFAULT '{}',
+  execution_config JSONB DEFAULT '{"max_iterations": 30, "timeout_minutes": 60}',
+  status           TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'deleted')),
+  created_at       TIMESTAMPTZ DEFAULT now(),
+  updated_at       TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_automation_pipelines_agent_id ON automation_pipelines(agent_id);
+CREATE INDEX IF NOT EXISTS idx_automation_pipelines_status   ON automation_pipelines(status);
+
+-- ----------------------------------------------------------------------------
+-- 16.6.2  automation_runs
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS automation_runs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pipeline_id     UUID REFERENCES automation_pipelines(id) ON DELETE CASCADE,
+  trigger_type    TEXT NOT NULL,
+  trigger_payload JSONB DEFAULT '{}',
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+  result          JSONB DEFAULT '{}',
+  started_at      TIMESTAMPTZ,
+  completed_at    TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_automation_runs_pipeline_id ON automation_runs(pipeline_id);
+CREATE INDEX IF NOT EXISTS idx_automation_runs_status      ON automation_runs(status);
+CREATE INDEX IF NOT EXISTS idx_automation_runs_created_at  ON automation_runs(created_at DESC);
+
+-- ############################################################################
 -- SECTION 17: RPC Functions (Agentic RAG)
 -- ############################################################################
 
@@ -902,6 +973,56 @@ BEGIN
        LIMIT $3'
     USING query_embedding, match_threshold, match_count;
   END IF;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- match_vision_knowledge
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION match_vision_knowledge(
+  query_embedding vector(256),
+  match_threshold float DEFAULT 0.5,
+  match_count int DEFAULT 5
+)
+RETURNS TABLE (
+  id uuid, content text, similarity float
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    vk.id, vk.content,
+    1 - (vk.embedding <=> query_embedding) AS similarity
+  FROM vision_knowledge vk
+  WHERE vk.embedding IS NOT NULL
+    AND 1 - (vk.embedding <=> query_embedding) > match_threshold
+  ORDER BY vk.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- match_decisions
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION match_decisions(
+  query_embedding vector(256),
+  match_threshold float DEFAULT 0.5,
+  match_count int DEFAULT 5
+)
+RETURNS TABLE (
+  id uuid, decision_rationale text, result_action jsonb, similarity float
+)
+LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    d.id, d.decision_rationale, d.result_action,
+    1 - (d.embedding <=> query_embedding) AS similarity
+  FROM decisions d
+  WHERE d.embedding IS NOT NULL
+    AND 1 - (d.embedding <=> query_embedding) > match_threshold
+  ORDER BY d.embedding <=> query_embedding
+  LIMIT match_count;
 END;
 $$;
 
