@@ -10,9 +10,10 @@
 
 import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
+import { BaseAgent } from '../core/base-agent';
 import { getAgent } from '@/lib/config/agent-registry';
-import { hasAgentFactory, getFactory } from '@/lib/tools/spawn-agent';
-import { getTools } from '@/lib/tools/tool-registry';
+import { loadAgentConfig } from '@/lib/config/agent-config';
+import { getToolsCached } from '@/lib/tools/tool-registry';
 import { messageBus } from '@/connectors/bus/message-bus';
 import type { AgentContext } from '../core/types';
 
@@ -115,7 +116,8 @@ export class SpawnSubAgentTool extends BaseTool<SpawnSubAgentInput, SpawnSubAgen
     }
 
     // --- Guard: agent exists ---
-    if (!hasAgentFactory(agent_name)) {
+    const meta = getAgent(agent_name);
+    if (!meta) {
       return {
         agent_name,
         status: 'error',
@@ -126,14 +128,15 @@ export class SpawnSubAgentTool extends BaseTool<SpawnSubAgentInput, SpawnSubAgen
 
     // --- Create & run ---
     try {
-      const factory = getFactory(agent_name);
-      if (!factory) {
-        throw new Error(`Agent factory "${agent_name}" not found.`);
-      }
-
-      const subTools = getTools(...SUB_AGENT_ALLOWED_TOOLS);
-      const meta = getAgent(agent_name);
-      const agent = factory({ maxLoops: loops, extraTools: subTools });
+      const subTools = getToolsCached(...SUB_AGENT_ALLOWED_TOOLS);
+      const override = loadAgentConfig(agent_name);
+      const agent = new BaseAgent({
+        name: agent_name,
+        systemPrompt: override.systemPrompt ?? meta.defaultPrompt,
+        tools: subTools,
+        maxLoops: loops,
+        model: override.model ?? meta.defaultModel,
+      });
 
       const userMessage = input_data
         ? `${task_description}\n\n--- Context ---\n${input_data}`

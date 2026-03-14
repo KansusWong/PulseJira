@@ -30,7 +30,7 @@ export interface SubagentDefinition {
  * Parse a simple YAML-like frontmatter from a markdown file.
  * Supports: name, description, tools, model fields.
  */
-function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
+export function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
   const meta: Record<string, string> = {};
 
   if (!content.startsWith('---')) {
@@ -109,6 +109,22 @@ function scoreMatch(taskDesc: string, agentDesc: string): number {
 // =====================================================================
 // SubagentRegistry
 // =====================================================================
+
+// Process-level singleton cache
+let _singleton: SubagentRegistry | null = null;
+let _singletonDirs: string | null = null;
+
+/**
+ * Get (or create) the process-level SubagentRegistry singleton.
+ * Filesystem scan happens only once; call registry.refresh() to force rescan.
+ */
+export function getSubagentRegistry(searchDirs: string[]): SubagentRegistry {
+  const key = searchDirs.join('\0');
+  if (_singleton && _singletonDirs === key) return _singleton;
+  _singleton = new SubagentRegistry(searchDirs);
+  _singletonDirs = key;
+  return _singleton;
+}
 
 export class SubagentRegistry {
   private definitions: SubagentDefinition[] = [];

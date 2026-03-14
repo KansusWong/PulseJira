@@ -16,8 +16,8 @@ import { BaseAgent } from '../core/base-agent';
 import type { ToolContext } from '../core/tool-context';
 import { getTools } from './tool-registry';
 import { selectDesc } from './tool-desc-version';
-import { SubagentRegistry } from './subagent-registry';
-import type { SubagentDefinition } from './subagent-registry';
+import { getSubagentRegistry } from './subagent-registry';
+import type { SubagentDefinition, SubagentRegistry } from './subagent-registry';
 
 // ---------------------------------------------------------------------------
 // V1 / V2 descriptions
@@ -148,9 +148,9 @@ export class TaskTool extends BaseTool<Input, string> {
       return 'Error: No valid tasks provided.';
     }
 
-    // Initialize subagent registry
+    // Get process-level subagent registry singleton
     const wsRoot = ctx?.workspacePath || '.';
-    const registry = new SubagentRegistry([wsRoot]);
+    const registry = getSubagentRegistry([wsRoot]);
 
     // Execute
     if (configs.length === 1) {
