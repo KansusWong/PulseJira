@@ -360,8 +360,8 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   platforms            jsonb DEFAULT '{"reddit":{"enabled":false,"sources":[]},"twitter":{"enabled":false,"sources":[]},"youtube":{"enabled":false,"sources":[]}}',
   agent_execution_mode text NOT NULL DEFAULT 'simple'
                        CHECK (agent_execution_mode IN ('simple','medium','advanced')),
-  trust_level          text NOT NULL DEFAULT 'collaborative'
-                       CHECK (trust_level IN ('auto','collaborative')),
+  trust_level          text NOT NULL DEFAULT 'standard'
+                       CHECK (trust_level IN ('auto','standard','collaborative')),
   updated_at           timestamptz DEFAULT timezone('utc'::text, now())
 );
 
