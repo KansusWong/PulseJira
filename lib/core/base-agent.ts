@@ -6,6 +6,7 @@ import { getLLMPool } from '@/lib/services/llm-pool';
 import { createStructuredLogger, generateTraceId } from '@/lib/utils/logger';
 import { buildSkillPromptForAgent } from '@/lib/skills/agent-skill-runtime';
 import { ContextBudget } from './token-budget';
+import { createToolContext } from './tool-context-factory';
 import type { AgentConfig, AgentContext } from './types';
 
 // --- Context management constants (#14: configurable via env) ---
@@ -14,7 +15,7 @@ const MAX_CONTEXT_MESSAGES = parseInt(process.env.AGENT_MAX_CONTEXT_MESSAGES || 
 /** Per-call timeout for LLM API requests (ms). */
 const LLM_TIMEOUT_MS = parseInt(process.env.AGENT_LLM_TIMEOUT_MS || '120000', 10);
 /** Fixed model for context compression (cheap & fast, independent of agent model). */
-const COMPRESSION_MODEL = process.env.AGENT_COMPRESSION_MODEL || 'gpt-4o-mini';
+const COMPRESSION_MODEL = process.env.AGENT_COMPRESSION_MODEL || 'glm-5';
 /** Delay between ReAct loop steps to avoid 429 rate limiting (ms). */
 const INTER_STEP_DELAY_MS = parseInt(process.env.AGENT_INTER_STEP_DELAY_MS || '1500', 10);
 /** Token budget controller — triggers compression based on estimated token count. */
@@ -148,21 +149,38 @@ function trimMessages(
   return [systemMsg, userMsg, summaryMsg, ...recentMessages];
 }
 
+// ---------------------------------------------------------------------------
+// Skill prompt cache — 60 second TTL per agent name
+// ---------------------------------------------------------------------------
+const _skillPromptCache = new Map<string, { prompt: string; loadedAt: number }>();
+const SKILL_PROMPT_TTL_MS = 60_000;
+
 function resolveRuntimeSkillPrompt(agentName: string): string {
   const base = String(agentName || '').trim();
   if (!base) return '';
+
+  // Check cache
+  const cached = _skillPromptCache.get(base);
+  if (cached && Date.now() - cached.loadedAt < SKILL_PROMPT_TTL_MS) {
+    return cached.prompt;
+  }
 
   const candidates = new Set<string>([
     base,
     base.replace(/_/g, '-'),
   ]);
 
+  let result = '';
   for (const candidate of candidates) {
     const skillPrompt = buildSkillPromptForAgent(candidate);
-    if (skillPrompt) return skillPrompt;
+    if (skillPrompt) {
+      result = skillPrompt;
+      break;
+    }
   }
 
-  return '';
+  _skillPromptCache.set(base, { prompt: result, loadedAt: Date.now() });
+  return result;
 }
 
 export class BaseAgent {
@@ -182,7 +200,7 @@ export class BaseAgent {
       systemPrompt: hasInjectedSkills || !runtimeSkillPrompt
         ? config.systemPrompt
         : `${config.systemPrompt}${runtimeSkillPrompt}`,
-      model: config.model ?? process.env.LLM_MODEL_NAME ?? 'gpt-4o',
+      model: config.model ?? process.env.LLM_MODEL_NAME ?? 'glm-5',
     };
 
     this.useExplicitClient = !!config.client;
@@ -210,7 +228,7 @@ export class BaseAgent {
 
     return withPoolFailover(
       async (resolved) => {
-        const requestedModel = String(params?.model || this.config.model || process.env.LLM_MODEL_NAME || 'gpt-4o');
+        const requestedModel = String(params?.model || this.config.model || process.env.LLM_MODEL_NAME || 'glm-5');
         const mappedModel = resolveMappedModelForAccount(requestedModel, resolved.modelMapping);
         const nextParams = mappedModel === requestedModel ? params : { ...params, model: mappedModel };
         const completion = await resolved.client.chat.completions.create(nextParams, { timeout: LLM_TIMEOUT_MS });
@@ -267,6 +285,23 @@ export class BaseAgent {
     const openAITools = (!reasoner && tools.length > 0)
       ? tools.map(tool => tool.toFunctionDef() as OpenAI.Chat.ChatCompletionTool)
       : undefined;
+
+    // Build ToolContext for this run — shared across all tool calls in the session
+    const toolCtx = tools.length > 0
+      ? createToolContext({
+          agentName: name,
+          agentContext: context,
+          tools,
+          workspacePath: context.workspacePath,
+          poolTags: this.config.poolTags,
+          model: model!,
+        })
+      : undefined;
+
+    // Collect structured markers emitted by tools (e.g. [[QUESTION_DATA]]...[[/QUESTION_DATA]])
+    // so they can be prepended to the final text response for chat-engine to parse.
+    const collectedMarkers: string[] = [];
+    const MARKER_RE = /\[\[(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW)\]\][\s\S]*?\[\[\/(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW)\]\]/g;
 
     for (let step = 0; step < maxLoops!; step++) {
       // Delay between steps to avoid 429 rate limiting on shared LLM accounts
@@ -391,7 +426,7 @@ export class BaseAgent {
               }
             }
 
-            const result = await tool.execute(args);
+            const result = await tool.execute(args, toolCtx);
             resultStr = result.success
               ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))
               : `Error: ${result.error}`;
@@ -409,6 +444,13 @@ export class BaseAgent {
             tool_call_id: toolCall.id,
             content: resultStr,
           });
+
+          // Collect structured markers from tool results so they survive to the final response
+          let markerMatch: RegExpExecArray | null;
+          MARKER_RE.lastIndex = 0;
+          while ((markerMatch = MARKER_RE.exec(resultStr)) !== null) {
+            collectedMarkers.push(markerMatch[0]);
+          }
 
           // Emit structured result log for frontend display
           const isError = resultStr.startsWith('Error');
@@ -450,11 +492,48 @@ export class BaseAgent {
 
       // --- No tool calls: model returned text content ---
       if (message.content) {
+        // If an exit tool is expected, the model should have called it instead of
+        // returning plain text.  Force one extra LLM call with tool_choice to
+        // coerce a structured result before falling back to a raw string.
+        if (exitToolName && openAITools) {
+          await log(`[${name}] Model returned text instead of calling "${exitToolName}". Forcing exit tool call...`);
+          messages.push({ role: 'assistant', content: message.content });
+          messages.push({
+            role: 'user',
+            content: `You must call "${exitToolName}" to return your result as structured data. Do NOT reply with plain text. Call the tool NOW.`,
+          });
+          try {
+            const forced = await this.createCompletionWithFailover(
+              {
+                model: model!,
+                messages: await compressContext(messages, MAX_CONTEXT_MESSAGES),
+                tools: openAITools,
+                tool_choice: { type: 'function', function: { name: exitToolName } },
+              },
+              `${name}.force-exit`,
+              { projectId: context.projectId, agentName: name, model: model! },
+            );
+            const forcedMsg = forced.choices[0]?.message;
+            if (forcedMsg?.tool_calls?.[0]) {
+              const args = JSON.parse(forcedMsg.tool_calls[0].function.arguments);
+              await log(`[${name}] Exit tool "${exitToolName}" called via forced retry. Finishing.`);
+              return args;
+            }
+          } catch (forcedErr) {
+            await log(`[${name}] Forced exit tool call failed: ${forcedErr instanceof Error ? forcedErr.message : String(forcedErr)}`);
+          }
+        }
+
         await log(`[${name}] Completed with text response.`);
         try {
           const cleaned = cleanJSON(message.content);
           return JSON.parse(cleaned);
         } catch {
+          // Prepend any structured markers collected from tool results
+          // so chat-engine's parseStructuredMarkers() can find them.
+          if (collectedMarkers.length > 0) {
+            return collectedMarkers.join('\n') + '\n' + message.content;
+          }
           return message.content;
         }
       }

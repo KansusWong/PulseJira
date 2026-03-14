@@ -132,6 +132,8 @@ function stripMarkers(text: string): string {
     .replace(/\[\[PLAN_MODE_ENTER\]\][\s\S]*?\[\[\/PLAN_MODE_ENTER\]\]/g, '')
     .replace(/\[\[PLAN_REVIEW\]\][\s\S]*?\[\[\/PLAN_REVIEW\]\]/g, '')
     .replace(/\[\[QUESTION_DATA\]\][\s\S]*?\[\[\/QUESTION_DATA\]\]/g, '')
+    .replace(/\[\[WAITING_FOR_INPUT\]\]/g, '')
+    .replace(/\[\[TOOL_ERROR\]\][\s\S]*?\[\[\/TOOL_ERROR\]\]/g, '')
     .trim();
 }
 
