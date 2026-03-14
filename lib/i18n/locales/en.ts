@@ -792,6 +792,13 @@ const en: TranslationDict = {
   'questionnaire.dismiss': 'Skip',
   'questionnaire.multiSelect': 'select multiple',
 
+  // ── Mermaid Chart ──
+  'mermaid.export': 'Export SVG',
+  'mermaid.copying': 'Copying…',
+  'mermaid.error': 'Failed to render diagram',
+  'mermaid.loading': 'Rendering diagram…',
+  'mermaid.exported': 'SVG downloaded',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',
   'error.pageLoadFailedGlobal': 'Page load failed',

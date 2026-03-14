@@ -792,6 +792,13 @@ const zh: TranslationDict = {
   'questionnaire.dismiss': '跳过',
   'questionnaire.multiSelect': '可多选',
 
+  // ── Mermaid 图表 ──
+  'mermaid.export': '导出 SVG',
+  'mermaid.copying': '处理中…',
+  'mermaid.error': '流程图渲染失败',
+  'mermaid.loading': '流程图渲染中…',
+  'mermaid.exported': 'SVG 已下载',
+
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',
   'error.pageLoadFailedGlobal': '页面加载失败',
