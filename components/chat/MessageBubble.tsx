@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { Download } from "lucide-react";
 import type { ChatMessage } from "@/lib/core/types";
 import { useTranslation } from '@/lib/i18n';
+import { MermaidChart } from "./MermaidChart";
 
 const roleStyles: Record<string, { bg: string; text: string; label: string; align: string }> = {
   user: {
@@ -96,7 +97,28 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         ) : (
           <div className="prose prose-invert prose-sm max-w-none break-words">
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const lang = match?.[1];
+                  if (lang === "mermaid") {
+                    const code = String(children).replace(/\n$/, "");
+                    return <MermaidChart code={code} className="my-3 not-prose" />;
+                  }
+                  return (
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                pre({ children }) {
+                  return <>{children}</>;
+                },
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
           </div>
         )}
 

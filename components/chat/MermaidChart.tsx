@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
@@ -65,69 +65,83 @@ export function MermaidChart({
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [exportLabel, setExportLabel] = useState<string>("");
   const svgRef = useRef<string>("");
-  const idRef = useRef<string>("");
 
-  const renderChart = useCallback(async () => {
+  useEffect(() => {
     const cleaned = extractMermaidCode(code);
     if (!cleaned) return;
+
+    let cancelled = false;
 
     setStatus("loading");
     setErrorMsg("");
 
-    try {
-      const mermaid = (await import("mermaid")).default;
+    (async () => {
+      try {
+        const mermaid = (await import("mermaid")).default;
 
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: "dark",
-        securityLevel: "loose",
-        fontFamily: "inherit",
-        themeVariables: {
-          primaryColor: "#27272a",
-          primaryBorderColor: "#52525b",
-          primaryTextColor: "#e4e4e7",
-          lineColor: "#71717a",
-          secondaryColor: "#3f3f46",
-          tertiaryColor: "#18181b",
-          edgeLabelBackground: "#27272a",
-          fontSize: "14px",
-        },
-      });
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: "dark",
+          securityLevel: "loose",
+          fontFamily: "inherit",
+          themeVariables: {
+            primaryColor: "#27272a",
+            primaryBorderColor: "#52525b",
+            primaryTextColor: "#e4e4e7",
+            lineColor: "#71717a",
+            secondaryColor: "#3f3f46",
+            tertiaryColor: "#18181b",
+            edgeLabelBackground: "#27272a",
+            fontSize: "14px",
+          },
+        });
 
-      if (!idRef.current) {
-        idRef.current = `mermaid-chart-${++mermaidIdCounter}`;
-      }
+        // Generate a fresh unique ID every render call to avoid
+        // DOM conflicts (React Strict Mode runs effects twice).
+        const renderId = `mermaid-${++mermaidIdCounter}-${Date.now()}`;
 
-      const { svg } = await mermaid.render(idRef.current, cleaned);
-      svgRef.current = svg;
+        // Clean up any stale element with this ID (shouldn't exist, but be safe)
+        document.getElementById(renderId)?.remove();
 
-      if (containerRef.current) {
-        containerRef.current.innerHTML = svg;
+        const { svg } = await mermaid.render(renderId, cleaned);
 
-        const svgEl = containerRef.current.querySelector("svg");
-        if (svgEl) {
-          svgEl.removeAttribute("width");
-          svgEl.removeAttribute("height");
-          svgEl.setAttribute("width", "100%");
-          svgEl.style.maxWidth = "100%";
-          svgEl.style.height = "auto";
+        if (cancelled) return;
+
+        if (!svg || svg.trim().length === 0) {
+          throw new Error("mermaid.render() returned empty SVG");
         }
+
+        svgRef.current = svg;
+
+        if (containerRef.current) {
+          containerRef.current.innerHTML = svg;
+
+          const svgEl = containerRef.current.querySelector("svg");
+          if (svgEl) {
+            svgEl.removeAttribute("width");
+            svgEl.removeAttribute("height");
+            svgEl.setAttribute("width", "100%");
+            svgEl.style.maxWidth = "100%";
+            svgEl.style.height = "auto";
+          }
+        }
+
+        setStatus("success");
+        onRenderSuccess?.();
+      } catch (err) {
+        if (cancelled) return;
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error("[MermaidChart] render failed:", error.message);
+        setStatus("error");
+        setErrorMsg(error.message);
+        onRenderError?.(error);
       }
+    })();
 
-      setStatus("success");
-      setExportLabel(t("mermaid.export"));
-      onRenderSuccess?.();
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setStatus("error");
-      setErrorMsg(error.message);
-      onRenderError?.(error);
-    }
-  }, [code, t, onRenderSuccess, onRenderError]);
-
-  useEffect(() => {
-    renderChart();
-  }, [renderChart]);
+    return () => {
+      cancelled = true;
+    };
+  }, [code, onRenderSuccess, onRenderError]);
 
   const handleExport = () => {
     if (!svgRef.current) return;
