@@ -13,7 +13,7 @@ import { ArchitectResumePanel } from "@/components/chat/ArchitectResumePanel";
 import { SolutionPreviewPanel } from "@/components/chat/SolutionPreviewPanel";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { useTranslation } from "@/lib/i18n";
-import type { Project } from "@/projects/types";
+import type { AssetsData } from "@/components/layout/Sidebar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [hasMounted, setHasMounted] = useState(false);
@@ -27,14 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en';
   }, [locale]);
 
-  const projects = usePulseStore((s) => s.projects);
-  const setProjects = usePulseStore((s) => s.setProjects);
-  const activeProjectId = usePulseStore((s) => s.activeProjectId);
-  const setActiveProject = usePulseStore((s) => s.setActiveProject);
-  const updateProjectInStore = usePulseStore((s) => s.updateProjectInStore);
-  const removeProject = usePulseStore((s) => s.removeProject);
-  const activeDeliverableId = usePulseStore((s) => s.activeDeliverableId);
-  const setActiveDeliverable = usePulseStore((s) => s.setActiveDeliverable);
+  const [assets, setAssets] = useState<AssetsData | null>(null);
   const sidebarOpen = usePulseStore((s) => s.sidebarOpen);
   const toggleSidebar = usePulseStore((s) => s.toggleSidebar);
   const conversations = usePulseStore((s) => s.conversations);
@@ -50,76 +43,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const solutionPanelVisible = usePulseStore((s) => s.solutionPanel.visible);
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
 
-  const reconciledRef = useRef(false);
-  const lastFetchRef = useRef(0);
-  const FETCH_THROTTLE_MS = 5_000; // At most one fetch every 5 seconds
+  const lastAssetsFetchRef = useRef(0);
+  const ASSETS_FETCH_THROTTLE_MS = 10_000;
 
-  const fetchProjects = useCallback(async (force?: boolean) => {
+  const fetchAssets = useCallback(async (force?: boolean) => {
     const now = Date.now();
-    if (!force && now - lastFetchRef.current < FETCH_THROTTLE_MS) return;
-    lastFetchRef.current = now;
+    if (!force && now - lastAssetsFetchRef.current < ASSETS_FETCH_THROTTLE_MS) return;
+    lastAssetsFetchRef.current = now;
 
     try {
-      const res = await fetch("/api/projects");
+      const res = await fetch("/api/assets");
       if (!res.ok) return;
       const json = await res.json();
-      if (!json.success || !Array.isArray(json.data)) return;
-
-      const backendProjects: Project[] = json.data;
-      const backendIds = new Set(backendProjects.map((p) => p.id));
-      const currentProjects = usePulseStore.getState().projects;
-      const localOnly = currentProjects.filter(
-        (p) => p.id.startsWith("local-") && !backendIds.has(p.id)
-      );
-
-      setProjects([...backendProjects, ...localOnly]);
+      if (json.success && json.data) {
+        setAssets(json.data);
+      }
     } catch {
-      // Keep existing local projects if backend is unreachable
+      // Keep existing assets if backend is unreachable
     }
-  }, [setProjects]);
+  }, []);
 
-  // On first mount: reconcile stale statuses in DB, then fetch projects
+  // Fetch assets on first mount
   useEffect(() => {
-    if (reconciledRef.current) return;
-    reconciledRef.current = true;
+    fetchAssets(true);
+  }, [fetchAssets]);
 
-    (async () => {
-      try {
-        await fetch("/api/projects/reconcile", { method: "POST" });
-      } catch { /* backend may be unreachable */ }
-      await fetchProjects(true);
-    })();
-  }, [fetchProjects]);
-
-  // Re-fetch projects whenever the user navigates between pages (throttled)
+  // Re-fetch assets on navigation (throttled)
   useEffect(() => {
-    if (!reconciledRef.current) return;
-    fetchProjects();
-  }, [fetchProjects, pathname]);
-
-  const handleRenameProject = useCallback(
-    async (id: string, name: string) => {
-      updateProjectInStore(id, { name });
-      if (!id.startsWith("local-")) {
-        fetch(`/api/projects/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        }).catch((err) => console.error('[dashboard] Update project name failed:', err));
-      }
-    },
-    [updateProjectInStore]
-  );
-
-  const handleDeleteProject = useCallback(
-    async (id: string) => {
-      if (!id.startsWith("local-")) {
-        await fetch(`/api/projects/${id}`, { method: "DELETE" }).catch((err) => console.error('[dashboard] Delete project failed:', err));
-      }
-      removeProject(id);
-    },
-    [removeProject]
-  );
+    fetchAssets();
+  }, [fetchAssets, pathname]);
 
   const handleDeleteConversation = useCallback(
     async (id: string) => {
@@ -164,19 +116,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       rightPanelOpen={!teamCollaborationActive && (clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || architectPanelVisible || solutionPanelVisible || teamPanelVisible)}
       sidebar={
         <Sidebar
-          projects={projects}
-          activeProjectId={activeProjectId}
-          onSelectProject={setActiveProject}
           onToggleSidebar={toggleSidebar}
-          onRenameProject={handleRenameProject}
-          onDeleteProject={handleDeleteProject}
+          assets={assets}
           conversations={conversations}
           activeConversationId={activeConversationId}
           onSelectConversation={setActiveConversationId}
           onDeleteConversation={handleDeleteConversation}
           onNewChat={() => setActiveConversationId(null)}
-          activeDeliverableId={activeDeliverableId}
-          onSelectDeliverable={setActiveDeliverable}
         />
       }
       main={children}

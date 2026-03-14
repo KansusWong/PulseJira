@@ -14,6 +14,7 @@ const ALLOWED_CONFIG_KEYS = new Set([
   'signal_max_per_platform',
   'auto_process_signals',
   'signal_last_collected_at',
+  'system_locale',
 ]);
 
 export const GET = withErrorHandler(async () => {

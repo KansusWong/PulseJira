@@ -12,6 +12,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 
 const schema = z.object({});
 
@@ -22,6 +23,7 @@ export class ScreenshotTool extends BaseTool<Input, string> {
   description = 'Take a screenshot of the current desktop screen. Returns the screenshot file path and base64 data. Only available in local deployment mode (DEPLOYMENT_MODE=local).';
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'high' as const satisfies ToolRiskLevel;
 
   private platform = process.platform;
 

@@ -26,9 +26,6 @@ export default function ProjectDetailPage() {
   const [currentPage, setCurrentPage] = useState(0);
   useEffect(() => {
     setHasMounted(true);
-    // #region agent log
-    fetch('http://127.0.0.1:7891/ingest/308aacb9-3b7c-48db-aea3-6543ee10f294',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'173eed'},body:JSON.stringify({sessionId:'173eed',location:'[projectId]/page.tsx:mount',message:'ProjectDetailPage mounted successfully',data:{projectId},timestamp:Date.now(),hypothesisId:'B'})}).catch(() => { /* debug ingest — non-critical */ });
-    // #endregion
   }, []);
 
   const projects = usePulseStore((s) => s.projects);

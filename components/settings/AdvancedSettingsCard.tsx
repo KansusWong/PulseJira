@@ -6,7 +6,7 @@ import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
 
 type ExecutionMode = "simple" | "medium" | "advanced";
-type TrustLevel = "auto" | "collaborative";
+type TrustLevel = "auto" | "standard" | "collaborative";
 
 interface ModeConfig {
   key: ExecutionMode;
@@ -55,6 +55,12 @@ const TRUST_LEVELS: TrustConfig[] = [
     bgClass: "bg-blue-500/10",
   },
   {
+    key: "standard",
+    colorClass: "text-amber-400",
+    borderClass: "border-amber-500",
+    bgClass: "bg-amber-500/10",
+  },
+  {
     key: "collaborative",
     colorClass: "text-emerald-400",
     borderClass: "border-emerald-500",
@@ -65,7 +71,7 @@ const TRUST_LEVELS: TrustConfig[] = [
 export function AdvancedSettingsCard() {
   const { t } = useTranslation();
   const [currentMode, setCurrentMode] = useState<ExecutionMode>("simple");
-  const [currentTrust, setCurrentTrust] = useState<TrustLevel>("collaborative");
+  const [currentTrust, setCurrentTrust] = useState<TrustLevel>("standard");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [confirmModal, setConfirmModal] = useState<ExecutionMode | null>(null);
@@ -76,7 +82,7 @@ export function AdvancedSettingsCard() {
       .then((json) => {
         if (json.success && json.data?.preferences) {
           setCurrentMode(json.data.preferences.agentExecutionMode || "simple");
-          setCurrentTrust(json.data.preferences.trustLevel || "collaborative");
+          setCurrentTrust(json.data.preferences.trustLevel || "standard");
         }
       })
       .catch(console.error)
@@ -236,7 +242,7 @@ export function AdvancedSettingsCard() {
         {t("advancedSettings.section.trustLevel")}
       </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {TRUST_LEVELS.map((trust) => {
           const isActive = currentTrust === trust.key;
           return (

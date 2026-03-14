@@ -5,9 +5,12 @@
  * Uses async task pattern: submit -> poll -> download.
  */
 
-import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import {
+  resolveAbs, fileExists, readFileBuffer,
+  mkdirp, writeFile,
+} from '../utils/server-fs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,9 +77,9 @@ export class VideoService {
 
     // Image-to-video mode
     if (options.image) {
-      const imgPath = path.isAbsolute(options.image) ? options.image : path.resolve(options.image);
-      if (fs.existsSync(imgPath)) {
-        const buffer = fs.readFileSync(imgPath);
+      const imgPath = resolveAbs(options.image);
+      if (fileExists(imgPath)) {
+        const buffer = readFileBuffer(imgPath);
         body.image = `data:image/png;base64,${buffer.toString('base64')}`;
       } else if (options.image.startsWith('http')) {
         body.image = options.image;
@@ -166,8 +169,8 @@ export class VideoService {
     const filename = options.filename || `video_${Date.now()}.mp4`;
     const outputPath = path.join(outputDir, filename);
 
-    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, buffer);
+    mkdirp(path.dirname(outputPath));
+    writeFile(outputPath, buffer);
 
     return { path: outputPath, url };
   }

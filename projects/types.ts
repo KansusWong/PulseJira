@@ -21,6 +21,10 @@ export interface Project {
   is_light?: boolean;
   /** Conversation that originated this project. */
   conversation_id?: string;
+  /** Persisted agent execution logs (SSE log entries). */
+  agent_logs?: any[];
+  /** Checkpoint for resumable prepare/plan pipeline stages. */
+  pipeline_checkpoint?: PipelineCheckpoint | null;
 }
 
 /** Stored on the project after implement pipeline finishes. */
@@ -65,4 +69,12 @@ export interface AgentRun {
   output?: any;
   started_at: string;
   completed_at?: string;
+}
+
+export interface PipelineCheckpoint {
+  stage: 'prepare' | 'plan';
+  completed_steps: string[];
+  intermediate: Record<string, any>;
+  started_at: string;
+  updated_at: string;
 }

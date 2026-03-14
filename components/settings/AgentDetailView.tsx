@@ -121,9 +121,9 @@ export function AgentDetailView({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-zinc-100">{agent.displayName}</h2>
-                {agent.isAIGenerated && (
+                {agent.createdBy === 'subagent' && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30">
-                    AI
+                    子Agent
                   </span>
                 )}
               </div>

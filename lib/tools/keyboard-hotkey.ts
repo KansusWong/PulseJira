@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { execSync } from 'child_process';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 
 const schema = z.object({
   keys: z.string().describe('Hotkey combo, e.g. "ctrl+c", "cmd+shift+s", "alt+tab"'),
@@ -21,6 +22,7 @@ export class KeyboardHotkeyTool extends BaseTool<Input, string> {
   description = 'Press a keyboard shortcut (hotkey combination). Format: modifier keys joined by "+", e.g. "ctrl+c", "cmd+shift+s", "alt+tab". Only available in local deployment mode (DEPLOYMENT_MODE=local).';
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'high' as const satisfies ToolRiskLevel;
 
   private platform = process.platform;
 

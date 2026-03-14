@@ -23,6 +23,8 @@ export interface AgentMeta {
   projectId?: string;
   /** Internal agents are hidden from the management UI but remain functional. */
   internal?: boolean;
+  /** Hidden agents are excluded from Settings UI but remain spawnable by other agents. */
+  hidden?: boolean;
 }
 
 const registry = new Map<string, AgentMeta>();

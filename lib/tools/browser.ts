@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 import type { ToolContext } from '../core/tool-context';
 import { getBrowserService } from '../services/browser-service';
 
@@ -28,6 +29,7 @@ export class BrowserTool extends BaseTool<Input, string> {
   description = 'Interactive browser automation. Commands: goto (navigate to URL), click (click element), type (enter text), screenshot (capture page), get_content (extract text), wait (wait for element), scroll (scroll page), close (end session). Requires BROWSER_CDP_URL configuration.';
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'high' as const satisfies ToolRiskLevel;
   safety = { timeout: 60_000, retryCount: 0, maxResultSize: 100_000 };
 
   protected async _run(input: Input, ctx?: ToolContext): Promise<string> {

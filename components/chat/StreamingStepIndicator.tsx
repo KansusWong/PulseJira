@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { getAgentUI } from "@/lib/config/agent-ui-meta";
+import { useTranslation } from "@/lib/i18n";
 import type { StructuredAgentStep } from "@/lib/core/types";
 import {
   type DisplayItem,
@@ -25,6 +26,7 @@ interface Props {
 // ---------------------------------------------------------------------------
 
 export function StreamingStepIndicator({ steps }: Props) {
+  const { t } = useTranslation();
   const [now, setNow] = useState(Date.now());
 
   // Tick every second for live timer on the active item
@@ -88,7 +90,7 @@ export function StreamingStepIndicator({ steps }: Props) {
                           className="flex items-start gap-2 text-xs text-zinc-400"
                         >
                           <Bullet color="bg-blue-400" pulse />
-                          <span className="flex-1">思考中...</span>
+                          <span className="flex-1">{t('streaming.thinking')}</span>
                           {durationMs !== null && (
                             <span className="shrink-0 text-[10px] text-zinc-500 tabular-nums">
                               {formatDuration(durationMs)}
@@ -160,8 +162,8 @@ export function StreamingStepIndicator({ steps }: Props) {
                             >
                               └{" "}
                               {success
-                                ? item.resultStep!.resultPreview || "完成"
-                                : `失败: ${item.resultStep!.resultPreview || "未知错误"}`}
+                                ? item.resultStep!.resultPreview || t('streaming.done')
+                                : `${t('streaming.failed')}: ${item.resultStep!.resultPreview || t('streaming.unknownError')}`}
                             </div>
                           )}
                         </div>

@@ -22,6 +22,7 @@ export interface AgentSlice {
 
   addAgentLog: (entry: Omit<AgentLogEntry, 'id' | 'timestamp'>) => void;
   clearAgentLogs: () => void;
+  hydrateAgentLogs: (logs: AgentLogEntry[]) => void;
   setActiveAgent: (agent: string, active: boolean) => void;
   setStage: (stage: 'idle' | 'prepare' | 'plan' | 'implement' | 'deploy') => void;
   setProgress: (step: number, total: number) => void;
@@ -53,6 +54,8 @@ export const createAgentSlice: StateCreator<AgentSlice> = (set) => ({
     })),
 
   clearAgentLogs: () => set({ agentLogs: [] }),
+
+  hydrateAgentLogs: (logs) => set({ agentLogs: logs }),
 
   setActiveAgent: (agent, active) =>
     set((state) => {

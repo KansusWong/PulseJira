@@ -7,9 +7,12 @@
  *   edit_image -> External API + image preprocessing via sharp
  */
 
-import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import {
+  resolveAbs, fileExists, fileStat, readFileBuffer,
+  mkdirp, writeFile,
+} from '../utils/server-fs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,17 +86,17 @@ export class ImageService {
         dataUrl = img;
       } else {
         // Local file — convert to base64 data URL
-        const absPath = path.isAbsolute(img) ? img : path.resolve(img);
-        if (!fs.existsSync(absPath)) {
+        const absPath = resolveAbs(img);
+        if (!fileExists(absPath)) {
           throw new Error(`Image file not found: ${absPath}`);
         }
 
-        const stat = fs.statSync(absPath);
+        const stat = fileStat(absPath);
         if (stat.size > 20 * 1024 * 1024) {
           throw new Error(`Image too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max: 20MB.`);
         }
 
-        const buffer = fs.readFileSync(absPath);
+        const buffer = readFileBuffer(absPath);
         const ext = path.extname(absPath).toLowerCase();
         const mimeMap: Record<string, string> = {
           '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -185,13 +188,13 @@ export class ImageService {
     const outputPath = path.join(outputDir, filename);
 
     if (b64) {
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, Buffer.from(b64, 'base64'));
+      mkdirp(path.dirname(outputPath));
+      writeFile(outputPath, Buffer.from(b64, 'base64'));
     } else if (imageUrl) {
       const imgResp = await fetch(imageUrl);
       const imgBuffer = Buffer.from(await imgResp.arrayBuffer());
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, imgBuffer);
+      mkdirp(path.dirname(outputPath));
+      writeFile(outputPath, imgBuffer);
     }
 
     return { path: outputPath, url: imageUrl };
@@ -215,12 +218,12 @@ export class ImageService {
     // Compress images if needed (>5MB -> resize + JPEG compress)
     const processedImages: Buffer[] = [];
     for (const imgPath of imagePaths) {
-      const absPath = path.isAbsolute(imgPath) ? imgPath : path.resolve(imgPath);
-      if (!fs.existsSync(absPath)) {
+      const absPath = resolveAbs(imgPath);
+      if (!fileExists(absPath)) {
         throw new Error(`Image not found: ${absPath}`);
       }
 
-      let buffer: Buffer = fs.readFileSync(absPath);
+      let buffer: Buffer = readFileBuffer(absPath);
 
       // Compress large images using sharp
       if (buffer.length > 5 * 1024 * 1024) {
@@ -277,13 +280,13 @@ export class ImageService {
     const outputPath = path.join(outputDir, filename);
 
     if (b64) {
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, Buffer.from(b64, 'base64'));
+      mkdirp(path.dirname(outputPath));
+      writeFile(outputPath, Buffer.from(b64, 'base64'));
     } else if (imageUrl) {
       const imgResp = await fetch(imageUrl);
       const imgBuffer = Buffer.from(await imgResp.arrayBuffer());
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, imgBuffer);
+      mkdirp(path.dirname(outputPath));
+      writeFile(outputPath, imgBuffer);
     } else {
       throw new Error('Image edit returned no image data.');
     }

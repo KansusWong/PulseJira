@@ -1,12 +1,12 @@
 {
   "rebuild": {
     "skills": [
-      { "name": "前端界面设计", "description": "创建独特的、生产级的前端界面" },
+      { "name": "frontend-design", "description": "创建独特的、生产级的前端界面" },
       { "name": "pptx", "description": "PPTX 演示文稿创建、编辑、分析" },
-      { "name": "remotion-best-practices", "description": "Remotion 视频创作最佳实践" },
+      { "name": "remotion", "description": "Remotion 视频创作最佳实践" },
       { "name": "skill-creator", "description": "创建新 Skill 的指南" },
-      { "name": "工具创建", "description": "创建和管理自定义工具" },
-      { "name": "网络深度研究", "description": "多信息源复杂主题深度研究" }
+      { "name": "tool-creator", "description": "创建和管理自定义工具" },
+      { "name": "web-deep-research", "description": "多信息源复杂主题深度研究" }
     ]
   }
 }

@@ -18,6 +18,9 @@ export interface AgentContext {
   }) => void;
   /** Shared blackboard for inter-agent state. Available during pipeline execution. */
   blackboard?: import('../blackboard/blackboard').Blackboard;
+  /** Trust level for tiered approval (auto / standard / collaborative).
+   *  Used with tool.riskLevel to decide whether approval is needed. */
+  trustLevel?: 'auto' | 'standard' | 'collaborative';
   /** Callback for tools that require human approval before execution.
    *  Returns true if approved, false if rejected. Blocks the agent thread. */
   onApprovalRequired?: (params: {
@@ -170,24 +173,6 @@ export interface SupervisorIssue {
   category: 'correctness' | 'completeness' | 'quality' | 'security' | 'consistency';
   message: string;
   evidence?: string;
-}
-
-/** Runtime definition for a dynamically-created agent (session-level or persistent). */
-export interface DynamicAgentDefinition {
-  id: string;
-  name: string;
-  role: string;
-  system_prompt: string;
-  tools: string[];
-  max_loops: number;
-  run_mode: 'react' | 'single-shot';
-  persistent: boolean;
-  /** AI-generated soul content (philosophy, behavior rules, tool discipline). */
-  soul?: string;
-  /** Project ID this agent was created for (medium mode only). */
-  projectId?: string;
-  /** Execution mode under which this agent was created. */
-  createdInMode?: 'simple' | 'medium' | 'advanced';
 }
 
 /** Runtime definition for a dynamically-created skill (session-level or persistent). */

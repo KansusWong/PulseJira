@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
 import { getAllAgents } from '@/lib/config/agent-registry';
-import { ensureDynamicAgentsLoaded } from '@/lib/config/dynamic-agents';
 
 const ListAgentsInputSchema = z.object({
   category: z
@@ -44,8 +43,6 @@ export class ListAgentsTool extends BaseTool<ListAgentsInput, AgentSummary[]> {
   schema = ListAgentsInputSchema as z.ZodType<ListAgentsInput>;
 
   protected async _run(input: ListAgentsInput): Promise<AgentSummary[]> {
-    // Lazy-load persisted dynamic agents on first call
-    ensureDynamicAgentsLoaded();
     const all = getAllAgents();
     const agents = all
       .map((a) => ({

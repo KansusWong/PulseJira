@@ -99,9 +99,9 @@ export function AgentConfigCard({ agent, localOverride, onChange, onSave, onAddS
           {/* Tags */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <Badge variant={agent.id}>{agent.runMode}</Badge>
-            {agent.isAIGenerated && (
+            {agent.createdBy === 'subagent' && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30">
-                AI
+                子Agent
               </span>
             )}
             {agent.projectId && (

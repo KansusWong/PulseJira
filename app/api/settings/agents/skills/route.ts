@@ -5,7 +5,7 @@ import { promisify } from 'util';
 import { exec as execCb } from 'child_process';
 import { NextResponse } from 'next/server';
 import { getAllAgents } from '@/lib/config/agent-registry';
-import { getAgentSkillOverrides, upsertAgentSkill } from '@/lib/config/agent-skill-overrides';
+import { getAgentSkillOverrides, upsertAgentSkill, removeAgentSkill, toggleAgentSkill } from '@/lib/config/agent-skill-overrides';
 import { loadSkillFromDir } from '@/lib/skills/skill-loader';
 
 const exec = promisify(execCb);
@@ -76,6 +76,51 @@ function isExistingDirectory(target: string): boolean {
   }
 }
 
+/**
+ * Scan filesystem skill directories to build a bidirectional
+ * SKILL.md name ↔ directory slug mapping.
+ * Allows resolving both Chinese display names and ASCII slugs.
+ */
+function buildNameToSlugMap(): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const base of getSkillBaseDirs()) {
+    const entries = readSkillDirEntries(base.dir);
+    for (const entry of entries) {
+      const slug = sanitizeId(entry);
+      if (!slug) continue;
+      const skillDir = path.join(base.dir, entry);
+      if (!isExistingDirectory(skillDir)) continue;
+      const def = loadSkillFromDir(skillDir, { warnOnInvalid: false });
+      if (!def) continue;
+      map.set(slug, slug);
+      const skillName = String(def.name || '').trim();
+      if (skillName && skillName !== slug) {
+        map.set(skillName, slug);
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * Resolve a skill identifier (slug or SKILL.md name) stored in overrides
+ * back to its actual override entry name. Needed because overrides may
+ * store either format — this finds the matching entry regardless.
+ */
+function resolveOverrideName(
+  agentId: string,
+  incomingSlug: string,
+  nameToSlug: Map<string, string>,
+): string {
+  const overrides = getAgentSkillOverrides(agentId);
+  const matched = overrides.find((s) => {
+    const raw = String(s.name || '').trim();
+    const resolved = nameToSlug.get(raw) || sanitizeId(raw);
+    return resolved === incomingSlug;
+  });
+  return matched?.name?.trim() || incomingSlug;
+}
+
 function collectSkillIds(): Set<string> {
   const ids = new Set<string>();
   for (const base of getSkillBaseDirs()) {
@@ -115,29 +160,35 @@ function resolveRegistrySkillDescription(skillId: string): string | null {
 }
 
 function listAvailableSkills(agentId?: string): SkillCatalogItem[] {
-  const bound = new Set(
-    getAgentSkillOverrides(String(agentId || '')).map((s) => sanitizeId(String(s.name || ''))),
-  );
+  const overrides = getAgentSkillOverrides(String(agentId || ''));
+  const nameToSlug = buildNameToSlugMap();
+
+  // Build bound set, resolving override names to canonical directory slugs
+  const bound = new Set<string>();
+  for (const s of overrides) {
+    const rawName = String(s.name || '').trim();
+    const resolvedSlug = nameToSlug.get(rawName) || sanitizeId(rawName);
+    if (resolvedSlug) bound.add(resolvedSlug);
+  }
+
+  // Build catalog from filesystem
   const map = new Map<string, SkillCatalogItem>();
 
   for (const base of getSkillBaseDirs()) {
     const entries = readSkillDirEntries(base.dir);
-
     for (const entry of entries) {
-      const normalizedId = sanitizeId(entry);
-      if (!normalizedId) continue;
+      const slug = sanitizeId(entry);
+      if (!slug || map.has(slug)) continue;
       const skillDir = path.join(base.dir, entry);
+      if (!isExistingDirectory(skillDir)) continue;
       const def = loadSkillFromDir(skillDir, { warnOnInvalid: false });
       if (!def) continue;
-
-      if (!map.has(normalizedId)) {
-        map.set(normalizedId, {
-          id: normalizedId,
-          description: def.description || `Skill: ${normalizedId}`,
-          source: base.source,
-          bound: bound.has(normalizedId),
-        });
-      }
+      map.set(slug, {
+        id: slug,
+        description: def.description || `Skill: ${slug}`,
+        source: base.source,
+        bound: bound.has(slug),
+      });
     }
   }
 
@@ -299,5 +350,68 @@ export async function POST(req: Request) {
     const stdout = String(e?.stdout || '').trim();
     const message = stderr || stdout || e?.message || 'Failed to add skill';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const body = await req.json();
+    const agentId = sanitizeId(String(body.agentId || ''));
+    const skillSlug = sanitizeId(String(body.skillName || ''));
+
+    if (!agentId) {
+      return NextResponse.json({ success: false, error: 'agentId is required' }, { status: 400 });
+    }
+    if (!skillSlug) {
+      return NextResponse.json({ success: false, error: 'skillName is required' }, { status: 400 });
+    }
+
+    // Resolve slug → actual override entry name (may differ if hand-edited with SKILL.md name)
+    const nameToRemove = resolveOverrideName(agentId, skillSlug, buildNameToSlugMap());
+    const remaining = removeAgentSkill(agentId, nameToRemove);
+    return NextResponse.json({
+      success: true,
+      data: {
+        agentId,
+        removedSkill: skillSlug,
+        remainingSkills: remaining.map((s) => s.name),
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e?.message || 'Failed to remove skill' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const agentId = sanitizeId(String(body.agentId || ''));
+    const skillSlug = sanitizeId(String(body.skillName || ''));
+    const enabled = body.enabled;
+
+    if (!agentId) {
+      return NextResponse.json({ success: false, error: 'agentId is required' }, { status: 400 });
+    }
+    if (!skillSlug) {
+      return NextResponse.json({ success: false, error: 'skillName is required' }, { status: 400 });
+    }
+    if (typeof enabled !== 'boolean') {
+      return NextResponse.json({ success: false, error: 'enabled (boolean) is required' }, { status: 400 });
+    }
+
+    // Resolve slug → actual override entry name (may differ if hand-edited with SKILL.md name)
+    const nameToToggle = resolveOverrideName(agentId, skillSlug, buildNameToSlugMap());
+    const updated = toggleAgentSkill(agentId, nameToToggle, enabled);
+    return NextResponse.json({
+      success: true,
+      data: {
+        agentId,
+        skillName: skillSlug,
+        enabled,
+        skills: updated.map((s) => ({ name: s.name, enabled: s.enabled !== false })),
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e?.message || 'Failed to toggle skill' }, { status: 500 });
   }
 }

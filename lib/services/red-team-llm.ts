@@ -12,7 +12,7 @@ export interface RedTeamRuntimeConfig {
 }
 
 function getPrimaryModel(): string {
-  return (process.env.LLM_MODEL_NAME || "gpt-4o").trim();
+  return (process.env.LLM_MODEL_NAME || "glm-5").trim();
 }
 
 function getBackupEnvConfig(primaryModel: string): { apiKey: string; baseURL?: string; model: string } | null {

@@ -510,7 +510,7 @@ export async function generateJSON(
     traceId?: string | null,
   } = {}
 ) {
-  const defaultModel = options.model || process.env.LLM_MODEL_NAME || 'gpt-4o';
+  const defaultModel = options.model || process.env.LLM_MODEL_NAME || 'glm-5';
 
   // Explicit client/apiKey path: no pool failover.
   if (options.client || options.apiKey) {
@@ -539,7 +539,7 @@ export async function generateJSON(
   try {
     return await withPoolFailover(
       async (resolved) => {
-        const requestedModel = options.model || process.env.LLM_MODEL_NAME || 'gpt-4o';
+        const requestedModel = options.model || process.env.LLM_MODEL_NAME || 'glm-5';
         const model = resolveModelForResolvedAccount(requestedModel, resolved);
         return invokeJSONCall({
           client: resolved.client,

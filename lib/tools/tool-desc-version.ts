@@ -7,7 +7,7 @@
 
 export type ToolDescVersion = 'v1' | 'v2';
 
-let currentVersion: ToolDescVersion = 'v2';
+let currentVersion: ToolDescVersion = 'v1';
 
 export function getToolDescVersion(): ToolDescVersion {
   return currentVersion;

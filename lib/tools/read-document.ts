@@ -7,9 +7,9 @@
 
 import { z } from 'zod';
 import path from 'path';
-import fs from 'fs';
 import { BaseTool } from '../core/base-tool';
 import type { ToolContext } from '../core/tool-context';
+import { fileExists, fileStat, readFileBuffer, readFileText } from '../utils/server-fs';
 
 const schema = z.object({
   path: z.string().describe('File path (relative to workspace)'),
@@ -48,11 +48,11 @@ export class ReadDocumentTool extends BaseTool<Input, string> {
       throw new Error('Path traversal detected: file must be within workspace.');
     }
 
-    if (!fs.existsSync(filePath)) {
+    if (!fileExists(filePath)) {
       return `Error: File not found: ${input.path}`;
     }
 
-    const stat = fs.statSync(filePath);
+    const stat = fileStat(filePath);
     if (stat.size > MAX_FILE_SIZE) {
       return `Error: File too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Maximum: 50MB.`;
     }
@@ -100,7 +100,7 @@ export class ReadDocumentTool extends BaseTool<Input, string> {
   private async readPdf(filePath: string, pages?: string): Promise<string> {
     const pdfModule = await import('pdf-parse');
     const pdfParse = (pdfModule as any).default || pdfModule;
-    const buffer = fs.readFileSync(filePath);
+    const buffer = readFileBuffer(filePath);
     const data = await pdfParse(buffer, {
       max: pages ? parseMaxPage(pages) : 0,
     });
@@ -120,7 +120,7 @@ export class ReadDocumentTool extends BaseTool<Input, string> {
   }
 
   private async readCsv(filePath: string, maxRows: number): Promise<string> {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = readFileText(filePath);
     const lines = content.split('\n').filter(l => l.trim());
     const totalRows = lines.length - 1; // minus header
 
@@ -136,7 +136,7 @@ export class ReadDocumentTool extends BaseTool<Input, string> {
 
   private async readExcel(filePath: string, sheet?: string | number, maxRows: number = 1000): Promise<string> {
     const XLSX = await import('xlsx');
-    const workbook = XLSX.read(fs.readFileSync(filePath), { type: 'buffer' });
+    const workbook = XLSX.read(readFileBuffer(filePath), { type: 'buffer' });
 
     // Select sheet
     let sheetName: string;
@@ -170,13 +170,13 @@ export class ReadDocumentTool extends BaseTool<Input, string> {
 
   private async readDocx(filePath: string): Promise<string> {
     const mammoth = await import('mammoth');
-    const buffer = fs.readFileSync(filePath);
+    const buffer = readFileBuffer(filePath);
     const result = await mammoth.extractRawText({ buffer });
     return result.value.slice(0, MAX_CONTENT_LENGTH);
   }
 
   private readText(filePath: string): string {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = readFileText(filePath);
     return content.slice(0, MAX_CONTENT_LENGTH);
   }
 }

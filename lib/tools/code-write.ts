@@ -11,6 +11,7 @@ import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 import type { ToolContext } from '../core/tool-context';
 import { selectDesc } from './tool-desc-version';
 import { getPathContext } from './helpers';
@@ -54,6 +55,7 @@ export class CodeWriteTool extends BaseTool<Input, string> {
   description = selectDesc(WRITE_DESC_V1, WRITE_DESC_V2);
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'low' as const satisfies ToolRiskLevel;
 
   private workspaceRoot?: string;
 

@@ -19,7 +19,7 @@ export interface PlatformConfig {
 }
 
 export type AgentExecutionMode = 'simple' | 'medium' | 'advanced';
-export type TrustLevel = 'auto' | 'collaborative';
+export type TrustLevel = 'auto' | 'standard' | 'collaborative';
 
 export interface UserPreferences {
   topics: string[];
@@ -57,7 +57,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   topics: [],
   platforms: buildDefaultPlatformMap(),
   agentExecutionMode: 'simple',
-  trustLevel: 'collaborative',
+  trustLevel: 'standard',
   updatedAt: new Date().toISOString(),
 };
 
@@ -103,9 +103,9 @@ async function loadFromDB(): Promise<UserPreferences> {
 
     const rawTrust = data.trust_level;
     const trustLevel: TrustLevel =
-      rawTrust === 'auto' || rawTrust === 'collaborative'
+      rawTrust === 'auto' || rawTrust === 'standard' || rawTrust === 'collaborative'
         ? rawTrust
-        : 'collaborative';
+        : 'standard';
 
     return {
       topics: Array.isArray(data.topics) ? data.topics : [],
@@ -130,7 +130,7 @@ async function saveToDB(prefs: UserPreferences): Promise<void> {
           topics: prefs.topics,
           platforms: prefs.platforms,
           agent_execution_mode: prefs.agentExecutionMode || 'simple',
-          trust_level: prefs.trustLevel || 'collaborative',
+          trust_level: prefs.trustLevel || 'standard',
           updated_at: prefs.updatedAt,
         },
         { onConflict: 'user_id' }

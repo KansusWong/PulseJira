@@ -8,6 +8,10 @@
       "apiKey": "1080552845d34487a83268eb31150b4e.9va14bZkUsIBo1dS",
       "baseURL": "https://open.bigmodel.cn/api/paas/v4/",
       "defaultModel": "glm-5",
+      "modelMapping": {
+        "gpt-4o-mini": "glm-5",
+        "gpt-4o": "glm-5"
+      },
       "enabled": true,
       "priority": 0,
       "tags": [],

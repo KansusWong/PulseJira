@@ -17,7 +17,7 @@ export function detectEnvAccounts(dismissedIds: string[] = []): LLMAccount[] {
       provider: inferProvider(process.env.OPENAI_BASE_URL),
       apiKey: process.env.OPENAI_API_KEY,
       baseURL: process.env.OPENAI_BASE_URL || undefined,
-      defaultModel: process.env.LLM_MODEL_NAME || 'gpt-4o',
+      defaultModel: process.env.LLM_MODEL_NAME || 'glm-5',
       modelMapping: buildDefaultModelMapping(primaryRequestedModel, process.env.LLM_MODEL_NAME),
       enabled: true,
       priority: 0,

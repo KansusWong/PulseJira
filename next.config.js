@@ -1,15 +1,26 @@
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
+// Only load bundle-analyzer when ANALYZE is enabled — the plugin injects
+// webpack config even when disabled, which triggers "Webpack is configured
+// while Turbopack is not" warnings during turbo dev.
+const withBundleAnalyzer =
+  process.env.ANALYZE === 'true'
+    ? require('@next/bundle-analyzer')({ enabled: true })
+    : (config) => config;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Suppress Turbopack TP1004/TP1005 lint warnings for server-side dynamic fs/child_process usage
-  serverExternalPackages: [
-    'openai',
-    'zod',
-    'zod-to-json-schema',
-  ],
+  // Next.js 14 uses "experimental.serverComponentsExternalPackages"
+  // ("serverExternalPackages" is only valid in Next.js 15+)
+  experimental: {
+    serverComponentsExternalPackages: [
+      'openai',
+      'zod',
+      'zod-to-json-schema',
+      'playwright-core',
+      'node-cron',
+      'sharp',
+    ],
+  },
 };
 
 nextConfig.headers = async () => [

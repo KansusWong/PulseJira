@@ -408,9 +408,17 @@ export class BaseAgent {
           try {
             const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
 
-            // Approval gate: block on human approval for dangerous tools
-            if (tool.requiresApproval && context.onApprovalRequired) {
-              const approved = await context.onApprovalRequired({
+            // Approval gate: block on human approval based on trustLevel + riskLevel.
+            // - auto mode: onApprovalRequired is undefined → skip all approvals
+            // - standard mode: skip low-risk tools, require approval for medium/high
+            // - collaborative mode: require approval for all tools with requiresApproval
+            const needsApproval = tool.requiresApproval && context.onApprovalRequired && (
+              context.trustLevel === 'collaborative' || (
+                context.trustLevel === 'standard' && tool.riskLevel !== 'low'
+              )
+            );
+            if (needsApproval) {
+              const approved = await context.onApprovalRequired!({
                 toolName,
                 toolArgs: args,
                 agentName: name,

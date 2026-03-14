@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { loadSoul } from '@/agents/utils';
 import { getAllAgents } from './agent-registry';
 import { getAgentSkillOverrides, mergeAgentSkills } from './agent-skill-overrides';
@@ -8,12 +10,16 @@ import './builtin-agents';
 
 const DEFAULT_MODEL = process.env.LLM_MODEL_NAME || 'glm-5';
 
+const CONFIG_PATH = path.join(process.cwd(), 'agents', 'agent-config-overrides.json');
+
 export interface AgentOverride {
   model?: string;
   maxLoops?: number;
   soul?: string;
   systemPrompt?: string;
 }
+
+type AgentConfigMap = Record<string, AgentOverride>;
 
 export interface AgentRegistryEntry {
   id: string;
@@ -35,26 +41,96 @@ export interface AgentRegistryEntry {
   createdBy?: string;
 }
 
+// ---------------------------------------------------------------------------
+// JSON file helpers (with TTL cache)
+// ---------------------------------------------------------------------------
+
+/** Cached config data + timestamp. TTL = 30 seconds. */
+let _configCache: { data: AgentConfigMap; loadedAt: number } | null = null;
+const CONFIG_TTL_MS = 30_000;
+
+function readConfigFile(): AgentConfigMap {
+  // Return cached if within TTL
+  if (_configCache && Date.now() - _configCache.loadedAt < CONFIG_TTL_MS) {
+    return _configCache.data;
+  }
+
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
+      const parsed = JSON.parse(raw) as AgentConfigMap;
+      const data = parsed && typeof parsed === 'object' ? parsed : {};
+      _configCache = { data, loadedAt: Date.now() };
+      return data;
+    }
+  } catch (e) {
+    console.warn('[agent-config] Failed to read config overrides:', e);
+  }
+  const empty = {};
+  _configCache = { data: empty, loadedAt: Date.now() };
+  return empty;
+}
+
+/** Invalidate config cache (called on write). */
+function invalidateConfigCache(): void {
+  _configCache = null;
+}
+
+function writeConfigFile(configs: AgentConfigMap): void {
+  const dir = path.dirname(CONFIG_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(configs, null, 2), 'utf-8');
+  invalidateConfigCache();
+}
+
+function isEmptyOverride(override: AgentOverride): boolean {
+  return (
+    override.model === undefined &&
+    override.maxLoops === undefined &&
+    override.soul === undefined &&
+    override.systemPrompt === undefined
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
- * Load the override config for a single agent.
- * With the legacy config.json removed, returns empty override.
+ * Load the override config for a single agent from disk.
  */
-export function loadAgentConfig(_agentId: string): AgentOverride {
-  return {};
+export function loadAgentConfig(agentId: string): AgentOverride {
+  const all = readConfigFile();
+  return all[agentId] ?? {};
 }
 
 /**
- * Save all agent overrides (no-op after legacy config.json removal).
+ * Save all agent overrides (batch write).
  */
-export function saveAgentConfig(_configs: Record<string, AgentOverride>): void {
-  // no-op — legacy config.json has been removed
+export function saveAgentConfig(configs: Record<string, AgentOverride>): void {
+  const existing = readConfigFile();
+  for (const [id, override] of Object.entries(configs)) {
+    if (isEmptyOverride(override)) {
+      delete existing[id];
+    } else {
+      existing[id] = override;
+    }
+  }
+  writeConfigFile(existing);
 }
 
 /**
- * Save a single agent's override (no-op after legacy config.json removal).
+ * Save a single agent's override to disk.
+ * Removes the key entirely when the override is empty to keep the file clean.
  */
-export function saveOneAgentConfig(_agentId: string, _override: AgentOverride): void {
-  // no-op — legacy config.json has been removed
+export function saveOneAgentConfig(agentId: string, override: AgentOverride): void {
+  const all = readConfigFile();
+  if (isEmptyOverride(override)) {
+    delete all[agentId];
+  } else {
+    all[agentId] = override;
+  }
+  writeConfigFile(all);
 }
 
 /**
@@ -83,7 +159,7 @@ export function getAgentRegistry(): AgentRegistryEntry[] {
         soul,
         systemPrompt: meta.defaultPrompt || '',
       },
-      override: {},
+      override: loadAgentConfig(meta.id),
       tools: meta.tools,
       skills: mergedSkills,
       isAIGenerated: meta.isAIGenerated,

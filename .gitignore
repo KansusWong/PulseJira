@@ -8,6 +8,7 @@ node_modules/
 .env.local
 .env.*.local
 prefix.md
+Agent设计.md
 
 # Nested git repos (managed independently)
 projects/AI-Powered_Cross-Border_Lead_Generation_Platform/

@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 
 const schema = z.object({
   target: z.enum(['vercel', 'github-actions', 'custom']).describe('Deployment target platform'),
@@ -34,6 +35,7 @@ export class TriggerDeployTool extends BaseTool<Input, DeployTriggerResult> {
   description = 'Trigger a deployment on the specified platform (Vercel, GitHub Actions, or custom webhook).';
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'high' as const satisfies ToolRiskLevel;
 
   protected async _run(input: Input): Promise<DeployTriggerResult> {
     switch (input.target) {

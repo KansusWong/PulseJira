@@ -108,14 +108,15 @@ export class WorkspaceManager {
    * Check if a workspace exists on disk.
    */
   exists(workspaceId: string): boolean {
-    return fs.existsSync(this.getPath(workspaceId));
+    const wsPath = path.join(WORKSPACES_BASE, workspaceId);
+    return fs.existsSync(wsPath);
   }
 
   /**
    * Clean up a workspace — remove the local directory.
    */
   async cleanup(workspaceId: string): Promise<void> {
-    const wsPath = this.getPath(workspaceId);
+    const wsPath = path.join(WORKSPACES_BASE, workspaceId);
     if (fs.existsSync(wsPath)) {
       fs.rmSync(wsPath, { recursive: true, force: true });
     }
@@ -125,7 +126,8 @@ export class WorkspaceManager {
    * List all workspace directories on disk.
    */
   list(): string[] {
-    if (!fs.existsSync(WORKSPACES_BASE)) return [];
+    const base: string = WORKSPACES_BASE;
+    if (!fs.existsSync(base)) return [];
     return fs.readdirSync(WORKSPACES_BASE, { encoding: 'utf-8' });
   }
 }

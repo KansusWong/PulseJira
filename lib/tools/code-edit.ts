@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { Stats } from 'fs';
 import path from 'path';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 import type { ToolContext } from '../core/tool-context';
 import { selectDesc } from './tool-desc-version';
 import type { FileOperationResult } from './file-operation-result';
@@ -60,6 +61,7 @@ export class CodeEditTool extends BaseTool<Input, string> {
   description = selectDesc(EDIT_DESC_V1, EDIT_DESC_V2);
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'low' as const satisfies ToolRiskLevel;
 
   private workspaceRoot?: string;
 

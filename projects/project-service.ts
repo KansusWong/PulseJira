@@ -149,9 +149,54 @@ export async function getProjectTasks(projectId: string): Promise<ProjectTask[]>
   if (error) {
     throw new Error(`Failed to get project tasks: ${error.message}`);
   }
-  return (data || []).map((t) => ({
+  const oldTasks = (data || []).map((t) => ({
     ...t,
     status: DB_STATUS_TO_FRONTEND[t.status] || t.status,
+  }));
+
+  // Also fetch team_tasks for projects created via team execution pipeline
+  const teamTasks = await getTeamTasksForProject(projectId);
+  if (teamTasks.length === 0) return oldTasks;
+  if (oldTasks.length === 0) return teamTasks;
+
+  // Merge, dedup by title (team_tasks take precedence)
+  const teamTitles = new Set(teamTasks.map((t) => t.title));
+  return [...teamTasks, ...oldTasks.filter((t) => !teamTitles.has(t.title))];
+}
+
+const TEAM_STATUS_TO_FRONTEND: Record<string, string> = {
+  pending: 'todo',
+  in_progress: 'in-progress',
+  completed: 'done',
+};
+
+async function getTeamTasksForProject(projectId: string): Promise<ProjectTask[]> {
+  const { data: teams } = await supabase
+    .from('agent_teams')
+    .select('id')
+    .eq('project_id', projectId);
+
+  if (!teams || teams.length === 0) return [];
+
+  const teamIds = teams.map((t: any) => t.id);
+  const { data: teamTasks, error } = await supabase
+    .from('team_tasks')
+    .select('*')
+    .in('team_id', teamIds)
+    .neq('status', 'deleted')
+    .order('created_at', { ascending: true });
+
+  if (error || !teamTasks) return [];
+
+  return teamTasks.map((tt: any) => ({
+    id: tt.id,
+    project_id: projectId,
+    title: tt.subject,
+    description: tt.description || undefined,
+    status: TEAM_STATUS_TO_FRONTEND[tt.status] || tt.status,
+    type: 'chore',
+    priority: 'medium',
+    created_at: tt.created_at,
   }));
 }
 

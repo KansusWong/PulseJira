@@ -4,6 +4,7 @@ import path from 'path';
 export interface AgentSkillMeta {
   name: string;
   description: string;
+  enabled?: boolean; // defaults to true when undefined
 }
 
 interface AgentSkillOverrideEntry {
@@ -43,10 +44,12 @@ function dedupeSkills(skills: AgentSkillMeta[]): AgentSkillMeta[] {
   for (const skill of skills) {
     const normalizedName = normalizeSkillName(skill.name);
     if (!normalizedName) continue;
-    merged.set(normalizedName, {
+    const entry: AgentSkillMeta = {
       name: normalizedName,
       description: String(skill.description || '').trim(),
-    });
+    };
+    if (skill.enabled === false) entry.enabled = false;
+    merged.set(normalizedName, entry);
   }
 
   return Array.from(merged.values());
@@ -85,4 +88,61 @@ export function upsertAgentSkill(agentId: string, skill: AgentSkillMeta): AgentS
   all[normalizedAgentId] = { skills: merged };
   writeOverridesFile(all);
   return merged;
+}
+
+export function removeAgentSkill(agentId: string, skillName: string): AgentSkillMeta[] {
+  const normalizedAgentId = String(agentId || '').trim();
+  if (!normalizedAgentId) throw new Error('agentId is required');
+
+  const normalizedSkillName = normalizeSkillName(skillName);
+  if (!normalizedSkillName) throw new Error('skillName is required');
+
+  const all = readOverridesFile();
+  const entry = all[normalizedAgentId];
+  if (!entry || !Array.isArray(entry.skills)) return [];
+
+  const filtered = entry.skills.filter(
+    (s) => normalizeSkillName(s.name) !== normalizedSkillName,
+  );
+
+  all[normalizedAgentId] = { skills: filtered };
+  writeOverridesFile(all);
+  return filtered;
+}
+
+export function toggleAgentSkill(agentId: string, skillName: string, enabled: boolean): AgentSkillMeta[] {
+  const normalizedAgentId = String(agentId || '').trim();
+  if (!normalizedAgentId) throw new Error('agentId is required');
+
+  const normalizedSkillName = normalizeSkillName(skillName);
+  if (!normalizedSkillName) throw new Error('skillName is required');
+
+  const all = readOverridesFile();
+  const entry = all[normalizedAgentId];
+  if (!entry || !Array.isArray(entry.skills)) return [];
+
+  let found = false;
+  const updated = entry.skills.map((s) => {
+    if (normalizeSkillName(s.name) === normalizedSkillName) {
+      found = true;
+      const copy: AgentSkillMeta = { ...s };
+      if (enabled) {
+        delete copy.enabled; // undefined = enabled (default)
+      } else {
+        copy.enabled = false;
+      }
+      return copy;
+    }
+    return s;
+  });
+
+  if (!found) return entry.skills;
+
+  all[normalizedAgentId] = { skills: updated };
+  writeOverridesFile(all);
+  return updated;
+}
+
+export function getEnabledAgentSkillOverrides(agentId: string): AgentSkillMeta[] {
+  return getAgentSkillOverrides(agentId).filter((s) => s.enabled !== false);
 }

@@ -8,7 +8,7 @@
 
 import { BaseAgent } from '@/lib/core/base-agent';
 import type { BaseTool } from '@/lib/core/base-tool';
-import { getTools, isToolRegistered } from '@/lib/tools/index';
+import { getToolsCached, isToolRegistered } from '@/lib/tools/index';
 import { REBUILD_SYSTEM_PROMPT_V1 } from './prompts/system';
 
 // Workspace-scoped tools (require runtime context)
@@ -29,7 +29,7 @@ import { ReadDocumentTool } from '@/lib/tools/read-document';
 import { Blackboard } from '@/lib/blackboard';
 
 /** Tools that can be resolved from global registry (no workspace needed). */
-const GLOBAL_TOOL_NAMES = [
+export const GLOBAL_TOOL_NAMES = [
   'web_search',
   'web_fetch',
   'browse_url',
@@ -99,11 +99,11 @@ export function createRebuilDAgent(options?: {
     }
   }
 
-  // --- Global tools (from registry) ---
+  // --- Global tools (from registry, cached singletons) ---
   for (const name of GLOBAL_TOOL_NAMES) {
     if (isToolRegistered(name)) {
       try {
-        tools.push(...getTools(name));
+        tools.push(...getToolsCached(name));
       } catch {
         // Skip missing tools
       }

@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { execSync } from 'child_process';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 
 const schema = z.object({
   text: z.string().describe('Text to type on the keyboard'),
@@ -22,6 +23,7 @@ export class KeyboardTypeTool extends BaseTool<Input, string> {
   description = 'Type text as keyboard input. Simulates real keystrokes at the current cursor position. Set interval > 0 for slower, human-like typing. Only available in local deployment mode (DEPLOYMENT_MODE=local).';
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'high' as const satisfies ToolRiskLevel;
 
   private platform = process.platform;
 

@@ -7,10 +7,10 @@
  */
 
 import { z } from 'zod';
-import fs from 'fs';
 import path from 'path';
 import { BaseTool } from '../core/base-tool';
 import type { ToolContext } from '../core/tool-context';
+import { resolveAbs, fileExists, fileStat, readFileBuffer } from '../utils/server-fs';
 
 const schema = z.object({
   images: z.union([z.string(), z.array(z.string())])
@@ -52,8 +52,8 @@ export class AnalyzeImageTool extends BaseTool<Input, string> {
         imageUrl = img;
       } else {
         // Local file
-        const absPath = path.isAbsolute(img) ? img : path.resolve(img);
-        if (!fs.existsSync(absPath)) {
+        const absPath = resolveAbs(img);
+        if (!fileExists(absPath)) {
           return `Error: Image file not found: ${img}`;
         }
 
@@ -62,12 +62,12 @@ export class AnalyzeImageTool extends BaseTool<Input, string> {
           return `Error: Unsupported image format: ${ext}. Supported: ${[...VALID_EXTENSIONS].join(', ')}`;
         }
 
-        const stat = fs.statSync(absPath);
+        const stat = fileStat(absPath);
         if (stat.size > MAX_IMAGE_SIZE) {
           return `Error: Image too large (${(stat.size / 1024 / 1024).toFixed(1)}MB). Max: 20MB.`;
         }
 
-        const buffer = fs.readFileSync(absPath);
+        const buffer = readFileBuffer(absPath);
         const mimeMap: Record<string, string> = {
           '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
           '.png': 'image/png', '.gif': 'image/gif',

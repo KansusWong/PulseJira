@@ -6,7 +6,7 @@
  * old names (read_file, code_write, code_edit, list_files, run_command) are aliases.
  */
 
-import { registerTool, getTools, getTool, getToolNames, isToolRegistered } from './tool-registry';
+import { registerTool, getTools, getToolsCached, getTool, getToolCached, getToolNames, isToolRegistered } from './tool-registry';
 import { WebSearchTool } from './web-search';
 import { FileReadTool } from './fs-read';
 import { FileListTool } from './fs-list';
@@ -26,10 +26,7 @@ import { FinishDecisionTool } from './finish-decision';
 import { FinishArchitectTool } from './finish-architect';
 import { ListAgentsTool } from './list-agents';
 import { ValidateOutputTool } from './validate-output';
-import { SpawnAgentTool } from './spawn-agent';
-import { CreateAgentTool } from './create-agent';
 import { CreateSkillTool } from './create-skill';
-import { PersistAgentTool } from './persist-agent';
 import { PersistSkillTool } from './persist-skill';
 import { PromoteFeatureTool } from './promote-feature';
 import { CreateSubAgentTool } from './create-sub-agent';
@@ -102,10 +99,7 @@ registerTool('finish_decision', () => new FinishDecisionTool());
 registerTool('finish_architect', () => new FinishArchitectTool());
 registerTool('list_agents', () => new ListAgentsTool());
 registerTool('validate_output', () => new ValidateOutputTool());
-registerTool('spawn_agent', () => new SpawnAgentTool());
-registerTool('create_agent', () => new CreateAgentTool());
 registerTool('create_skill', () => new CreateSkillTool());
-registerTool('persist_agent', () => new PersistAgentTool());
 registerTool('persist_skill', () => new PersistSkillTool());
 registerTool('promote_feature', () => new PromoteFeatureTool());
 registerTool('create_sub_agent', () => new CreateSubAgentTool());
@@ -202,4 +196,4 @@ export { getToolDescVersion, setToolDescVersion, selectDesc } from './tool-desc-
 export { SubagentRegistry } from './subagent-registry';
 
 // --- Re-export registry API ---
-export { registerTool, getTools, getTool, getToolNames, isToolRegistered };
+export { registerTool, getTools, getToolsCached, getTool, getToolCached, getToolNames, isToolRegistered };

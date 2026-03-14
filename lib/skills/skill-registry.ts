@@ -9,7 +9,7 @@ import path from 'path';
 import os from 'os';
 import type { SkillDefinition } from './types';
 import { loadLocalSkills } from './skill-loader';
-import { embedSkill, embedAllSkills } from '../services/skill-embedder';
+import { embedSkill } from '../services/skill-embedder';
 
 const registry = new Map<string, SkillDefinition>();
 
@@ -19,6 +19,13 @@ const registry = new Map<string, SkillDefinition>();
 
 export function registerSkill(skill: SkillDefinition): void {
   registry.set(skill.id, skill);
+  // Also index by directory slug so lookups work with either SKILL.md name or dir name
+  if (skill.localPath) {
+    const dirSlug = path.basename(skill.localPath);
+    if (dirSlug && dirSlug !== skill.id) {
+      registry.set(dirSlug, skill);
+    }
+  }
   // Fire-and-forget: embed skill for semantic discovery
   embedSkill(skill).catch((err) => console.error('[skill-registry] Embed skill failed:', err));
 }
@@ -64,8 +71,10 @@ function getSkillBaseDirs(): string[] {
  * Scan the project `skills/` directory for SKILL.md files and register them.
  * Idempotent — concurrent calls share the same initialization Promise.
  * Skills are registered synchronously (available immediately for lookup).
- * Embedding completes asynchronously — callers needing semantic search
- * should await the returned promise.
+ *
+ * NOTE: Bulk embedding is NOT done here — the preload route handles it
+ * so it can selectively embed only core skills.
+ * Individual skills added via `registerSkill()` are still embedded on-the-fly.
  */
 export function initializeSkillRegistry(): Promise<void> {
   if (initPromise) return initPromise;
@@ -83,14 +92,19 @@ export function initializeSkillRegistry(): Promise<void> {
     for (const skill of locals) {
       // Synchronous registration — skill available for lookup immediately
       registry.set(skill.id, skill);
+      // Also index by directory slug so lookups work with either name or dir slug
+      if (skill.localPath) {
+        const dirSlug = path.basename(skill.localPath);
+        if (dirSlug && dirSlug !== skill.id) {
+          registry.set(dirSlug, skill);
+        }
+      }
     }
 
     if (locals.length > 0) {
       console.log(
         `[skill-registry] Loaded ${locals.length} local skill(s) from ${loadedByDir.join(', ')}: ${locals.map((s) => s.id).join(', ')}`,
       );
-      // Await embedding so semantic discovery is ready when init completes
-      await embedAllSkills(locals).catch((err) => console.error('[skill-registry] Embed all skills failed:', err));
     }
   })();
 

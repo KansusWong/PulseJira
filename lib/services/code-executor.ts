@@ -11,10 +11,13 @@
  *       -> child_process fallback (dev mode)
  */
 
-import { spawn, execSync, type ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import path from 'path';
 import os from 'os';
-import fs from 'fs';
+import {
+  fileExists, mkdtemp, writeFile, rmrf,
+  spawnProcess, execSyncSafe,
+} from '../utils/server-fs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,8 +81,8 @@ export class CodeExecutorService {
 
   private isDockerAvailable(): boolean {
     try {
-      if (!fs.existsSync(this.dockerSocket)) return false;
-      execSync('docker info', { timeout: 5000, stdio: 'ignore' });
+      if (!fileExists(this.dockerSocket)) return false;
+      execSyncSafe('docker info', { timeout: 5000, stdio: 'ignore' });
       return true;
     } catch {
       return false;
@@ -191,10 +194,10 @@ del __json__, __vars__
     language: string,
     timeoutMs: number,
   ): Promise<ExecutionResult> {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exec-'));
+    const tmpDir = mkdtemp(path.join(os.tmpdir(), 'exec-'));
     const ext = language === 'python' ? 'py' : language === 'javascript' ? 'js' : 'sh';
     const scriptFile = path.join(tmpDir, `script.${ext}`);
-    fs.writeFileSync(scriptFile, code, 'utf-8');
+    writeFile(scriptFile, code);
 
     const cmd = language === 'python' ? 'python3' : language === 'javascript' ? 'node' : 'bash';
 
@@ -214,7 +217,7 @@ del __json__, __vars__
     } finally {
       // Cleanup
       try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+        rmrf(tmpDir);
       } catch { /* ignore */ }
     }
   }
@@ -228,10 +231,10 @@ del __json__, __vars__
     language: string,
     timeoutMs: number,
   ): Promise<ExecutionResult> {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exec-'));
+    const tmpDir = mkdtemp(path.join(os.tmpdir(), 'exec-'));
     const ext = language === 'python' ? 'py' : language === 'javascript' ? 'js' : 'sh';
     const scriptFile = path.join(tmpDir, `script.${ext}`);
-    fs.writeFileSync(scriptFile, code, 'utf-8');
+    writeFile(scriptFile, code);
 
     const cmd = language === 'python' ? 'python3' : language === 'javascript' ? 'node' : 'bash';
 
@@ -239,7 +242,7 @@ del __json__, __vars__
       return await this.spawnWithTimeout(cmd, [scriptFile], timeoutMs, tmpDir);
     } finally {
       try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+        rmrf(tmpDir);
       } catch { /* ignore */ }
     }
   }
@@ -250,7 +253,7 @@ del __json__, __vars__
 
   private createPythonSession(sessionId: string): PythonSession {
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    const proc = spawn(pythonCmd, ['-u', '-i'], {
+    const proc = spawnProcess(pythonCmd, ['-u', '-i'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONUNBUFFERED: '1' },
     });
@@ -343,7 +346,7 @@ del __json__, __vars__
     cwd?: string,
   ): Promise<ExecutionResult> {
     return new Promise((resolve) => {
-      const proc = spawn(cmd, args, {
+      const proc = spawnProcess(cmd, args, {
         cwd,
         stdio: ['ignore', 'pipe', 'pipe'],
         timeout: timeoutMs,
@@ -352,14 +355,14 @@ del __json__, __vars__
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
 
-      proc.stdout?.on('data', (chunk) => stdout.push(chunk));
-      proc.stderr?.on('data', (chunk) => stderr.push(chunk));
+      proc.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk));
+      proc.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
 
       const timer = setTimeout(() => {
         proc.kill('SIGKILL');
       }, timeoutMs);
 
-      proc.on('close', (code) => {
+      proc.on('close', (code: number | null) => {
         clearTimeout(timer);
         resolve({
           stdout: Buffer.concat(stdout).toString('utf-8').trim(),
@@ -368,7 +371,7 @@ del __json__, __vars__
         });
       });
 
-      proc.on('error', (err) => {
+      proc.on('error', (err: Error) => {
         clearTimeout(timer);
         resolve({
           stdout: '',

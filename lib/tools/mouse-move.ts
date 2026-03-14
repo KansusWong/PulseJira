@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { execSync } from 'child_process';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 
 const schema = z.object({
   x: z.number().describe('Target X coordinate on screen'),
@@ -23,6 +24,7 @@ export class MouseMoveTool extends BaseTool<Input, string> {
   description = 'Move the mouse cursor to the specified (x, y) screen coordinates. Only available in local deployment mode (DEPLOYMENT_MODE=local).';
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'high' as const satisfies ToolRiskLevel;
 
   private platform = process.platform;
 

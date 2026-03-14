@@ -47,8 +47,3 @@ registerAgent({
   ],
   skills: [],
 });
-
-
-// --- AI-generated (persisted) agents ---
-// Dynamic agents are now lazy-loaded via ensureDynamicAgentsLoaded().
-// Only called when list_agents or spawn_agent actually need them.

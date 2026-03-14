@@ -22,20 +22,34 @@ function ensureFeedbackProtocol(prompt: string): string {
   return prompt ? `${prompt}\n\n---\n\n${RUNTIME_FEEDBACK_PROTOCOL}` : RUNTIME_FEEDBACK_PROTOCOL;
 }
 
+// ---------------------------------------------------------------------------
+// Soul cache — 30 second TTL per agent
+// ---------------------------------------------------------------------------
+const _soulCache = new Map<string, { content: string; loadedAt: number }>();
+const SOUL_TTL_MS = 30_000;
+
 /**
  * Load the soul.md file from an agent's workspace directory.
  * Uses process.cwd() as the base since __dirname is unreliable in bundled environments.
+ * Results are cached with a 30-second TTL to avoid repeated disk reads.
  *
  * @param agentName — e.g. 'pm', 'tech-lead', 'critic'
  */
 export function loadSoul(agentName: string): string {
-  const soulPath = path.join(process.cwd(), 'agents', agentName, 'soul.md');
-  try {
-    return fs.readFileSync(soulPath, 'utf-8');
-  } catch {
-    console.warn(`[loadSoul] No soul.md found at ${soulPath}`);
-    return '';
+  const cached = _soulCache.get(agentName);
+  if (cached && Date.now() - cached.loadedAt < SOUL_TTL_MS) {
+    return cached.content;
   }
+
+  const soulPath = path.join(process.cwd(), 'agents', agentName, 'soul.md');
+  let content = '';
+  try {
+    content = fs.readFileSync(soulPath, 'utf-8');
+  } catch {
+    // soul.md is optional — silently return empty string
+  }
+  _soulCache.set(agentName, { content, loadedAt: Date.now() });
+  return content;
 }
 
 /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { ArrowUp, Slash } from "lucide-react";
+import { ArrowUp, Slash, Square } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
 
@@ -9,6 +9,7 @@ interface ChatInputProps {
   onSubmit: (text: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  streaming?: boolean;
   executionMode?: string | null;
 }
 
@@ -16,6 +17,7 @@ export function ChatInput({
   onSubmit,
   placeholder,
   disabled = false,
+  streaming = false,
   executionMode,
 }: ChatInputProps) {
   const { t } = useTranslation();
@@ -85,18 +87,25 @@ export function ChatInput({
             className={clsx(
               "p-1.5 rounded-lg transition-all flex-shrink-0 mb-0.5",
               text.trim() && !disabled
-                ? "bg-zinc-100 text-zinc-900 hover:bg-white"
+                ? streaming
+                  ? "bg-amber-500 text-zinc-900 hover:bg-amber-400"
+                  : "bg-zinc-100 text-zinc-900 hover:bg-white"
                 : "bg-zinc-800 text-zinc-600"
             )}
+            title={streaming ? t('chat.sendWillInterrupt') : undefined}
           >
-            <ArrowUp className="w-4 h-4" />
+            {streaming && text.trim() ? (
+              <Square className="w-3.5 h-3.5" />
+            ) : (
+              <ArrowUp className="w-4 h-4" />
+            )}
           </button>
         </div>
 
         {/* Bottom hint */}
         <div className="flex items-center justify-center gap-4 mt-2">
           <span className="text-[10px] text-zinc-700">
-            {t('chat.enterToSend')}
+            {streaming ? t('chat.sendWillInterrupt') : t('chat.enterToSend')}
           </span>
           {executionMode && (
             <span className="text-[10px] text-zinc-700">

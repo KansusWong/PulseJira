@@ -219,7 +219,7 @@ class LLMPoolManager {
         client: createOpenAIClient(),
         accountId: '__env__',
         accountName: 'Environment Default',
-        model: process.env.LLM_MODEL_NAME || 'gpt-4o',
+        model: process.env.LLM_MODEL_NAME || 'glm-5',
       };
     } catch {
       // If even env vars aren't configured, return a dummy that will fail on first call

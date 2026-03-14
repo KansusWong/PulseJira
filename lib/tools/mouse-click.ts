@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { execSync } from 'child_process';
 import { BaseTool } from '../core/base-tool';
+import type { ToolRiskLevel } from '../core/base-tool';
 
 const schema = z.object({
   x: z.number().describe('X coordinate on screen'),
@@ -25,6 +26,7 @@ export class MouseClickTool extends BaseTool<Input, string> {
   description = 'Click the mouse at given (x, y) screen coordinates. Supports left/right/middle button and single/double click. Only available in local deployment mode (DEPLOYMENT_MODE=local).';
   schema = schema;
   requiresApproval = true;
+  riskLevel = 'high' as const satisfies ToolRiskLevel;
 
   private platform = process.platform;
 

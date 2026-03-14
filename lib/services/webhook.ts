@@ -22,7 +22,8 @@ export type WebhookEventType =
   | 'architect_failed'
   | 'deploy_complete'
   | 'deploy_failed'
-  | 'pr_created';
+  | 'pr_created'
+  | 'daily_report_complete';
 
 export interface WebhookConfig {
   id: string;
@@ -289,6 +290,28 @@ class WebhookService {
     this.configCache = (data || []) as WebhookConfig[];
     this.cacheExpiry = Date.now() + this.CACHE_TTL;
     return this.configCache;
+  }
+
+  /**
+   * Send an event payload to a specific webhook by ID.
+   * Used by manual daily-report triggers to target a single webhook.
+   */
+  async sendToWebhook(webhookId: string, payload: EventPayload): Promise<void> {
+    if (!supabaseConfigured) return;
+
+    const { data } = await supabase
+      .from('webhook_configs')
+      .select('*')
+      .eq('id', webhookId)
+      .single();
+
+    if (!data) {
+      console.error(`[WebhookService] webhook ${webhookId} not found`);
+      return;
+    }
+
+    const config = data as WebhookConfig;
+    await this.send(config, payload);
   }
 
   /**

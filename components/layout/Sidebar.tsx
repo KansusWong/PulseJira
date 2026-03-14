@@ -1,305 +1,118 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   PanelLeftClose,
   Plus,
   Search,
   Radio,
-  FolderOpen,
   Settings,
   ChevronDown,
   ChevronRight,
   Target,
   Bot,
-  MoreHorizontal,
-  Pencil,
   Trash2,
-  Check,
-  X,
   BarChart3,
   Wrench,
   Layers,
   MessageSquare,
   Settings2,
   Bell,
-  Zap,
+  Sparkles,
+  Presentation,
+  FileText,
+  Download,
 } from "lucide-react";
 import clsx from "clsx";
-import type { Project } from "@/projects/types";
 import { useTranslation } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/settings/LanguageSwitcher";
 
+// ---------------------------------------------------------------------------
+// Asset types
+// ---------------------------------------------------------------------------
+
+export interface SkillAsset {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string | null;
+}
+
+export interface FileAsset {
+  id: string;
+  name: string;
+  file_path: string;
+  type: string;
+  project_id: string | null;
+  created_at: string;
+}
+
+export interface AssetsData {
+  skills: SkillAsset[];
+  ppts: FileAsset[];
+  files: FileAsset[];
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
 interface SidebarProps {
-  projects: Project[];
-  activeProjectId: string | null;
-  onSelectProject: (id: string) => void;
   onToggleSidebar: () => void;
-  onRenameProject?: (id: string, name: string) => void;
-  onDeleteProject?: (id: string) => void;
+  assets?: AssetsData | null;
+  onSelectAsset?: (type: 'skill' | 'ppt' | 'file', id: string) => void;
   conversations?: Array<{ id: string; title: string | null; updated_at: string; status: string }>;
   activeConversationId?: string | null;
   onSelectConversation?: (id: string | null) => void;
   onDeleteConversation?: (id: string) => void;
   onNewChat?: () => void;
-  activeDeliverableId?: string | null;
-  onSelectDeliverable?: (id: string) => void;
-}
-
-const statusColors: Record<string, string> = {
-  draft: "bg-zinc-500",
-  analyzing: "bg-amber-500 animate-pulse",
-  planned: "bg-blue-500",
-  implementing: "bg-cyan-500 animate-pulse",
-  implemented: "bg-indigo-500",
-  deploying: "bg-emerald-500 animate-pulse",
-  deployed: "bg-emerald-500",
-  active: "bg-green-500",
-  archived: "bg-zinc-700",
-};
-
-interface TimeGroup {
-  label: string;
-  projects: Project[];
 }
 
 type SettingsSectionKey = "initial" | "advanced" | "rebuild";
 
-function groupByTime(projects: Project[], t: (key: string) => string): TimeGroup[] {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
-  const weekStart = new Date(todayStart.getTime() - 7 * 86400000);
-  const monthStart = new Date(todayStart.getTime() - 30 * 86400000);
+// ---------------------------------------------------------------------------
+// AssetItem
+// ---------------------------------------------------------------------------
 
-  const keys = ['time.today', 'time.yesterday', 'time.previous7days', 'time.previous30days', 'time.earlier'] as const;
-  const labels = keys.map((k) => t(k));
-
-  const buckets: Record<string, Project[]> = {
-    [labels[0]]: [],
-    [labels[1]]: [],
-    [labels[2]]: [],
-    [labels[3]]: [],
-    [labels[4]]: [],
-  };
-
-  const sorted = [...projects].sort(
-    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-  );
-
-  for (const p of sorted) {
-    const d = new Date(p.updated_at || p.created_at);
-    if (d >= todayStart) buckets[labels[0]].push(p);
-    else if (d >= yesterdayStart) buckets[labels[1]].push(p);
-    else if (d >= weekStart) buckets[labels[2]].push(p);
-    else if (d >= monthStart) buckets[labels[3]].push(p);
-    else buckets[labels[4]].push(p);
-  }
-
-  return Object.entries(buckets)
-    .filter(([, list]) => list.length > 0)
-    .map(([label, list]) => ({ label, projects: list }));
-}
-
-function ProjectItem({
-  project,
-  isActive,
-  onSelect,
-  onRename,
-  onDelete,
+function AssetItem({
+  name,
+  subtitle,
+  icon: Icon,
+  onClick,
 }: {
-  project: Project;
-  isActive: boolean;
-  onSelect: () => void;
-  onRename?: (name: string) => void;
-  onDelete?: () => void;
+  name: string;
+  subtitle?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
 }) {
-  const { t } = useTranslation();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(project.name);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-        setConfirmingDelete(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [menuOpen]);
-
-  const commitRename = () => {
-    const trimmed = editName.trim();
-    if (trimmed && trimmed !== project.name) {
-      onRename?.(trimmed);
-    }
-    setEditing(false);
-    setEditName(project.name);
-  };
-
-  const cancelRename = () => {
-    setEditing(false);
-    setEditName(project.name);
-  };
-
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-800/80">
-        <input
-          ref={inputRef}
-          value={editName}
-          onChange={(e) => setEditName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commitRename();
-            if (e.key === "Escape") cancelRename();
-          }}
-          className="flex-1 min-w-0 bg-transparent text-sm text-zinc-200 focus:outline-none"
-        />
-        <button onClick={commitRename} className="p-1 text-emerald-400 hover:text-emerald-300">
-          <Check className="w-3.5 h-3.5" />
-        </button>
-        <button onClick={cancelRename} className="p-1 text-zinc-500 hover:text-zinc-300">
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <div className="group relative">
-        <button
-          onClick={onSelect}
-          className={clsx(
-            "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
-            isActive
-              ? "bg-zinc-800 text-zinc-100"
-              : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-          )}
-        >
-          <div
-            className={clsx(
-              "w-1.5 h-1.5 rounded-full flex-shrink-0",
-              statusColors[project.status] || statusColors.draft
-            )}
-          />
-          <span className="truncate flex-1">{project.name}</span>
-        </button>
-
-        {/* Hover menu trigger */}
-        {(onRename || onDelete) && (
-          <div ref={menuRef}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuOpen(!menuOpen);
-              }}
-              className={clsx(
-                "absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md transition-all",
-                menuOpen
-                  ? "opacity-100 bg-zinc-700 text-zinc-200"
-                  : "opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700"
-              )}
-            >
-              <MoreHorizontal className="w-3.5 h-3.5" />
-            </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl py-1 overflow-hidden">
-                {onRename && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                      setEditName(project.name);
-                      setEditing(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    {t('common.rename')}
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                      setConfirmingDelete(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {t('common.delete')}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Delete confirmation modal */}
-      {confirmingDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => setConfirmingDelete(false)}>
-          <div className="absolute inset-0 bg-black/60" />
-          <div
-            className="relative bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl p-5 w-80 max-w-[90vw]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="p-2 rounded-lg bg-red-500/10">
-                <Trash2 className="w-4 h-4 text-red-400" />
-              </div>
-              <h3 className="text-sm font-medium text-zinc-200">{t('common.delete')}</h3>
-            </div>
-            <p className="text-sm text-zinc-400 mb-5">{t('dashboard.confirmDelete', { name: project.name })}</p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmingDelete(false)}
-                className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={() => { setConfirmingDelete(false); onDelete?.(); }}
-                className="px-3 py-1.5 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
-              >
-                {t('common.delete')}
-              </button>
-            </div>
-          </div>
-        </div>
+    <button
+      onClick={onClick}
+      className="w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+    >
+      <Icon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-500" />
+      <span className="truncate flex-1">{name}</span>
+      {subtitle && (
+        <span className="text-[10px] text-zinc-600 flex-shrink-0">{subtitle}</span>
       )}
-    </>
+    </button>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Sidebar
+// ---------------------------------------------------------------------------
 
 export function Sidebar({
-  projects,
-  activeProjectId,
-  onSelectProject,
   onToggleSidebar,
-  onRenameProject,
-  onDeleteProject,
+  assets,
+  onSelectAsset,
   conversations = [],
   activeConversationId,
   onSelectConversation,
   onDeleteConversation,
   onNewChat,
-  activeDeliverableId,
-  onSelectDeliverable,
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -307,8 +120,9 @@ export function Sidebar({
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [conversationsFolderOpen, setConversationsFolderOpen] = useState(false);
-  const [projectsFolderOpen, setProjectsFolderOpen] = useState(false);
-  const [lightTasksFolderOpen, setLightTasksFolderOpen] = useState(false);
+  const [skillsFolderOpen, setSkillsFolderOpen] = useState(false);
+  const [pptsFolderOpen, setPptsFolderOpen] = useState(false);
+  const [filesFolderOpen, setFilesFolderOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(pathname === "/settings");
   const [openSettingsSection, setOpenSettingsSection] = useState<SettingsSectionKey | null>(null);
 
@@ -335,25 +149,26 @@ export function Sidebar({
     setOpenSettingsSection(activeSettingsSection);
   }, [isSettingsActive, activeSettingsSection]);
 
-  const filteredProjects = searchQuery
-    ? projects.filter((p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : projects;
+  // Filter assets by search query
+  const q = searchQuery.toLowerCase();
+  const filteredSkills = q
+    ? (assets?.skills || []).filter((s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
+    : assets?.skills || [];
+  const filteredPpts = q
+    ? (assets?.ppts || []).filter((f) => f.name.toLowerCase().includes(q))
+    : assets?.ppts || [];
+  const filteredFiles = q
+    ? (assets?.files || []).filter((f) => f.name.toLowerCase().includes(q))
+    : assets?.files || [];
 
-  const regularProjects = filteredProjects.filter((p) => !p.is_light);
-  const lightProjects = filteredProjects.filter((p) => p.is_light);
+  const handleSkillClick = (id: string) => {
+    onSelectAsset?.('skill', id);
+    router.push('/settings?tab=agents');
+  };
 
-  const groups = groupByTime(regularProjects, t);
-  const lightGroups = groupByTime(lightProjects, t);
-
-  const handleSelect = useCallback(
-    (id: string) => {
-      onSelectProject(id);
-      router.push(`/projects/${id}`);
-    },
-    [onSelectProject, router]
-  );
+  const handleFileDownload = (type: 'ppt' | 'file', id: string) => {
+    onSelectAsset?.(type, id);
+  };
 
   return (
     <div className="flex flex-col h-full bg-zinc-950">
@@ -404,7 +219,7 @@ export function Sidebar({
 
         {conversationsFolderOpen && conversations.length > 0 && (
           <div className="mt-1 space-y-0.5 pl-2">
-            {conversations.slice(0, 20).map((conv) => (
+            {conversations.slice(0, 50).map((conv) => (
               <div key={conv.id} className="group/conv relative">
                 <button
                   onClick={() => {
@@ -438,9 +253,9 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Projects area */}
+      {/* Assets area */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Search (filters both sections) */}
+        {/* Search (filters assets) */}
         <div className="px-3 py-1.5">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
@@ -455,124 +270,133 @@ export function Sidebar({
         </div>
 
         <div className="flex-1 overflow-y-auto px-2 pb-2">
-          {/* Complex Projects */}
+          {/* Skills Folder */}
           <div className="mb-1">
             <button
-              onClick={() => setProjectsFolderOpen(!projectsFolderOpen)}
+              onClick={() => setSkillsFolderOpen(!skillsFolderOpen)}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               <ChevronRight
                 className={clsx(
                   "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-                  projectsFolderOpen && "rotate-90"
+                  skillsFolderOpen && "rotate-90"
                 )}
               />
-              <FolderOpen className="w-4 h-4 flex-shrink-0" />
-              <span className="font-medium">{t('sidebar.complexProjects')}</span>
+              <Sparkles className="w-4 h-4 flex-shrink-0" />
+              <span className="font-medium">{t('sidebar.skills')}</span>
               <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-                {regularProjects.length}
+                {filteredSkills.length}
               </span>
             </button>
 
-            {projectsFolderOpen && (
+            {skillsFolderOpen && (
               <div className="pb-1">
-                {groups.length === 0 && (
+                {filteredSkills.length === 0 ? (
                   <div className="px-3 py-4 text-center">
                     <p className="text-xs text-zinc-600">
-                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noComplexProjects')}
+                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noSkills')}
                     </p>
                   </div>
-                )}
-                {groups.map((group) => (
-                  <div key={group.label} className="mb-2">
-                    <div className="px-3 py-1">
-                      <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
-                        {group.label}
-                      </span>
-                    </div>
-                    <div className="space-y-0.5">
-                      {group.projects.map((project) => (
-                        <ProjectItem
-                          key={project.id}
-                          project={project}
-                          isActive={activeProjectId === project.id}
-                          onSelect={() => handleSelect(project.id)}
-                          onRename={
-                            onRenameProject
-                              ? (name) => onRenameProject(project.id, name)
-                              : undefined
-                          }
-                          onDelete={
-                            onDeleteProject
-                              ? () => onDeleteProject(project.id)
-                              : undefined
-                          }
-                        />
-                      ))}
-                    </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {filteredSkills.map((skill) => (
+                      <AssetItem
+                        key={skill.id}
+                        name={skill.name}
+                        subtitle={skill.description ? skill.description.slice(0, 30) : undefined}
+                        icon={Sparkles}
+                        onClick={() => handleSkillClick(skill.id)}
+                      />
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
 
-          {/* Light Tasks */}
+          {/* PPT Folder */}
           <div className="mb-1">
             <button
-              onClick={() => setLightTasksFolderOpen(!lightTasksFolderOpen)}
+              onClick={() => setPptsFolderOpen(!pptsFolderOpen)}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               <ChevronRight
                 className={clsx(
                   "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-                  lightTasksFolderOpen && "rotate-90"
+                  pptsFolderOpen && "rotate-90"
                 )}
               />
-              <Zap className="w-4 h-4 flex-shrink-0" />
-              <span className="font-medium">{t('sidebar.lightTasks')}</span>
+              <Presentation className="w-4 h-4 flex-shrink-0" />
+              <span className="font-medium">{t('sidebar.ppts')}</span>
               <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-                {lightProjects.length}
+                {filteredPpts.length}
               </span>
             </button>
 
-            {lightTasksFolderOpen && (
+            {pptsFolderOpen && (
               <div className="pb-1">
-                {lightGroups.length === 0 && (
+                {filteredPpts.length === 0 ? (
                   <div className="px-3 py-4 text-center">
                     <p className="text-xs text-zinc-600">
-                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noLightTasks')}
+                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noPpts')}
                     </p>
                   </div>
-                )}
-                {lightGroups.map((group) => (
-                  <div key={group.label} className="mb-1">
-                    <div className="px-3 py-0.5">
-                      <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
-                        {group.label}
-                      </span>
-                    </div>
-                    <div className="space-y-0.5">
-                      {group.projects.map((project) => (
-                        <ProjectItem
-                          key={project.id}
-                          project={project}
-                          isActive={activeProjectId === project.id}
-                          onSelect={() => handleSelect(project.id)}
-                          onRename={
-                            onRenameProject
-                              ? (name) => onRenameProject(project.id, name)
-                              : undefined
-                          }
-                          onDelete={
-                            onDeleteProject
-                              ? () => onDeleteProject(project.id)
-                              : undefined
-                          }
-                        />
-                      ))}
-                    </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {filteredPpts.map((ppt) => (
+                      <AssetItem
+                        key={ppt.id}
+                        name={ppt.name}
+                        icon={Download}
+                        onClick={() => handleFileDownload('ppt', ppt.id)}
+                      />
+                    ))}
                   </div>
-                ))}
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Files Folder */}
+          <div className="mb-1">
+            <button
+              onClick={() => setFilesFolderOpen(!filesFolderOpen)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <ChevronRight
+                className={clsx(
+                  "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
+                  filesFolderOpen && "rotate-90"
+                )}
+              />
+              <FileText className="w-4 h-4 flex-shrink-0" />
+              <span className="font-medium">{t('sidebar.files')}</span>
+              <span className="ml-auto text-[10px] text-zinc-600 font-mono">
+                {filteredFiles.length}
+              </span>
+            </button>
+
+            {filesFolderOpen && (
+              <div className="pb-1">
+                {filteredFiles.length === 0 ? (
+                  <div className="px-3 py-4 text-center">
+                    <p className="text-xs text-zinc-600">
+                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noFiles')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {filteredFiles.map((file) => (
+                      <AssetItem
+                        key={file.id}
+                        name={file.name}
+                        subtitle={file.type}
+                        icon={FileText}
+                        onClick={() => handleFileDownload('file', file.id)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

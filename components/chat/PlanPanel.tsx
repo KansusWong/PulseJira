@@ -81,7 +81,7 @@ export function PlanPanel() {
             updated_at: new Date().toISOString(),
           });
           setRunning(true, data.project_id);
-          router.push(`/projects/${data.project_id}`);
+          // Don't navigate mid-stream — let the user decide when to visit
         },
       });
     } catch {

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
 import { getDynamicSkill } from './create-skill';
-import { getDynamicAgent } from './create-agent';
 
 const PromoteFeatureInputSchema = z.object({
   project_id: z.string().describe('The project ID containing the feature to promote'),
@@ -60,23 +59,12 @@ export class PromoteFeatureTool extends BaseTool<PromoteFeatureInput, PromoteFea
     }
 
     if (feature_type === 'agent') {
-      const existing = getDynamicAgent(feature_name);
-      if (existing) {
-        return {
-          status: 'pending_generation',
-          feature_type: 'agent',
-          feature_name,
-          message: `Dynamic agent "${feature_name}" found. Use persist_agent to write it to disk.`,
-          next_step: `Call persist_agent with agent_id="${existing.id}"`,
-        };
-      }
-
       return {
         status: 'pending_generation',
         feature_type: 'agent',
         feature_name,
-        message: `To promote as Agent: first call create_agent with name="${feature_name}" and system_prompt derived from: ${feature_description}. Then call persist_agent to save permanently.`,
-        next_step: `create_agent → persist_agent`,
+        message: `To promote as Agent: create a subagent by writing agents/subagents/${feature_name}/agent.md with frontmatter (name, description, tools, model) and system prompt body derived from: ${feature_description}.`,
+        next_step: `write agents/subagents/${feature_name}/agent.md`,
       };
     }
 

@@ -39,5 +39,5 @@ export function createOpenAIClient(options?: {
 }
 
 export function getDefaultModel(): string {
-  return process.env.LLM_MODEL_NAME || 'gpt-4o';
+  return process.env.LLM_MODEL_NAME || 'glm-5';
 }

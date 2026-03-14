@@ -46,21 +46,22 @@ if (typeof window === 'undefined' && !_envWarningsPrinted) {
     );
   }
 
-  if (!isGitHubConfigured) {
-    warnings.push(
-      '[GitHub] GITHUB_TOKEN missing — PR creation and repo operations unavailable'
-    );
-  }
+  // Optional integrations — uncomment to re-enable warnings
+  // if (!isGitHubConfigured) {
+  //   warnings.push(
+  //     '[GitHub] GITHUB_TOKEN missing — PR creation and repo operations unavailable'
+  //   );
+  // }
 
-  const connectorsMissing: string[] = [];
-  if (!isRedditConfigured) connectorsMissing.push('Reddit');
-  if (!isTwitterConfigured) connectorsMissing.push('Twitter');
-  if (!isYouTubeConfigured) connectorsMissing.push('YouTube');
-  if (connectorsMissing.length > 0) {
-    warnings.push(
-      `[Connectors] ${connectorsMissing.join(', ')} credentials missing — signal collection from these platforms unavailable`
-    );
-  }
+  // const connectorsMissing: string[] = [];
+  // if (!isRedditConfigured) connectorsMissing.push('Reddit');
+  // if (!isTwitterConfigured) connectorsMissing.push('Twitter');
+  // if (!isYouTubeConfigured) connectorsMissing.push('YouTube');
+  // if (connectorsMissing.length > 0) {
+  //   warnings.push(
+  //     `[Connectors] ${connectorsMissing.join(', ')} credentials missing — signal collection from these platforms unavailable`
+  //   );
+  // }
 
   if (warnings.length > 0) {
     console.warn('=== Environment Configuration Warnings ===');

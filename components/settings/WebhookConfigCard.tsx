@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Send,
   Pencil,
+  FileText,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
@@ -33,6 +34,7 @@ const ALL_EVENTS = [
   "deploy_complete",
   "deploy_failed",
   "pr_created",
+  "daily_report_complete",
 ] as const;
 
 const providerIcons: Record<string, string> = {
@@ -58,7 +60,7 @@ function maskUrl(url: string): string {
 }
 
 export function WebhookConfigCard() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -80,10 +82,19 @@ export function WebhookConfigCard() {
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [editTemplateValue, setEditTemplateValue] = useState("");
   const [editDisplayNameValue, setEditDisplayNameValue] = useState("");
+  const [editEventsValue, setEditEventsValue] = useState<string[]>([]);
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Delete confirm state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Per-webhook daily report trigger state
+  const [reportingId, setReportingId] = useState<string | null>(null);
+  const [reportResult, setReportResult] = useState<{
+    id: string;
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   // Test / delete state
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -197,6 +208,7 @@ export function WebhookConfigCard() {
           body: JSON.stringify({
             message_template: editTemplateValue.trim() || null,
             display_name: editDisplayNameValue.trim() || null,
+            events: editEventsValue,
           }),
         });
         setEditingTemplateId(null);
@@ -207,7 +219,41 @@ export function WebhookConfigCard() {
         setSavingTemplate(false);
       }
     },
-    [editTemplateValue, editDisplayNameValue, fetchWebhooks],
+    [editTemplateValue, editDisplayNameValue, editEventsValue, fetchWebhooks],
+  );
+
+  const handleTriggerDailyReport = useCallback(
+    async (webhookId: string) => {
+      setReportingId(webhookId);
+      setReportResult(null);
+      try {
+        const res = await fetch("/api/cron/daily-report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ webhook_id: webhookId, locale }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          const mode = json.data?.mode;
+          if (mode === "completed") {
+            setReportResult({ id: webhookId, ok: true, message: t("webhook.dailyReportSuccess") });
+          } else if (mode === "skipped") {
+            setReportResult({ id: webhookId, ok: true, message: t("webhook.dailyReportSkipped") });
+          } else if (mode === "disabled") {
+            setReportResult({ id: webhookId, ok: false, message: t("webhook.dailyReportDisabled") });
+          } else {
+            setReportResult({ id: webhookId, ok: true, message: mode });
+          }
+        } else {
+          setReportResult({ id: webhookId, ok: false, message: json.error || t("webhook.dailyReportFailed") });
+        }
+      } catch {
+        setReportResult({ id: webhookId, ok: false, message: t("webhook.dailyReportFailed") });
+      } finally {
+        setReportingId(null);
+      }
+    },
+    [t, locale],
   );
 
   const toggleEvent = (event: string) => {
@@ -398,6 +444,28 @@ export function WebhookConfigCard() {
                         className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
                       />
                     </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ALL_EVENTS.map((ev) => (
+                        <button
+                          key={ev}
+                          onClick={() =>
+                            setEditEventsValue((prev) =>
+                              prev.includes(ev)
+                                ? prev.filter((e) => e !== ev)
+                                : [...prev, ev],
+                            )
+                          }
+                          className={clsx(
+                            "px-2 py-0.5 text-[10px] rounded-full border transition-colors",
+                            editEventsValue.includes(ev)
+                              ? "border-amber-500/60 bg-amber-500/20 text-amber-300"
+                              : "border-zinc-700 text-zinc-500 hover:text-zinc-300",
+                          )}
+                        >
+                          {t(`webhook.event.${ev}`)}
+                        </button>
+                      ))}
+                    </div>
                     <textarea
                       value={editTemplateValue}
                       onChange={(e) => setEditTemplateValue(e.target.value)}
@@ -431,7 +499,7 @@ export function WebhookConfigCard() {
                 ) : null}
               </div>
 
-              {/* Test result */}
+              {/* Test / Report result */}
               {testResult?.id === wh.id && (
                 <div className="flex items-center gap-1">
                   {testResult.ok ? (
@@ -446,6 +514,23 @@ export function WebhookConfigCard() {
                     )}
                   >
                     {testResult.message}
+                  </span>
+                </div>
+              )}
+              {reportResult?.id === wh.id && (
+                <div className="flex items-center gap-1">
+                  {reportResult.ok ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                  )}
+                  <span
+                    className={clsx(
+                      "text-xs",
+                      reportResult.ok ? "text-emerald-400" : "text-red-400",
+                    )}
+                  >
+                    {reportResult.message}
                   </span>
                 </div>
               )}
@@ -474,6 +559,7 @@ export function WebhookConfigCard() {
                   } else {
                     setEditTemplateValue(wh.message_template || "");
                     setEditDisplayNameValue(wh.display_name || "");
+                    setEditEventsValue([...wh.events]);
                     setEditingTemplateId(wh.id);
                   }
                 }}
@@ -481,6 +567,20 @@ export function WebhookConfigCard() {
                 title={t("webhook.edit")}
               >
                 <Pencil className="w-4 h-4" />
+              </button>
+
+              {/* Daily report button */}
+              <button
+                onClick={() => handleTriggerDailyReport(wh.id)}
+                disabled={reportingId === wh.id}
+                className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
+                title={t("webhook.triggerDailyReport")}
+              >
+                {reportingId === wh.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
               </button>
 
               {/* Test button */}
