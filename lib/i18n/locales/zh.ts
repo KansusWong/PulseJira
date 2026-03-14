@@ -226,6 +226,8 @@ const zh: TranslationDict = {
   'project.header.continueExecution': '继续执行',
   'project.header.running': '运行中...',
   'project.header.promote': '提升为能力',
+  'project.header.directPlan': '直接规划',
+  'project.header.directPlanTooltip': '跳过决策分析，直接进入任务规划（适合代码任务）',
   'project.promote.title': '提升为平台级能力',
   'project.promote.name': '能力名称',
   'project.promote.namePlaceholder': '如 daily-report-skill',
@@ -438,6 +440,15 @@ const zh: TranslationDict = {
   'agent.installFailed': '安装失败',
   'agent.loadSkillsFailed': '加载技能列表失败',
   'agent.addSkillFailed': '添加技能失败',
+  'agent.uploadSkill': '上传技能',
+  'agent.pasteSkill': '粘贴技能',
+  'agent.enabledSkills': '已挂载技能',
+  'agent.toggleSkill': '切换技能状态',
+  'agent.removeSkill': '移除技能',
+  'agent.uploadFile': '文件上传',
+  'agent.pasteContent': '文本粘贴',
+  'agent.skillUploadSuccess': '技能上传成功',
+  'agent.skillUploadFailed': '技能上传失败',
 
   // ── Settings: Setup / Env Config ──
   'env.title': '环境变量配置',
@@ -764,6 +775,22 @@ const zh: TranslationDict = {
   'webhook.displayName': '个性化称呼',
   'webhook.displayNamePlaceholder': '如: 张三',
   'webhook.displayNameHint': '消息中的个性化问候，如 "Hello, 张三"',
+
+  // ── Streaming Step Indicator ──
+  'streaming.thinking': '思考中...',
+  'streaming.done': '完成',
+  'streaming.failed': '失败',
+  'streaming.unknownError': '未知错误',
+  'streaming.subAgentStart': '子智能体启动',
+  'streaming.subAgentStarting': '子智能体「{name}」启动中...',
+  'streaming.subAgentComplete': '子智能体「{name}」已完成',
+  'streaming.subAgentFailed': '子智能体「{name}」执行失败',
+
+  // ── 问卷内联 ──
+  'questionnaire.title': '问题',
+  'questionnaire.submit': '提交',
+  'questionnaire.dismiss': '跳过',
+  'questionnaire.multiSelect': '可多选',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',

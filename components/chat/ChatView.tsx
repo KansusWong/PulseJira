@@ -7,9 +7,10 @@ import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage, ChatEvent, ComplexityAssessment, DecisionOutput, StructuredRequirements, StructuredAgentStep, CodeSolutionProposal } from "@/lib/core/types";
+import type { ChatMessage, ChatEvent, StructuredAgentStep } from "@/lib/core/types";
 import { StreamingStepIndicator } from "./StreamingStepIndicator";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
+import { QuestionnaireInline } from "./QuestionnaireInline";
 
 export function ChatView() {
   const { t } = useTranslation();
@@ -24,20 +25,11 @@ export function ChatView() {
   const setActiveConversationId = usePulseStore((s) => s.setActiveConversationId);
   const addConversation = usePulseStore((s) => s.addConversation);
   const showPlanPanel = usePulseStore((s) => s.showPlanPanel);
-  const showTeamPanel = usePulseStore((s) => s.showTeamPanel);
-  const updateTeamStatus = usePulseStore((s) => s.updateTeamStatus);
-  const showClarificationForm = usePulseStore((s) => s.showClarificationForm);
-  const showDmPanel = usePulseStore((s) => s.showDmPanel);
   const showToolApproval = usePulseStore((s) => s.showToolApproval);
   const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
-  const showArchitectFailed = usePulseStore((s) => s.showArchitectFailed);
-  const hideArchitectPanel = usePulseStore((s) => s.hideArchitectPanel);
-  const showSolutionPanel = usePulseStore((s) => s.showSolutionPanel);
   const addProject = usePulseStore((s) => s.addProject);
   const setRunning = usePulseStore((s) => s.setRunning);
   const addAgentLog = usePulseStore((s) => s.addAgentLog);
-  const updatePlanStepProgress = usePulseStore((s) => s.updatePlanStepProgress);
-  const addTeamCommunication = usePulseStore((s) => s.addTeamCommunication);
 
   // Streaming steps — now in store (shared with TeamCollaborationView)
   const streamingSteps = usePulseStore((s) => s.streamingSteps);
@@ -45,6 +37,10 @@ export function ChatView() {
   const clearStreamingSteps = usePulseStore((s) => s.clearStreamingSteps);
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
   const setTeamCollaborationActive = usePulseStore((s) => s.setTeamCollaborationActive);
+
+  const questionnaireData = usePulseStore((s) => s.questionnaireData);
+  const setQuestionnaireData = usePulseStore((s) => s.setQuestionnaireData);
+  const clearQuestionnaireData = usePulseStore((s) => s.clearQuestionnaireData);
 
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -87,6 +83,10 @@ export function ChatView() {
         }
       })
       .catch((err) => console.error('[ChatView] Failed to load messages:', err));
+
+    // Fire-and-forget: warm agent caches (config, soul, tool schemas)
+    // so the first message in this conversation is faster.
+    fetch('/api/chat/preload', { method: 'POST' }).catch(() => {});
   }, [activeConversationId, setMessages]);
 
   // 恢复 plan panel（刷新页面后的 fallback）
@@ -148,6 +148,7 @@ export function ChatView() {
         abortRef.current = null;
       }
 
+      clearQuestionnaireData();
       setStreaming(true);
       clearStreamingSteps();
       setTeamCollaborationActive(false);
@@ -249,7 +250,7 @@ export function ChatView() {
         setTeamCollaborationActive(false);
       }
     },
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showTeamPanel, updateTeamStatus, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, clearStreamingSteps, setTeamCollaborationActive]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData]
   );
 
   const handleSSEEvent = useCallback(
@@ -268,45 +269,6 @@ export function ChatView() {
           break;
         }
 
-        case "plan_assessment": {
-          const assessment = event.data as ComplexityAssessment;
-
-          // Add plan message to chat
-          addMessage(conversationId, {
-            id: crypto.randomUUID(),
-            conversation_id: conversationId,
-            role: "plan",
-            content: `**Complexity Assessment:** ${assessment.complexity_level}\n**Mode:** ${assessment.execution_mode}\n**Rationale:** ${assessment.rationale}`,
-            metadata: { assessment },
-            created_at: new Date().toISOString(),
-          });
-          break;
-        }
-
-        case "plan_update": {
-          if (event.data.status === "pending_approval") {
-            showPlanPanel(event.data.assessment);
-            // 持久化 assessment 到 conversation 对象 (→ localStorage)
-            const updateConv = usePulseStore.getState().updateConversation;
-            updateConv(conversationId, {
-              complexity_assessment: event.data.assessment,
-              execution_mode: event.data.assessment.execution_mode,
-            });
-          }
-          break;
-        }
-
-        case "team_update": {
-          const currentPanel = usePulseStore.getState().teamPanel;
-          if (currentPanel.visible && currentPanel.teamId === event.data.team_id) {
-            updateTeamStatus({ agents: event.data.agents || [] } as any);
-          } else {
-            showTeamPanel(event.data.team_id, event.data.agents || []);
-          }
-          setTeamCollaborationActive(true);
-          break;
-        }
-
         case "agent_log": {
           if (event.data.message) {
             const step: StructuredAgentStep = event.data.step || {
@@ -319,44 +281,6 @@ export function ChatView() {
             addStreamingStep(step);
             addAgentLog({ agent: step.agent || 'system', type: 'log', message: event.data.message });
           }
-          break;
-        }
-
-        case "team_comms": {
-          const currentTeamId = usePulseStore.getState().teamPanel.teamId;
-          addTeamCommunication({
-            id: event.data.id || crypto.randomUUID(),
-            team_id: event.data.team_id || currentTeamId || '',
-            from_agent: event.data.from_agent,
-            to_agent: event.data.to_agent,
-            message_type: event.data.message_type || 'message',
-            payload: event.data.payload,
-            read: false,
-            created_at: event.data.created_at || new Date().toISOString(),
-          });
-          break;
-        }
-
-        case "plan_step_progress": {
-          updatePlanStepProgress(
-            event.data.step_index,
-            event.data.status,
-            event.data.summary,
-          );
-          break;
-        }
-
-        case "dm_decision": {
-          const dmDecision = event.data as DecisionOutput;
-          if (dmDecision.decision === 'PROCEED') {
-            showDmPanel(dmDecision);
-          }
-          break;
-        }
-
-        case "clarification_form": {
-          const requirements = event.data as StructuredRequirements;
-          showClarificationForm(requirements);
           break;
         }
 
@@ -383,7 +307,7 @@ export function ChatView() {
               updated_at: new Date().toISOString(),
             });
             setRunning(true, project_id);
-            router.push(`/projects/${project_id}`);
+            // Don't navigate mid-stream — let the user decide when to visit the project
           }
           break;
         }
@@ -398,30 +322,8 @@ export function ChatView() {
           break;
         }
 
-        case "solution_proposal": {
-          if (event.data.status === "pending_selection") {
-            const proposal = event.data.proposal as CodeSolutionProposal;
-            showSolutionPanel(proposal);
-          }
-          break;
-        }
-
         case "tool_approval_resolved": {
           hideToolApproval();
-          break;
-        }
-
-        case "architect_failed": {
-          showArchitectFailed({
-            errorMessage: event.data.message,
-            stepsCompleted: event.data.steps_completed ?? 0,
-            attempt: event.data.attempt ?? 1,
-          });
-          break;
-        }
-
-        case "architect_resuming": {
-          hideArchitectPanel();
           break;
         }
 
@@ -432,7 +334,7 @@ export function ChatView() {
             id: `sub-start-${agentName}-${Date.now()}`,
             agent: agentName,
             kind: "thinking",
-            message: task ? `子智能体启动: ${task}` : `子智能体「${agentName}」启动中...`,
+            message: task ? `${t('streaming.subAgentStart')}: ${task}` : `${t('streaming.subAgentStarting', { name: agentName })}`,
             timestamp: Date.now(),
           });
           break;
@@ -449,21 +351,19 @@ export function ChatView() {
             kind: "completion",
             success,
             message: success
-              ? `子智能体「${agentName}」已完成${durationStr}`
-              : `子智能体「${agentName}」执行失败${event.data.error ? `: ${event.data.error}` : ""}`,
+              ? `${t('streaming.subAgentComplete', { name: agentName })}${durationStr}`
+              : `${t('streaming.subAgentFailed', { name: agentName })}${event.data.error ? `: ${event.data.error}` : ""}`,
             timestamp: Date.now(),
           });
           break;
         }
 
+        case "questionnaire": {
+          setQuestionnaireData(event.data);
+          break;
+        }
+
         case "done": {
-          // Mark all active steps as completed on stream end
-          const stepStates = usePulseStore.getState().planPanel.stepStates;
-          stepStates.forEach((s, i) => {
-            if (s.status === 'active') {
-              updatePlanStepProgress(i, 'completed');
-            }
-          });
           setTeamCollaborationActive(false);
           break;
         }
@@ -481,7 +381,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showPlanPanel, showTeamPanel, showClarificationForm, showDmPanel, showToolApproval, hideToolApproval, showArchitectFailed, hideArchitectPanel, addAgentLog, updatePlanStepProgress, addStreamingStep, addTeamCommunication, setTeamCollaborationActive]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, addProject, setRunning, t]
   );
 
   return (
@@ -536,6 +436,14 @@ export function ChatView() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {questionnaireData && !isStreaming && (
+              <QuestionnaireInline
+                data={questionnaireData}
+                onSubmit={(text) => { clearQuestionnaireData(); handleSend(text); }}
+                onDismiss={clearQuestionnaireData}
+              />
             )}
 
             <div ref={messagesEndRef} />

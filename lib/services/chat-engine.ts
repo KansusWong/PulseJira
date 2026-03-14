@@ -35,6 +35,49 @@ import type {
 } from '@/lib/core/types';
 
 // ---------------------------------------------------------------------------
+// Agent instance cache — reuse per conversation (TTL 5 min, max 20 entries)
+// ---------------------------------------------------------------------------
+
+interface CachedAgent {
+  agent: ReturnType<typeof createRebuilDAgent>;
+  workspace?: string;
+  createdAt: number;
+}
+
+const agentCache = new Map<string, CachedAgent>();
+const AGENT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const AGENT_CACHE_MAX = 20;
+
+function getCachedAgent(conversationId: string, workspace?: string): CachedAgent | null {
+  const entry = agentCache.get(conversationId);
+  if (!entry) return null;
+
+  // TTL check
+  if (Date.now() - entry.createdAt > AGENT_CACHE_TTL_MS) {
+    agentCache.delete(conversationId);
+    return null;
+  }
+
+  // Workspace mismatch invalidation (e.g., project associated mid-conversation)
+  if (entry.workspace !== workspace) {
+    agentCache.delete(conversationId);
+    return null;
+  }
+
+  return entry;
+}
+
+function setCachedAgent(conversationId: string, agent: ReturnType<typeof createRebuilDAgent>, workspace?: string): void {
+  // LRU eviction when at capacity
+  if (agentCache.size >= AGENT_CACHE_MAX && !agentCache.has(conversationId)) {
+    // Evict oldest entry
+    const oldestKey = agentCache.keys().next().value;
+    if (oldestKey) agentCache.delete(oldestKey);
+  }
+  agentCache.set(conversationId, { agent, workspace, createdAt: Date.now() });
+}
+
+// ---------------------------------------------------------------------------
 // Chat context
 // ---------------------------------------------------------------------------
 
@@ -323,14 +366,23 @@ export class ChatEngine {
         new CreateWorkspaceTool(conversationId, workspaceRef, onProjectCreated),
       ];
 
-      const agent = createRebuilDAgent({
-        workspace: workspace?.localPath,
-        maxLoops: configOverride.maxLoops ?? 30,
-        model: configOverride.model,
-        systemPrompt: configOverride.systemPrompt,
-        soulPrompt: soulContent || undefined,
-        extraTools,
-      });
+      // Reuse cached agent for the same conversation + workspace, or create new
+      const cachedEntry = getCachedAgent(conversationId, workspace?.localPath);
+      const agent = cachedEntry
+        ? cachedEntry.agent
+        : createRebuilDAgent({
+            workspace: workspace?.localPath,
+            maxLoops: configOverride.maxLoops ?? 30,
+            model: configOverride.model,
+            systemPrompt: configOverride.systemPrompt,
+            soulPrompt: soulContent || undefined,
+            extraTools,
+          });
+
+      // Cache the agent for future messages in this conversation
+      if (!cachedEntry) {
+        setCachedAgent(conversationId, agent, workspace?.localPath);
+      }
 
       // --- 4. Build input with conversation history ---
       const historyContext = context.messages
@@ -381,7 +433,7 @@ export class ChatEngine {
             if (marker.type === 'plan_review') {
               channel.push({ type: 'plan_review' as any, data: marker.data });
             } else if (marker.type === 'question_data') {
-              channel.push({ type: 'questionnaire' as any, data: marker.data });
+              channel.push({ type: 'questionnaire', data: marker.data });
             } else if (marker.type === 'plan_mode_enter') {
               channel.push({ type: 'plan_mode_enter' as any, data: marker.data });
             }

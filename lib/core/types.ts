@@ -355,8 +355,23 @@ export type ChatEventType =
   | 'architect_resuming'
   | 'sub_agent_start'
   | 'sub_agent_complete'
+  | 'questionnaire'
   | 'error'
   | 'done';
+
+export interface QuestionnaireQuestion {
+  id: string;
+  type: 'single_choice' | 'multiple_choice' | 'text';
+  question: string;
+  options?: string[];
+  required?: boolean;
+  placeholder?: string;
+}
+
+export interface QuestionnaireData {
+  questions: QuestionnaireQuestion[];
+  context: string | null;
+}
 
 /** SSE chat event. */
 export interface ChatEvent {

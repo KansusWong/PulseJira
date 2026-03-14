@@ -116,7 +116,12 @@ export async function processSSEResponse(
             }
 
             case 'team_update': {
-              s.showTeamPanel(event.data.team_id, event.data.agents || []);
+              // Incremental update if panel already showing for this team (preserves communications)
+              if (s.teamPanel.visible && s.teamPanel.teamId === event.data.team_id) {
+                s.updateTeamStatus({ agents: event.data.agents || [] } as any);
+              } else {
+                s.showTeamPanel(event.data.team_id, event.data.agents || []);
+              }
               break;
             }
 
@@ -144,6 +149,11 @@ export async function processSSEResponse(
                 attempt: event.data.attempt ?? 1,
               });
               hasPendingUserAction = true;
+              break;
+            }
+
+            case 'questionnaire': {
+              s.setQuestionnaireData(event.data);
               break;
             }
 

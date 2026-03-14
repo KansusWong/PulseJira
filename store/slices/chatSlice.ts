@@ -10,6 +10,7 @@ import type {
   StructuredRequirements,
   StructuredAgentStep,
   CodeSolutionProposal,
+  QuestionnaireData,
 } from '@/lib/core/types';
 
 export type PlanStepStatus = 'pending' | 'active' | 'completed' | 'skipped';
@@ -106,6 +107,9 @@ export interface ChatSlice {
     collapsed: boolean;
   };
 
+  // Questionnaire inline state
+  questionnaireData: QuestionnaireData | null;
+
   // Actions
   setConversations: (conversations: Conversation[]) => void;
   addConversation: (conversation: Conversation) => void;
@@ -154,6 +158,9 @@ export interface ChatSlice {
   clearStreamingSteps: () => void;
   setTeamCollaborationActive: (active: boolean) => void;
   setTeamCollaborationCollapsed: (collapsed: boolean) => void;
+
+  setQuestionnaireData: (data: QuestionnaireData) => void;
+  clearQuestionnaireData: () => void;
 
   /** Reset all right-side panels to their idle/hidden state. */
   resetAllPanels: () => void;
@@ -235,6 +242,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     collapsed: false,
   },
 
+  questionnaireData: null,
+
   setConversations: (conversations) => set({ conversations }),
 
   addConversation: (conversation) =>
@@ -295,6 +304,7 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       activeConversationId: id,
       panelStateCache: cache,
       panelCacheOrder: order,
+      questionnaireData: null,
       ...restored,
     };
   }),
@@ -560,6 +570,9 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     set((state) => ({
       teamCollaboration: { ...state.teamCollaboration, collapsed },
     })),
+
+  setQuestionnaireData: (data) => set({ questionnaireData: data }),
+  clearQuestionnaireData: () => set({ questionnaireData: null }),
 
   resetAllPanels: () =>
     set((state) => {

@@ -226,6 +226,8 @@ const en: TranslationDict = {
   'project.header.continueExecution': 'Continue',
   'project.header.running': 'Running...',
   'project.header.promote': 'Promote',
+  'project.header.directPlan': 'Direct Plan',
+  'project.header.directPlanTooltip': 'Skip decision analysis, go straight to task planning (ideal for code tasks)',
   'project.promote.title': 'Promote to Platform Capability',
   'project.promote.name': 'Feature Name',
   'project.promote.namePlaceholder': 'e.g. daily-report-skill',
@@ -438,6 +440,15 @@ const en: TranslationDict = {
   'agent.installFailed': 'Install failed',
   'agent.loadSkillsFailed': 'Failed to load skill list',
   'agent.addSkillFailed': 'Failed to add skill',
+  'agent.uploadSkill': 'Upload Skill',
+  'agent.pasteSkill': 'Paste Skill',
+  'agent.enabledSkills': 'Mounted Skills',
+  'agent.toggleSkill': 'Toggle skill',
+  'agent.removeSkill': 'Remove skill',
+  'agent.uploadFile': 'File Upload',
+  'agent.pasteContent': 'Paste Content',
+  'agent.skillUploadSuccess': 'Skill uploaded successfully',
+  'agent.skillUploadFailed': 'Skill upload failed',
 
   // ── Settings: Setup / Env Config ──
   'env.title': 'Environment Variables',
@@ -764,6 +775,22 @@ const en: TranslationDict = {
   'webhook.displayName': 'Display Name',
   'webhook.displayNamePlaceholder': 'e.g. John',
   'webhook.displayNameHint': 'Personalized greeting in messages, e.g. "Hello, John"',
+
+  // ── Streaming Step Indicator ──
+  'streaming.thinking': 'Thinking...',
+  'streaming.done': 'Done',
+  'streaming.failed': 'Failed',
+  'streaming.unknownError': 'Unknown error',
+  'streaming.subAgentStart': 'Sub-agent started',
+  'streaming.subAgentStarting': 'Sub-agent "{name}" starting...',
+  'streaming.subAgentComplete': 'Sub-agent "{name}" completed',
+  'streaming.subAgentFailed': 'Sub-agent "{name}" failed',
+
+  // ── Questionnaire Inline ──
+  'questionnaire.title': 'Question',
+  'questionnaire.submit': 'Submit',
+  'questionnaire.dismiss': 'Skip',
+  'questionnaire.multiSelect': 'select multiple',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',
