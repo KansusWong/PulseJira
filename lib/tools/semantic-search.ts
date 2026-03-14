@@ -92,7 +92,8 @@ export class SemanticSearchTool extends BaseTool<Input, string> {
         .filter(([, v]) => v != null)
         .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
         .join(', ');
-      return `[${i + 1}] (${r.source}, score: ${r.score.toFixed(3)})\n${meta ? `  ${meta}\n` : ''}  ${r.content.slice(0, 500)}`;
+      const score = typeof r.score === 'number' ? r.score.toFixed(3) : String(r.score ?? 'N/A');
+      return `[${i + 1}] (${r.source}, score: ${score})\n${meta ? `  ${meta}\n` : ''}  ${r.content.slice(0, 500)}`;
     });
 
     return `Found ${results.length} results for "${input.query}" (scope: ${input.scope}):\n\n${formatted.join('\n\n')}`;
