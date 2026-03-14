@@ -124,39 +124,81 @@ export class SubagentRegistry {
     this.definitions = [];
 
     for (const dir of this.searchDirs) {
-      const agentsDir = path.join(dir, '.agents');
+      // Source 1: flat .md files in {dir}/.agents/ (legacy format)
+      this._scanFlatDir(path.join(dir, '.agents'));
 
-      let files: string[];
+      // Source 2: nested subagents/{name}/agent.md (new format)
+      this._scanNestedDir(path.join(dir, 'subagents'));
+    }
+  }
+
+  /** Scan a flat directory for *.md subagent definitions. */
+  private _scanFlatDir(agentsDir: string): void {
+    let files: string[];
+    try {
+      files = fs.readdirSync(agentsDir);
+    } catch {
+      return; // Directory doesn't exist
+    }
+
+    for (const file of files) {
+      if (!file.endsWith('.md')) continue;
+
+      const filePath = path.join(agentsDir, file);
+      this._loadDefinition(filePath, path.basename(file, '.md'));
+    }
+  }
+
+  /** Scan nested directories: each subdirectory may contain an agent.md. */
+  private _scanNestedDir(subagentsDir: string): void {
+    let entries: string[];
+    try {
+      entries = fs.readdirSync(subagentsDir);
+    } catch {
+      return; // Directory doesn't exist
+    }
+
+    for (const entry of entries) {
+      const entryPath = path.join(subagentsDir, entry);
       try {
-        files = fs.readdirSync(agentsDir);
+        if (!fs.statSync(entryPath).isDirectory()) continue;
       } catch {
-        continue; // Directory doesn't exist
+        continue;
       }
 
-      for (const file of files) {
-        if (!file.endsWith('.md')) continue;
-
-        const filePath = path.join(agentsDir, file);
-        try {
-          const content = fs.readFileSync(filePath, 'utf-8');
-          const { meta, body } = parseFrontmatter(content);
-
-          if (!meta.name) {
-            // Use filename without extension as name
-            meta.name = path.basename(file, '.md');
-          }
-
-          this.definitions.push({
-            name: meta.name,
-            description: meta.description || '',
-            tools: (meta.tools || '').split(',').map(t => t.trim()).filter(Boolean),
-            model: meta.model || 'inherit',
-            systemPrompt: body,
-          });
-        } catch {
-          // Skip unreadable files
-        }
+      const agentMdPath = path.join(entryPath, 'agent.md');
+      try {
+        fs.accessSync(agentMdPath);
+      } catch {
+        continue; // No agent.md in this subdirectory
       }
+
+      // Skip if already loaded (e.g. same name from .agents/)
+      if (this.definitions.some(d => d.name === entry)) continue;
+
+      this._loadDefinition(agentMdPath, entry);
+    }
+  }
+
+  /** Load a single .md file as a subagent definition. */
+  private _loadDefinition(filePath: string, fallbackName: string): void {
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const { meta, body } = parseFrontmatter(content);
+
+      if (!meta.name) {
+        meta.name = fallbackName;
+      }
+
+      this.definitions.push({
+        name: meta.name,
+        description: meta.description || '',
+        tools: (meta.tools || '').split(',').map(t => t.trim()).filter(Boolean),
+        model: meta.model || 'inherit',
+        systemPrompt: body,
+      });
+    } catch {
+      // Skip unreadable files
     }
   }
 

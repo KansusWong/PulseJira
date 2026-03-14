@@ -143,6 +143,30 @@ export class CodeWriteTool extends BaseTool<Input, string> {
     const verb = action === 'created' ? '\u5DF2\u521B\u5EFA\u6587\u4EF6' : '\u5DF2\u8986\u5199\u6587\u4EF6';
     const hint = this._getLocationHint(input.path, wsRoot);
     const hintStr = hint ? `${hint}` : '';
-    return `\u2713 ${verb}${hintStr}: ${input.path} (${lineCount} \u884C)`;
+
+    // Auto-create meta.json when writing agent.md inside subagents/
+    let metaNote = '';
+    const normalized = input.path.replace(/\\/g, '/');
+    if (
+      action === 'created' &&
+      path.basename(resolved) === 'agent.md' &&
+      normalized.startsWith('subagents/')
+    ) {
+      const agentDir = path.dirname(resolved);
+      const agentName = path.basename(agentDir);
+      const metaPath = path.join(agentDir, 'meta.json');
+      if (!fs.existsSync(metaPath)) {
+        const meta = {
+          type: 'subagent',
+          name: agentName,
+          entry: 'agent.md',
+          created_at: new Date().toISOString(),
+        };
+        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+        metaNote = `\n\u2713 \u5DF2\u81EA\u52A8\u521B\u5EFA meta.json (子Agent: ${agentName})`;
+      }
+    }
+
+    return `\u2713 ${verb}${hintStr}: ${input.path} (${lineCount} \u884C)${metaNote}`;
   }
 }

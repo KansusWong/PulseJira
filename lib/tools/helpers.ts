@@ -130,6 +130,9 @@ export function getPathContext(filePath: string, wsRoot?: string): string {
   if (normalized.startsWith('skills/')) {
     return '(skill)';
   }
+  if (normalized.startsWith('subagents/')) {
+    return '(子Agent资产)';
+  }
   return '';
 }
 
