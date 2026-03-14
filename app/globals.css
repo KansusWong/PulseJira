@@ -114,3 +114,36 @@ body {
   display: inline-block;
   animation: fire-pulse 2s ease-in-out infinite;
 }
+
+/* ── highlight.js dark theme (github-dark-dimmed style) ────── */
+.prose pre code.hljs { display: block; padding: 1em; overflow-x: auto; }
+.prose code.hljs { padding: 3px 5px; }
+.prose pre code .hljs-comment,
+.prose pre code .hljs-quote { color: #768390; font-style: italic; }
+.prose pre code .hljs-keyword,
+.prose pre code .hljs-selector-tag,
+.prose pre code .hljs-built_in { color: #f47067; }
+.prose pre code .hljs-string,
+.prose pre code .hljs-attr,
+.prose pre code .hljs-addition { color: #96d0ff; }
+.prose pre code .hljs-number,
+.prose pre code .hljs-literal { color: #6cb6ff; }
+.prose pre code .hljs-title,
+.prose pre code .hljs-section,
+.prose pre code .hljs-title.function_ { color: #dcbdfb; }
+.prose pre code .hljs-type,
+.prose pre code .hljs-template-variable { color: #f69d50; }
+.prose pre code .hljs-variable,
+.prose pre code .hljs-name,
+.prose pre code .hljs-selector-id,
+.prose pre code .hljs-selector-class { color: #f69d50; }
+.prose pre code .hljs-deletion { color: #f47067; background: rgba(244,112,103,0.15); }
+.prose pre code .hljs-meta { color: #768390; }
+.prose pre code .hljs-emphasis { font-style: italic; }
+.prose pre code .hljs-strong { font-weight: bold; }
+.prose pre code .hljs-params { color: #adbac7; }
+.prose pre code .hljs-regexp { color: #96d0ff; }
+.prose pre code .hljs-symbol { color: #6cb6ff; }
+.prose pre code .hljs-bullet { color: #f69d50; }
+.prose pre code .hljs-link { color: #96d0ff; text-decoration: underline; }
+.prose pre code .hljs-subst { color: #adbac7; }

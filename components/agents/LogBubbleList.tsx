@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import clsx from "clsx";
-import ReactMarkdown from "react-markdown";
+import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
 import { CheckCircle2, ChevronDown } from "lucide-react";
 import { getAgentUI } from "@/lib/config/agent-ui-meta";
 import type { AgentLogEntry } from "@/store/slices/agentSlice";
@@ -215,8 +215,11 @@ function LogItem({ item }: { item: ParsedLog }) {
   switch (item.kind) {
     case "text":
       return (
-        <div className="py-1 prose prose-invert prose-sm max-w-none [&>*]:my-0.5 text-xs text-zinc-300 leading-relaxed break-words">
-          <ReactMarkdown>{item.content}</ReactMarkdown>
+        <div className="py-1">
+          <MarkdownRenderer
+            content={item.content}
+            className="[&>*]:my-0.5 text-xs text-zinc-300 leading-relaxed"
+          />
         </div>
       );
     case "action":
