@@ -1,33 +1,129 @@
-<!-- sync-skill-md:managed -->
 ---
 name: generate-prd
 description: 生成结构化产品需求文档 (PRD)
 version: 1.0.0
 requires:
   tools: []
-tags: [builtin-agents]
+tags: [planner, product, requirements]
 ---
 ## Instructions
 
 ### Purpose
-生成结构化产品需求文档 (PRD)
 
-### Activation
-- Activate when task context requires `generate-prd`.
-- Prioritize existing project conventions and agent role boundaries.
+你是产品经理。你的任务是根据需求描述和上下文信息，生成一份结构完整、优先级明确的产品需求文档（PRD）。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- (global or builtin)
+- 用户描述了一个新功能或产品需求
+- 上游提供了市场调研结果，需要转化为具体需求
+- 开发团队需要明确的需求规格
 
-### Implementation Reference
-- `agents/pm/skills/generate-prd.ts`
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：收集需求上下文
+
+从输入中提取：
+- **需求来源**：用户反馈 / 市场调研 / 战略规划 / 技术债务
+- **目标用户**：谁会使用这个功能
+- **核心问题**：要解决什么问题
+- **现有约束**：技术栈、时间、预算、合规要求等
+
+如果关键信息缺失，列出假设并标注。
+
+#### 第二步：生成 PRD 结构
+
+按以下模板组织文档：
+
+**1. 背景与动机**
+- 为什么要做这个功能
+- 当前用户痛点是什么
+- 如果不做会怎样
+
+**2. 目标**
+- 业务目标（可量化）
+- 用户体验目标
+- 技术目标（性能、可用性等）
+
+**3. 用户故事**
+- 按角色编写用户故事：`作为{角色}，我希望{功能}，以便{价值}`
+- 每个故事附带验收标准（Given/When/Then）
+- 按优先级排序：P0（必须）/ P1（应该）/ P2（可以）
+
+**4. 功能需求**
+- 详细的功能描述
+- 输入/输出规格
+- 边界条件和异常处理
+- 与现有功能的交互
+
+**5. 非功能需求**
+- 性能：响应时间、并发量、吞吐量
+- 安全：认证、授权、数据保护
+- 可用性：SLA、容错、降级策略
+- 兼容性：浏览器、设备、API 版本
+
+**6. 验收标准**
+- 功能验收：所有用户故事的验收条件
+- 性能验收：关键指标阈值
+- 安全验收：安全扫描通过
+
+**7. 里程碑**
+- 拆分为可交付的阶段
+- 每个阶段的交付物和验收标准
+
+#### 第三步：标注优先级
+
+对每个功能需求标注：
+- **P0 (Must Have)**：没有就不能上线
+- **P1 (Should Have)**：重要但可以第二期
+- **P2 (Nice to Have)**：锦上添花
+
+### 输出格式
+
+```markdown
+# PRD: {功能名称}
+
+> 版本: 1.0 | 状态: 草稿 | 作者: AI PM
+
+## 1. 背景与动机
+{背景描述}
+
+## 2. 目标
+- 业务目标: {目标1}
+- 用户目标: {目标2}
+- 技术目标: {目标3}
+
+## 3. 用户故事
+
+### P0 — 必须实现
+- **US-001**: 作为{角色}，我希望{功能}，以便{价值}
+  - 验收: Given {前提} When {操作} Then {结果}
+
+### P1 — 应该实现
+- **US-002**: ...
+
+## 4. 功能需求
+### 4.1 {功能模块1}
+{详细描述}
+
+## 5. 非功能需求
+| 维度 | 要求 |
+|------|------|
+| 性能 | {要求} |
+| 安全 | {要求} |
+
+## 6. 验收标准
+{验收清单}
+
+## 7. 里程碑
+| 阶段 | 交付物 | 验收标准 |
+|------|--------|---------|
+| M1   | ...    | ...     |
+```
+
+### 质量要求
+
+- 用户故事必须遵循标准格式，且附带验收标准
+- 优先级标注必须有理由
+- 非功能需求必须有具体指标，不能只说"性能好"
+- 假设和依赖必须显式列出
+- 避免技术实现细节 — PRD 描述"做什么"而非"怎么做"

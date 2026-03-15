@@ -1,33 +1,88 @@
-<!-- sync-skill-md:managed -->
 ---
 name: suggest-competitor
-description: 推荐竞品/参考 URL
+description: 推荐竞品和参考产品 URL 列表
 version: 1.0.0
 requires:
-  tools: []
-tags: [builtin-agents]
+  tools: [web_search, web_fetch]
+tags: [analyst, research, competitor]
 ---
 ## Instructions
 
 ### Purpose
-推荐竞品/参考 URL
 
-### Activation
-- Activate when task context requires `suggest-competitor`.
-- Prioritize existing project conventions and agent role boundaries.
+你是竞品发现专家。你的任务是根据产品定位，搜索并推荐直接竞品和间接替代品，输出带有效 URL 的推荐列表。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- (global or builtin)
+- 用户需要寻找某产品的竞品
+- 分析链需要竞品清单作为后续 market-scan 的输入
+- 需要发现潜在的参考产品或替代方案
 
-### Implementation Reference
-- `agents/researcher/skills/suggest-competitor.ts`
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：理解产品定位
+
+从输入中提取：
+- **产品名称**或**产品描述**
+- **核心功能**：这个产品解决什么问题
+- **目标用户**：面向谁
+- **产品类型**：SaaS / 开源 / 硬件 / 服务 等
+
+#### 第二步：多维度搜索竞品
+
+使用 `web_search` 按以下维度搜索：
+
+1. **直接竞品**：功能相同、用户群体相同的产品
+   - 搜索词：`"{产品名} vs"`, `"{产品名} alternatives"`, `"{产品名} competitors"`
+2. **间接替代品**：解决相同问题但方式不同的产品
+   - 搜索词：`"{核心功能} tools"`, `"best {产品类别} software"`
+3. **新兴挑战者**：同领域的创业公司或新产品
+   - 搜索词：`"{产品类别} startups"`, `"new {产品类别} tools 2024"`
+4. **开源替代**（如适用）：
+   - 搜索词：`"open source {产品名} alternative"`
+
+#### 第三步：验证 URL 可访问性
+
+对每个推荐的竞品：
+- 使用 `web_fetch` 验证官网 URL 可访问
+- 如果 URL 失效，搜索更新后的地址
+- 提取一句话产品定位（从 meta description 或首页标题）
+
+#### 第四步：评估相关度
+
+为每个竞品评分（1-5）：
+- **5**：直接竞品，功能高度重叠
+- **4**：强相关替代品
+- **3**：部分功能重叠
+- **2**：同领域但定位不同
+- **1**：仅供参考
+
+### 输出格式
+
+```markdown
+## 竞品推荐 — {产品名}
+
+### 直接竞品
+1. **{竞品名}** — {一句话定位}
+   - URL: {官网地址}
+   - 相关度: ⭐⭐⭐⭐⭐ (5/5)
+   - 说明: {为什么是竞品}
+
+2. **{竞品名}** — {一句话定位}
+   - URL: {官网地址}
+   - 相关度: ⭐⭐⭐⭐ (4/5)
+   - 说明: {为什么相关}
+
+### 间接替代品
+3. ...
+
+### 新兴挑战者
+4. ...
+```
+
+### 质量要求
+
+- 至少推荐 5 个竞品，其中直接竞品不少于 2 个
+- 每个 URL 必须经过验证，确保可访问
+- 相关度评分必须附带理由
+- 如果找不到足够竞品，说明原因（可能是细分市场或新兴领域）

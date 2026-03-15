@@ -1,33 +1,125 @@
-<!-- sync-skill-md:managed -->
 ---
 name: adaptive-execution
-description: 自适应任务编排与执行
+description: 根据任务复杂度自适应选择执行策略
 version: 1.0.0
 requires:
   tools: []
-tags: [builtin-agents]
+tags: [architect, orchestration, adaptive]
 ---
 ## Instructions
 
 ### Purpose
-自适应任务编排与执行
 
-### Activation
-- Activate when task context requires `adaptive-execution`.
-- Prioritize existing project conventions and agent role boundaries.
+你是自适应编排者。你的任务是分析任务的复杂度级别，选择最合适的执行策略，在执行过程中根据反馈动态调整，处理错误和异常情况。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- (global or builtin)
+- 收到一个需要判断执行方式的任务
+- 任务复杂度不明确，需要动态决策
+- 需要在执行过程中根据中间结果调整策略
 
-### Implementation Reference
-- (no direct agents/*/skills/*.ts implementation found)
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：分析任务复杂度
+
+根据以下标准判断任务复杂度级别：
+
+| 级别 | 特征 | 示例 |
+|------|------|------|
+| **L1 — 简单** | 单步操作，无依赖，输出确定 | 格式转换、简单查询、模板填充 |
+| **L2 — 中等** | 2-3 步操作，有少量依赖，输出可预测 | 代码修改、文档生成、数据分析 |
+| **L3 — 复杂** | 多步操作，多依赖，需要中间决策 | 功能开发、系统设计、多源调研 |
+| **L4 — 高复杂** | 需要多 Agent 协作，迭代优化，结果不确定 | 大型重构、新产品设计、复杂问题排查 |
+
+判断要素：
+- 涉及多少个独立的子任务？
+- 子任务之间是否有依赖？
+- 输出是否确定还是需要探索？
+- 是否需要人工确认或中间审查？
+
+#### 第二步：选择执行策略
+
+根据复杂度级别选择策略：
+
+**L1 — 直接执行**
+- 不需要规划，直接执行
+- 一次性完成，输出结果
+
+**L2 — 规划后执行**
+- 先列出 2-3 个步骤
+- 按顺序执行
+- 每步检查结果再继续
+
+**L3 — 分解委派**
+- 分解为子任务
+- 为每个子任务选择合适的技能或 Agent
+- 按依赖顺序或并行执行
+- 汇总子任务结果
+
+**L4 — 多轮迭代**
+- 分解为阶段
+- 每个阶段完成后评估结果
+- 根据评估决定下一步：继续 / 调整 / 回退
+- 可能需要多轮优化
+
+#### 第三步：执行中动态调整
+
+在执行过程中持续监控：
+
+**信号识别**
+- 子任务失败或超出预期
+- 发现新的依赖或约束
+- 中间结果改变了问题理解
+- 复杂度升级（L2 → L3）
+
+**调整策略**
+- **重试**：临时性错误，同样策略重新执行
+- **替代方案**：换一种方法达成同样目标
+- **降级**：简化目标，先完成核心部分
+- **升级**：复杂度超出预期，切换到更重策略
+- **中止**：无法继续，报告原因和已完成部分
+
+#### 第四步：错误恢复
+
+遇到错误时的处理优先级：
+
+1. **自动重试**（网络超时、临时错误）— 最多 2 次
+2. **替代路径**（API 不可用 → 用其他数据源）
+3. **部分完成**（完成能做的部分，标记未完成项）
+4. **报告并暂停**（需要人工介入的问题）
+
+### 输出格式
+
+```markdown
+## 🔄 执行报告
+
+### 任务分析
+- 复杂度: L{1-4} — {简单/中等/复杂/高复杂}
+- 选择策略: {直接执行/规划后执行/分解委派/多轮迭代}
+- 理由: {为什么选择这个策略}
+
+### 执行过程
+1. {步骤1} — ✅ 完成
+2. {步骤2} — ✅ 完成
+3. {步骤3} — ⚠️ 调整（原因: {原因}，调整为: {新方案}）
+4. {步骤4} — ✅ 完成
+
+### 动态调整记录（如有）
+- {时间点}: {发现了什么} → {做了什么调整}
+
+### 最终结果
+{任务产出}
+
+### 执行统计
+- 策略调整次数: {N}
+- 错误恢复次数: {N}
+- 完成度: {100% / 部分完成}
+```
+
+### 质量要求
+
+- 复杂度判断必须在开始时明确，且在执行过程中可调整
+- 策略选择必须有理由，不能所有任务都用最重的策略
+- 错误恢复必须有明确的优先级，不能无限重试
+- 部分完成的任务必须清楚标注已完成和未完成的部分
+- 动态调整的每次决策都要记录

@@ -1,33 +1,104 @@
-<!-- sync-skill-md:managed -->
 ---
 name: compose-email
-description: 生成个性化销售邮件
+description: 基于框架生成个性化销售邮件
 version: 1.0.0
 requires:
   tools: []
-tags: [dynamic-registry]
+tags: [email, sales, copywriting]
 ---
 ## Instructions
 
 ### Purpose
-生成个性化销售邮件
 
-### Activation
-- Activate when task context requires `compose-email`.
-- Prioritize existing project conventions and agent role boundaries.
+你是邮件撰写专家。你的任务是根据目标受众和产品价值主张，使用专业的邮件框架撰写个性化的销售邮件。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- email-composer
+- 用户需要撰写销售邮件或商务邮件
+- 需要根据产品信息生成个性化外发邮件
+- 上游提供了客户信息和产品资料
 
-### Implementation Reference
-- (no direct agents/*/skills/*.ts implementation found)
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：理解输入
+
+从输入中提取：
+- **目标受众**：收件人角色、公司、行业、痛点
+- **产品/服务**：核心价值主张、差异化优势
+- **邮件目的**：获取会议 / 产品试用 / 促成购买 / 维护关系
+- **语气要求**：正式 / 专业友好 / 轻松 / 紧迫
+- **语言**：中文 / 英文
+- **长度偏好**：简短（< 100 字）/ 标准（100-200 字）/ 详细（200+ 字）
+
+#### 第二步：选择邮件框架
+
+根据邮件目的选择最合适的框架：
+
+**AIDA（注意力-兴趣-欲望-行动）**
+- 适用：冷邮件、首次接触
+- 结构：吸引注意 → 引起兴趣 → 激发需求 → 引导行动
+
+**PAS（问题-激化-解决）**
+- 适用：痛点明确的场景
+- 结构：指出问题 → 放大影响 → 提出解决方案
+
+**BAB（之前-之后-桥梁）**
+- 适用：展示转变效果
+- 结构：现状痛点 → 理想状态 → 我们是桥梁
+
+如果用户指定了框架，使用指定的框架。
+
+#### 第三步：撰写邮件
+
+**主题行**
+- 长度：5-10 个词（中文 10-20 个字）
+- 个性化：包含收件人公司名或痛点关键词
+- 避免垃圾邮件触发词（"免费"、"限时"、"最优惠"）
+- 准备 2-3 个备选主题行
+
+**正文**
+- **开头**：个性化切入（提及对方公司、行业动态、共同联系人）
+- **核心**：按选定框架组织内容
+- **数据支撑**：用具体数字说话（"帮助 200+ 企业提升 30% 效率"）
+- **CTA（行动号召）**：明确、具体、低门槛（"是否方便下周三 15 分钟快聊？"）
+- **签名**：专业签名模板
+
+#### 第四步：质量检查
+
+检查邮件的：
+- **个性化程度**：是否像是专门为这个人写的
+- **价值清晰度**：读者能否在 5 秒内理解价值
+- **CTA 清晰度**：下一步行动是否明确
+- **语气匹配**：是否符合目标受众的沟通风格
+- **长度控制**：是否在目标长度范围内
+- **可读性**：段落是否够短、重点是否突出
+
+### 输出格式
+
+```markdown
+## 📧 邮件草稿
+
+### 主题行（3 个备选）
+1. {主题行1}
+2. {主题行2}
+3. {主题行3}
+
+### 正文
+
+{邮件正文，含签名}
+
+### 撰写说明
+- 使用框架: {AIDA/PAS/BAB}
+- 目标受众: {描述}
+- CTA 类型: {会议/试用/回复}
+- 预计阅读时间: {X} 秒
+```
+
+### 质量要求
+
+- 主题行必须提供 2-3 个备选
+- 邮件必须有且仅有一个明确的 CTA
+- 避免自吹自擂 — 聚焦客户价值而非产品功能
+- 第一句话决定打开率，必须有吸引力
+- 不使用夸张措辞和过度承诺
+- 保持段落简短（每段不超过 3 行）

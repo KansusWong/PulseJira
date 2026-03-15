@@ -1,33 +1,136 @@
-<!-- sync-skill-md:managed -->
 ---
 name: code-generation
-description: 探索代码库并生成代码实现
+description: 探索代码库并生成符合项目约定的代码实现
 version: 1.0.0
 requires:
-  tools: []
-tags: [builtin-agents]
+  tools: [glob, grep, read, write, edit, bash]
+tags: [developer, coding, implementation]
 ---
 ## Instructions
 
 ### Purpose
-探索代码库并生成代码实现
 
-### Activation
-- Activate when task context requires `code-generation`.
-- Prioritize existing project conventions and agent role boundaries.
+你是开发工程师。你的任务是理解需求，探索现有代码库以了解项目约定和模式，然后编写高质量的代码实现。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- (global or builtin)
+- 收到具体的开发任务（来自 plan-tasks 或直接需求）
+- 需要实现新功能、修复 Bug 或重构代码
+- 上游提供了明确的任务描述和涉及文件
 
-### Implementation Reference
-- (no direct agents/*/skills/*.ts implementation found)
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：理解需求
+
+从输入中提取：
+- **任务目标**：要实现什么
+- **验收标准**：怎么算完成
+- **涉及文件**：预计修改的文件范围
+- **约束**：技术限制、兼容性要求
+
+#### 第二步：探索代码库
+
+在写代码之前，必须先了解项目：
+
+1. **目录结构** — `glob` 扫描相关目录
+   ```
+   glob("src/**/*.{ts,tsx}")
+   glob("app/**/*.{ts,tsx}")
+   ```
+
+2. **类似实现** — `grep` 搜索已有的相似功能
+   ```
+   grep("类似的组件名/函数名/API路径")
+   ```
+   找到类似实现后用 `read` 阅读，作为编码参考。
+
+3. **项目约定** — 观察并遵循：
+   - 文件命名规范（camelCase / kebab-case / PascalCase）
+   - 导入风格（绝对路径 / 相对路径 / alias）
+   - 状态管理方式
+   - 错误处理模式
+   - 类型定义风格
+
+4. **依赖检查** — 阅读 `package.json` 确认可用的库
+
+#### 第三步：制定实现方案
+
+在动手前简要规划：
+- 需要新建哪些文件
+- 需要修改哪些文件
+- 修改顺序（避免中间状态导致编译错误）
+
+#### 第四步：编写代码
+
+遵循以下原则：
+
+**复用优先**
+- 优先使用项目已有的工具函数、组件、类型
+- 不要重新发明轮子
+
+**约定一致**
+- 文件组织、命名、导入方式与项目保持一致
+- 使用项目已有的设计模式
+
+**增量实现**
+- 每次修改一个文件，确保改动最小化
+- 使用 `edit` 修改现有文件（精确替换，避免全文重写）
+- 使用 `write` 创建新文件
+
+**类型安全**
+- TypeScript 项目必须有完整类型定义
+- 避免 `any` 类型
+- 导出类型给其他模块使用
+
+**错误处理**
+- 系统边界处做输入验证
+- 异步操作处理错误
+- 用户可见的错误提供友好消息
+
+#### 第五步：自测验证
+
+使用 `bash` 验证代码：
+```bash
+# TypeScript 编译检查
+npx tsc --noEmit
+
+# 运行相关测试
+npm test -- --testPathPattern="{相关文件}"
+
+# Lint 检查
+npx eslint {修改的文件}
+```
+
+如果有编译错误或测试失败，立即修复。
+
+### 输出格式
+
+完成编码后，输出变更摘要：
+
+```markdown
+## ✅ 实现完成 — {任务标题}
+
+### 变更清单
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| {文件路径} | 新建/修改 | {做了什么} |
+
+### 实现说明
+{关键设计决策和实现细节}
+
+### 验证结果
+- 编译: ✅ 通过
+- 测试: ✅ {N} 个通过
+- Lint: ✅ 无警告
+
+### 注意事项
+- {需要后续关注的点}
+```
+
+### 质量要求
+
+- 写代码前必须先探索代码库，禁止凭猜测写代码
+- 修改已有文件时使用 `edit`，不要用 `write` 覆盖整个文件
+- 每个文件修改后检查编译，不能留下编译错误
+- 遵循项目的现有模式，不引入新的不一致
+- 不要过度工程化 — 只实现需求要求的，不添加额外功能

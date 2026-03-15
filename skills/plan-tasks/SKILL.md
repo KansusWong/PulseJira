@@ -1,33 +1,111 @@
-<!-- sync-skill-md:managed -->
 ---
 name: plan-tasks
 description: 探索代码库并生成开发任务计划
 version: 1.0.0
 requires:
-  tools: []
-tags: [builtin-agents]
+  tools: [glob, grep, read]
+tags: [planner, tasks, development]
 ---
 ## Instructions
 
 ### Purpose
-探索代码库并生成开发任务计划
 
-### Activation
-- Activate when task context requires `plan-tasks`.
-- Prioritize existing project conventions and agent role boundaries.
+你是技术负责人。你的任务是阅读 PRD 或需求描述，探索现有代码库，将需求拆分为具体的开发任务，标注依赖关系和复杂度。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- (global or builtin)
+- 收到 generate-prd 输出的需求文档
+- 需要将一个功能需求拆分为可执行的开发任务
+- 团队需要明确的任务分工和执行计划
 
-### Implementation Reference
-- `agents/tech-lead/skills/plan-tasks.ts`
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：阅读需求
+
+仔细阅读 PRD 或需求描述，提取：
+- 所有功能需求（按优先级分组）
+- 非功能需求和约束
+- 验收标准
+
+#### 第二步：探索代码库
+
+使用工具了解项目现状：
+
+1. **目录结构** — 使用 `glob` 扫描项目结构
+   - `glob("**/*.{ts,tsx,js,jsx}")` 了解代码组织
+   - `glob("**/package.json")` 了解依赖
+   - `glob("**/*.test.*")` 了解测试覆盖
+
+2. **关键文件** — 使用 `read` 阅读核心文件
+   - 路由配置、API 定义、数据模型
+   - 与需求相关的现有实现
+
+3. **现有模式** — 使用 `grep` 搜索项目约定
+   - 命名规范、目录约定、设计模式
+   - 类似功能的已有实现（可复用的模式）
+
+#### 第三步：拆分开发任务
+
+将需求拆分为任务，每个任务应：
+- **原子化**：一个任务完成一个独立的功能点
+- **可验证**：有明确的完成标准
+- **有边界**：涉及的文件范围清晰
+
+任务类型：
+- `setup` — 环境/配置准备
+- `data` — 数据模型/迁移
+- `api` — 后端 API
+- `ui` — 前端界面
+- `logic` — 业务逻辑
+- `test` — 测试
+- `docs` — 文档
+
+#### 第四步：标注依赖和复杂度
+
+为每个任务标注：
+- **依赖关系**：哪些任务必须先完成
+- **复杂度**：L（低，1-2 个文件）/ M（中，3-5 个文件）/ H（高，5+ 个文件或涉及新模式）
+- **涉及文件**：预计需要修改或新建的文件
+
+### 输出格式
+
+```markdown
+## 📋 任务计划 — {功能名称}
+
+### 代码库概况
+- 技术栈: {发现的技术栈}
+- 相关模块: {与需求相关的已有模块}
+- 可复用模式: {发现的可参考实现}
+
+### 任务列表
+
+| ID | 标题 | 类型 | 复杂度 | 依赖 | 涉及文件 |
+|----|------|------|--------|------|---------|
+| T1 | {标题} | setup | L | - | {文件列表} |
+| T2 | {标题} | data | M | T1 | {文件列表} |
+| T3 | {标题} | api | M | T2 | {文件列表} |
+| T4 | {标题} | ui | H | T3 | {文件列表} |
+| T5 | {标题} | test | M | T3,T4 | {文件列表} |
+
+### 任务详情
+
+#### T1: {标题}
+- 描述: {具体要做什么}
+- 验收标准: {怎么算完成}
+- 注意事项: {需要关注的点}
+
+#### T2: {标题}
+...
+
+### 执行建议
+- 关键路径: {T1 → T2 → T3 → T4}
+- 可并行: {T3 和 T5 可以同时开发}
+```
+
+### 质量要求
+
+- 任务粒度适中：太粗无法执行，太细管理成本高
+- 每个任务的涉及文件必须基于实际代码探索结果
+- 依赖关系必须形成 DAG（无环）
+- 复杂度评估要考虑代码库实际情况（已有类似实现则降低复杂度）
+- 不要遗漏测试任务

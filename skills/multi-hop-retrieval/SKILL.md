@@ -1,33 +1,106 @@
-<!-- sync-skill-md:managed -->
 ---
 name: multi-hop-retrieval
-description: 多跳知识检索与上下文构建
+description: 多跳知识检索，分解复杂问题并交叉验证
 version: 1.0.0
 requires:
-  tools: []
-tags: [builtin-agents]
+  tools: [rag_retrieve, web_search]
+tags: [analyst, retrieval, knowledge]
 ---
 ## Instructions
 
 ### Purpose
-多跳知识检索与上下文构建
 
-### Activation
-- Activate when task context requires `multi-hop-retrieval`.
-- Prioritize existing project conventions and agent role boundaries.
+你是多跳知识检索专家。你的任务是将复杂问题分解为多个子查询，通过本地 RAG 和外部搜索进行多轮检索，交叉验证后合成完整的上下文信息。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- (global or builtin)
+- 问题涉及多个知识领域，单次检索无法得到完整答案
+- 需要从多个来源收集信息并交叉验证
+- 上游 Agent 需要丰富的上下文信息作为决策依据
 
-### Implementation Reference
-- (no direct agents/*/skills/*.ts implementation found)
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：分解问题
+
+将复杂问题拆解为独立的子查询：
+- 识别问题中的**实体**（人、产品、公司、技术）
+- 识别需要回答的**子问题**
+- 确定子问题之间的**依赖关系**（哪些需要先回答）
+- 规划检索顺序
+
+示例：
+> 原始问题："对比 Slack 和 Teams 在中国市场的替代品，哪个更适合 50 人团队？"
+> 子查询：
+> 1. Slack 在中国有哪些替代品？
+> 2. Teams 在中国有哪些替代品？
+> 3. 这些替代品的定价如何？
+> 4. 50 人团队规模的功能需求是什么？
+
+#### 第二步：逐跳检索
+
+对每个子查询，按优先级使用检索源：
+
+**第一跳：本地 RAG**
+- 使用 `rag_retrieve` 检索项目内部知识库
+- 如果命中相关文档，提取关键信息
+- 记录检索的 query 和结果质量
+
+**第二跳：外部搜索**
+- 当本地 RAG 结果不足时，使用 `web_search` 搜索
+- 针对同一子查询使用 2-3 种不同的搜索词
+- 提取搜索结果中的关键事实
+
+**第三跳：追问检索**
+- 根据前两跳的结果，识别信息缺口
+- 生成追问查询，填补空白
+- 如果前两跳结果矛盾，针对性搜索以澄清
+
+#### 第三步：交叉验证
+
+对收集到的信息进行验证：
+- **一致性检查**：多个来源是否一致？
+- **时效性检查**：信息是否过时？
+- **权威性检查**：来源是否可靠？（官方文档 > 第三方评测 > 论坛讨论）
+- 标注**冲突信息**，说明各来源的说法差异
+
+#### 第四步：合成上下文
+
+将验证后的信息整合为结构化上下文。
+
+### 输出格式
+
+```markdown
+## 📚 检索结果 — {原始问题}
+
+### 子查询分解
+1. {子查询1} → {简要答案}
+2. {子查询2} → {简要答案}
+3. ...
+
+### 详细结果
+
+#### {子查询1}
+- 来源: {RAG/Web} — {来源标识}
+- 内容: {检索到的关键信息}
+- 置信度: HIGH/MEDIUM/LOW
+
+#### {子查询2}
+...
+
+### 信息冲突（如有）
+- {主题}: 来源A说{X}，来源B说{Y}，采信{Z}因为{理由}
+
+### 综合结论
+{整合所有子查询结果的完整回答}
+
+### 信息缺口
+- {未能找到答案的问题}
+```
+
+### 质量要求
+
+- 每个子查询至少有一个来源支撑
+- 所有事实性信息必须标注来源
+- 置信度评估必须诚实：来源单一或信息过时应标记 LOW
+- 信息冲突必须显式列出，不能静默忽略
+- 检索总跳数不超过 10 跳，避免无限递归

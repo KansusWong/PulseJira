@@ -1,33 +1,85 @@
-<!-- sync-skill-md:managed -->
 ---
 name: market-scan
-description: 搜索竞品和市场信息
+description: 搜索竞品和市场信息，生成结构化竞品对比分析
 version: 1.0.0
 requires:
-  tools: []
-tags: [builtin-agents]
+  tools: [web_search, web_fetch]
+tags: [analyst, research, market]
 ---
 ## Instructions
 
 ### Purpose
-搜索竞品和市场信息
 
-### Activation
-- Activate when task context requires `market-scan`.
-- Prioritize existing project conventions and agent role boundaries.
+你是市场调研专家。你的任务是针对给定的产品或领域，通过多轮网络搜索收集竞品信息、市场数据和用户反馈，输出结构化的竞品对比分析报告。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- (global or builtin)
+- 用户需要了解某个产品领域的竞争格局
+- 需要为产品决策提供市场依据
+- 上游 Agent 需要竞品数据作为输入
 
-### Implementation Reference
-- `agents/researcher/skills/market-scan.ts`
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：明确搜索目标
+
+从用户输入中提取：
+- **目标产品/领域**：要分析的产品或市场
+- **关注维度**：定价、功能、技术栈、用户规模、融资、口碑等
+- **地域范围**：国内、海外、或全球
+- 如果用户未指定维度，默认覆盖：核心功能、定价模式、目标用户、技术栈、市场份额
+
+#### 第二步：多轮搜索
+
+按以下顺序执行搜索，每轮使用 `web_search`：
+
+1. **直接竞品搜索**：`"{产品名} competitors"` / `"{产品名} alternatives"`
+2. **行业报告搜索**：`"{领域} market report 2024"` / `"{领域} industry analysis"`
+3. **定价对比搜索**：`"{竞品名} pricing"` / `"{产品类别} pricing comparison"`
+4. **用户评价搜索**：`"{竞品名} review"` / `"{产品类别} user reviews"`
+5. **技术栈搜索**（如适用）：`"{竞品名} tech stack"` / `"{竞品名} architecture"`
+
+每轮搜索后评估信息充分度，必要时追加搜索。
+
+#### 第三步：精读高价值页面
+
+对搜索结果中的高价值链接使用 `web_fetch` 深入阅读：
+- 优先级：官方定价页 > 评测文章 > 行业报告 > 用户论坛
+- 每个竞品至少精读 1-2 个高价值页面
+- 提取具体数据（价格数字、用户量、功能列表）而非泛泛描述
+
+#### 第四步：结构化输出
+
+### 输出格式
+
+```markdown
+## 🔍 市场扫描报告 — {产品/领域}
+
+### 竞品对比表
+
+| 竞品 | 核心功能 | 定价 | 目标用户 | 技术栈 | 优势 | 劣势 |
+|------|---------|------|---------|--------|------|------|
+| A    | ...     | ...  | ...     | ...    | ...  | ...  |
+| B    | ...     | ...  | ...     | ...    | ...  | ...  |
+
+### 市场概况
+- 市场规模：...
+- 增长趋势：...
+- 主要玩家格局：...
+
+### 关键发现
+1. {发现1}
+2. {发现2}
+3. {发现3}
+
+### 数据来源
+- [来源1](url)
+- [来源2](url)
+```
+
+### 质量要求
+
+- 竞品数量：至少覆盖 3-5 个主要竞品
+- 数据时效：优先使用最近 12 个月的数据
+- 价格信息：必须注明币种和计费周期
+- 所有关键数据必须标注来源 URL
+- 避免主观臆断，事实与观点分离

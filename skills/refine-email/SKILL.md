@@ -1,33 +1,104 @@
-<!-- sync-skill-md:managed -->
 ---
 name: refine-email
-description: 根据反馈优化邮件内容
+description: 根据反馈优化邮件内容和表达
 version: 1.0.0
 requires:
   tools: []
-tags: [dynamic-registry]
+tags: [email, optimization, copywriting]
 ---
 ## Instructions
 
 ### Purpose
-根据反馈优化邮件内容
 
-### Activation
-- Activate when task context requires `refine-email`.
-- Prioritize existing project conventions and agent role boundaries.
+你是邮件优化专家。你的任务是根据用户反馈，对已有邮件进行针对性优化，输出改进后的版本和变更说明。
 
-### Workflow
-1. Analyze the user goal and expected output.
-2. Produce a concise, structured plan before execution.
-3. Execute with clear validation and failure handling.
-4. Return actionable output with assumptions explicitly listed.
+### 触发条件
 
-### Referenced By Agents
-- email-composer
+- 用户对 compose-email 生成的邮件提出了修改意见
+- 邮件发送后效果不佳，需要优化
+- 需要调整邮件的语气、长度或重点
 
-### Implementation Reference
-- (no direct agents/*/skills/*.ts implementation found)
+### 工作流
 
-### Implementation Notes
-- If this skill has executable implementation in `agents/*/skills/*.ts`, keep behavior aligned with that code path.
-- Treat this SKILL.md as the unified instruction source for prompt injection.
+#### 第一步：阅读原始邮件和反馈
+
+仔细理解：
+- **原始邮件**：完整内容，包括主题行和正文
+- **反馈内容**：用户具体想改什么
+- **改进方向**：语气 / 长度 / 结构 / CTA / 个性化 / 其他
+
+#### 第二步：识别改进点
+
+根据反馈分析需要调整的维度：
+
+**语气调整**
+- 太正式 → 更亲切友好
+- 太随意 → 更专业正式
+- 太强硬 → 更温和
+- 太被动 → 更有紧迫感
+
+**长度调整**
+- 太长 → 删减非核心内容，保留关键信息
+- 太短 → 补充价值论证或社会证明
+
+**结构调整**
+- 重新组织段落顺序
+- 突出关键信息
+- 改善可读性（分段、列表）
+
+**CTA 调整**
+- 降低门槛（从"购买"改为"15分钟聊聊"）
+- 增加紧迫感（限时优惠）
+- 更明确（从"联系我们"改为具体行动）
+
+**个性化调整**
+- 增加与收件人相关的内容
+- 引用对方公司/行业的具体信息
+- 调整用语适配对方文化
+
+#### 第三步：执行优化
+
+对邮件进行修改：
+- 保留原邮件中有效的部分
+- 针对性修改反馈指出的问题
+- 确保修改后邮件的整体一致性
+- 如果修改主题行，同样提供备选
+
+#### 第四步：生成变更说明
+
+清楚说明做了哪些修改以及为什么。
+
+### 输出格式
+
+```markdown
+## ✏️ 邮件优化
+
+### 优化后邮件
+
+**主题行**: {优化后的主题行}
+
+{优化后的完整邮件正文}
+
+### 变更说明
+
+| 位置 | 原文 | 修改后 | 修改原因 |
+|------|------|--------|---------|
+| 主题行 | {原} | {新} | {原因} |
+| 第一段 | {原} | {新} | {原因} |
+| CTA | {原} | {新} | {原因} |
+
+### 优化要点
+1. {主要改进1}: {说明}
+2. {主要改进2}: {说明}
+
+### 建议
+- {进一步优化建议（如有）}
+```
+
+### 质量要求
+
+- 变更必须针对反馈，不能无中生有地大改
+- 每处修改必须说明原因
+- 优化后邮件必须保持整体一致性（不能修了开头忘了结尾）
+- 如果反馈与邮件最佳实践冲突，说明并建议替代方案
+- 提供 diff 对照，让用户能快速看出改了什么
