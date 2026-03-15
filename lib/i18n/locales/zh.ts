@@ -74,6 +74,20 @@ const zh: TranslationDict = {
   'sidebar.settings.usage': '用量',
   'sidebar.settings.webhooks': 'Webhook 通知',
 
+  'sidebar.kernelSkills': '内核技能',
+  'sidebar.customSkills': '自定义技能',
+
+  // ── Studio ──
+  'studio.title': '工作室',
+  'studio.close': '关闭',
+  'studio.rename': '重命名',
+  'studio.download': '下载',
+  'studio.fileTree': '文件',
+  'studio.preview': '预览',
+  'studio.binaryFile': '二进制文件，{size}',
+  'studio.loadFailed': '加载失败',
+  'studio.noTabs': '点击侧边栏技能打开',
+
   // ── Time groups ──
   'time.today': '今天',
   'time.yesterday': '昨天',
@@ -113,6 +127,14 @@ const zh: TranslationDict = {
   'chat.role.system': '系统',
   'chat.role.plan': '计划',
   'chat.exportMarkdown': '导出为 Markdown',
+  'chat.toolsUsed': '使用了 {count} 个工具',
+  'chat.showMore': '展开更多',
+
+  // ── Compaction Upgrade ──
+  'compactionUpgrade.question': '上下文窗口已使用 {ratio}%。是否升级为团队模式？每个子智能体将成为拥有独立会话的队友。',
+  'compactionUpgrade.approve': '升级为团队模式',
+  'compactionUpgrade.reject': '继续当前模式（压缩上下文）',
+  'compactionUpgrade.countdown': '{seconds}秒后自动拒绝',
 
   // ── Plan Panel ──
   'plan.title': '执行计划',
@@ -801,6 +823,10 @@ const zh: TranslationDict = {
   'questionnaire.submit': '提交',
   'questionnaire.dismiss': '跳过',
   'questionnaire.multiSelect': '可多选',
+  'questionnaire.of': '{current} / {total}',
+  'questionnaire.continue': '继续',
+  'questionnaire.somethingElse': '其他',
+  'questionnaire.skip': '跳过',
 
   // ── Mermaid 图表 ──
   'mermaid.export': '导出 SVG',

@@ -11,6 +11,7 @@ import { DMDecisionPanel } from "@/components/chat/DMDecisionPanel";
 import { ToolApprovalPanel } from "@/components/chat/ToolApprovalPanel";
 import { ArchitectResumePanel } from "@/components/chat/ArchitectResumePanel";
 import { SolutionPreviewPanel } from "@/components/chat/SolutionPreviewPanel";
+import { SkillStudioPanel } from "@/components/studio/SkillStudioPanel";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { useTranslation } from "@/lib/i18n";
 import type { AssetsData } from "@/components/layout/Sidebar";
@@ -42,6 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const architectPanelVisible = usePulseStore((s) => s.architectPanel.visible);
   const solutionPanelVisible = usePulseStore((s) => s.solutionPanel.visible);
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
+  const studioVisible = usePulseStore((s) => s.studioPanel.visible);
 
   const lastAssetsFetchRef = useRef(0);
   const ASSETS_FETCH_THROTTLE_MS = 10_000;
@@ -127,6 +129,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       main={children}
       rightPanel={rightPanel}
+      studioPanel={studioVisible ? <SkillStudioPanel /> : undefined}
+      studioPanelOpen={studioVisible}
     />
   );
 }

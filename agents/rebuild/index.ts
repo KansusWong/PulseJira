@@ -58,6 +58,18 @@ export const GLOBAL_TOOL_NAMES = [
  * @param options.soulPrompt - Optional soul.md content to append to system prompt
  * @param options.extraTools - Additional tools to inject
  */
+/** Tools that subagents / teammates must NOT have access to. */
+export const BLOCKED_SUBORDINATE_TOOLS = new Set([
+  'task',
+  'create_agent',
+  'persist_agent',
+  'create_skill',
+  'persist_skill',
+  'promote_feature',
+  'enter_plan_mode',
+  'exit_plan_mode',
+]);
+
 export function createRebuilDAgent(options?: {
   workspace?: string;
   projectId?: string;
@@ -67,6 +79,8 @@ export function createRebuilDAgent(options?: {
   systemPrompt?: string;
   soulPrompt?: string;
   poolTags?: string[];
+  /** Tool names to exclude from the agent's tool set. */
+  excludeTools?: Set<string>;
   /** @deprecated No longer used — V1 is the only prompt version */
   descVersion?: string;
 }) {
@@ -115,6 +129,12 @@ export function createRebuilDAgent(options?: {
     tools.push(...options.extraTools);
   }
 
+  // --- Exclude tools (for subagents / teammates) ---
+  const exclude = options?.excludeTools;
+  const finalTools = exclude
+    ? tools.filter(t => !exclude.has(t.name))
+    : tools;
+
   // Build system prompt (allow override)
   let systemPrompt = options?.systemPrompt ?? REBUILD_SYSTEM_PROMPT_V1;
   if (options?.soulPrompt) {
@@ -124,7 +144,7 @@ export function createRebuilDAgent(options?: {
   return new BaseAgent({
     name: 'rebuild',
     systemPrompt,
-    tools,
+    tools: finalTools,
     maxLoops: options?.maxLoops ?? 30,
     model: options?.model ?? process.env.LLM_MODEL_NAME ?? 'glm-5',
     poolTags: options?.poolTags,

@@ -107,8 +107,42 @@ export interface ChatSlice {
     collapsed: boolean;
   };
 
+  // Typewriter animation state (transient, not persisted)
+  typewriterMessageIds: Set<string>;
+
+  // Compaction → Team upgrade panel state (transient, not persisted)
+  compactionUpgradePanel: {
+    visible: boolean;
+    upgradeId: string | null;
+    tokenUsage: { estimated: number; max: number; ratio: number } | null;
+    timeoutAt: number | null;
+  };
+
+  // Pending team upgrade data for auto-bridge (transient)
+  pendingTeamUpgrade: {
+    stateSummary: string;
+    conversationId: string;
+  } | null;
+
+  // Streaming token state (transient — tokens flowing from ReAct loop)
+  streamingContent: string;
+  streamingReasoning: string;
+  activeToolCall: {
+    toolName: string;
+    toolLabel: string;
+    toolCallId: string;
+    args: string;
+  } | null;
+
   // Questionnaire inline state
   questionnaireData: QuestionnaireData | null;
+
+  // Studio panel state (global, not per-conversation)
+  studioPanel: {
+    visible: boolean;
+    tabs: Array<{ skillId: string; displayName: string }>;
+    activeTabId: string | null;
+  };
 
   // Actions
   setConversations: (conversations: Conversation[]) => void;
@@ -159,8 +193,28 @@ export interface ChatSlice {
   setTeamCollaborationActive: (active: boolean) => void;
   setTeamCollaborationCollapsed: (collapsed: boolean) => void;
 
+  addTypewriterMessageId: (id: string) => void;
+  removeTypewriterMessageId: (id: string) => void;
+
+  showCompactionUpgrade: (data: { upgradeId: string; tokenUsage: { estimated: number; max: number; ratio: number } }) => void;
+  hideCompactionUpgrade: () => void;
+  setPendingTeamUpgrade: (data: { stateSummary: string; conversationId: string }) => void;
+  clearPendingTeamUpgrade: () => void;
+
+  appendStreamingToken: (token: string) => void;
+  appendReasoningToken: (token: string) => void;
+  setActiveToolCall: (data: { toolName: string; toolLabel: string; toolCallId: string; args: string } | null) => void;
+  resetStreamingState: () => void;
+
   setQuestionnaireData: (data: QuestionnaireData) => void;
   clearQuestionnaireData: () => void;
+
+  // Studio panel actions
+  openStudioTab: (skillId: string, displayName: string) => void;
+  closeStudioTab: (skillId: string) => void;
+  setActiveStudioTab: (skillId: string) => void;
+  hideStudioPanel: () => void;
+  renameStudioTab: (skillId: string, newName: string) => void;
 
   /** Reset all right-side panels to their idle/hidden state. */
   resetAllPanels: () => void;
@@ -242,7 +296,28 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     collapsed: false,
   },
 
+  typewriterMessageIds: new Set<string>(),
+
+  compactionUpgradePanel: {
+    visible: false,
+    upgradeId: null,
+    tokenUsage: null,
+    timeoutAt: null,
+  },
+
+  pendingTeamUpgrade: null,
+
+  streamingContent: '',
+  streamingReasoning: '',
+  activeToolCall: null,
+
   questionnaireData: null,
+
+  studioPanel: {
+    visible: false,
+    tabs: [],
+    activeTabId: null,
+  },
 
   setConversations: (conversations) => set({ conversations }),
 
@@ -571,8 +646,110 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       teamCollaboration: { ...state.teamCollaboration, collapsed },
     })),
 
+  addTypewriterMessageId: (id) =>
+    set((state) => {
+      const next = new Set(state.typewriterMessageIds);
+      next.add(id);
+      return { typewriterMessageIds: next };
+    }),
+
+  removeTypewriterMessageId: (id) =>
+    set((state) => {
+      const next = new Set(state.typewriterMessageIds);
+      next.delete(id);
+      return { typewriterMessageIds: next };
+    }),
+
+  showCompactionUpgrade: (data) =>
+    set({
+      compactionUpgradePanel: {
+        visible: true,
+        upgradeId: data.upgradeId,
+        tokenUsage: data.tokenUsage,
+        timeoutAt: Date.now() + 30_000,
+      },
+    }),
+
+  hideCompactionUpgrade: () =>
+    set({
+      compactionUpgradePanel: {
+        visible: false,
+        upgradeId: null,
+        tokenUsage: null,
+        timeoutAt: null,
+      },
+    }),
+
+  setPendingTeamUpgrade: (data) =>
+    set({ pendingTeamUpgrade: data }),
+
+  clearPendingTeamUpgrade: () =>
+    set({ pendingTeamUpgrade: null }),
+
+  appendStreamingToken: (token) =>
+    set((state) => ({ streamingContent: state.streamingContent + token })),
+
+  appendReasoningToken: (token) =>
+    set((state) => ({ streamingReasoning: state.streamingReasoning + token })),
+
+  setActiveToolCall: (data) =>
+    set({ activeToolCall: data }),
+
+  resetStreamingState: () =>
+    set({ streamingContent: '', streamingReasoning: '', activeToolCall: null }),
+
   setQuestionnaireData: (data) => set({ questionnaireData: data }),
   clearQuestionnaireData: () => set({ questionnaireData: null }),
+
+  openStudioTab: (skillId, displayName) =>
+    set((state) => {
+      const exists = state.studioPanel.tabs.some((t) => t.skillId === skillId);
+      if (exists) {
+        return {
+          studioPanel: { ...state.studioPanel, visible: true, activeTabId: skillId },
+        };
+      }
+      return {
+        studioPanel: {
+          visible: true,
+          tabs: [...state.studioPanel.tabs, { skillId, displayName }],
+          activeTabId: skillId,
+        },
+      };
+    }),
+
+  closeStudioTab: (skillId) =>
+    set((state) => {
+      const tabs = state.studioPanel.tabs.filter((t) => t.skillId !== skillId);
+      const wasActive = state.studioPanel.activeTabId === skillId;
+      return {
+        studioPanel: {
+          visible: tabs.length > 0,
+          tabs,
+          activeTabId: wasActive ? (tabs[tabs.length - 1]?.skillId ?? null) : state.studioPanel.activeTabId,
+        },
+      };
+    }),
+
+  setActiveStudioTab: (skillId) =>
+    set((state) => ({
+      studioPanel: { ...state.studioPanel, activeTabId: skillId },
+    })),
+
+  hideStudioPanel: () =>
+    set((state) => ({
+      studioPanel: { ...state.studioPanel, visible: false },
+    })),
+
+  renameStudioTab: (skillId, newName) =>
+    set((state) => ({
+      studioPanel: {
+        ...state.studioPanel,
+        tabs: state.studioPanel.tabs.map((t) =>
+          t.skillId === skillId ? { ...t, displayName: newName } : t,
+        ),
+      },
+    })),
 
   resetAllPanels: () =>
     set((state) => {

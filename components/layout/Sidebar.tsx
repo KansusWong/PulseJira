@@ -27,6 +27,7 @@ import {
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/settings/LanguageSwitcher";
+import { usePulseStore } from "@/store/usePulseStore.new";
 
 // ---------------------------------------------------------------------------
 // Asset types
@@ -35,7 +36,9 @@ import { LanguageSwitcher } from "@/components/settings/LanguageSwitcher";
 export interface SkillAsset {
   id: string;
   name: string;
+  displayName?: string;
   description: string;
+  source?: 'project' | 'codex' | 'registry';
   created_at: string | null;
 }
 
@@ -121,6 +124,8 @@ export function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [conversationsFolderOpen, setConversationsFolderOpen] = useState(false);
   const [skillsFolderOpen, setSkillsFolderOpen] = useState(false);
+  const [kernelGroupOpen, setKernelGroupOpen] = useState(true);
+  const [customGroupOpen, setCustomGroupOpen] = useState(true);
   const [pptsFolderOpen, setPptsFolderOpen] = useState(false);
   const [filesFolderOpen, setFilesFolderOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(pathname === "/settings");
@@ -149,10 +154,15 @@ export function Sidebar({
     setOpenSettingsSection(activeSettingsSection);
   }, [isSettingsActive, activeSettingsSection]);
 
+  const openStudioTab = usePulseStore((s) => s.openStudioTab);
+
   // Filter assets by search query
   const q = searchQuery.toLowerCase();
   const filteredSkills = q
-    ? (assets?.skills || []).filter((s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
+    ? (assets?.skills || []).filter((s) => {
+        const label = (s.displayName || s.name).toLowerCase();
+        return label.includes(q) || s.description.toLowerCase().includes(q);
+      })
     : assets?.skills || [];
   const filteredPpts = q
     ? (assets?.ppts || []).filter((f) => f.name.toLowerCase().includes(q))
@@ -161,9 +171,12 @@ export function Sidebar({
     ? (assets?.files || []).filter((f) => f.name.toLowerCase().includes(q))
     : assets?.files || [];
 
-  const handleSkillClick = (id: string) => {
-    onSelectAsset?.('skill', id);
-    router.push('/settings?tab=agents');
+  // Split skills into kernel (registry) and custom (project/codex)
+  const kernelSkills = filteredSkills.filter((s) => s.source === 'registry');
+  const customSkills = filteredSkills.filter((s) => s.source !== 'registry');
+
+  const handleSkillClick = (skill: SkillAsset) => {
+    openStudioTab(skill.id, skill.displayName || skill.name);
   };
 
   const handleFileDownload = (type: 'ppt' | 'file', id: string) => {
@@ -298,16 +311,70 @@ export function Sidebar({
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-0.5">
-                    {filteredSkills.map((skill) => (
-                      <AssetItem
-                        key={skill.id}
-                        name={skill.name}
-                        subtitle={skill.description ? skill.description.slice(0, 30) : undefined}
-                        icon={Sparkles}
-                        onClick={() => handleSkillClick(skill.id)}
-                      />
-                    ))}
+                  <div className="space-y-1">
+                    {/* Kernel Skills group */}
+                    {kernelSkills.length > 0 && (
+                      <div>
+                        <button
+                          onClick={() => setKernelGroupOpen(!kernelGroupOpen)}
+                          className="w-full flex items-center gap-1.5 px-4 py-1 text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-400 transition-colors"
+                        >
+                          <ChevronRight
+                            className={clsx(
+                              "w-2.5 h-2.5 transition-transform duration-150 flex-shrink-0",
+                              kernelGroupOpen && "rotate-90"
+                            )}
+                          />
+                          <span>{t('sidebar.kernelSkills')}</span>
+                          <span className="ml-auto font-mono">{kernelSkills.length}</span>
+                        </button>
+                        {kernelGroupOpen && (
+                          <div className="space-y-0.5">
+                            {kernelSkills.map((skill) => (
+                              <AssetItem
+                                key={skill.id}
+                                name={skill.displayName || skill.name}
+                                subtitle={skill.description ? skill.description.slice(0, 30) : undefined}
+                                icon={Sparkles}
+                                onClick={() => handleSkillClick(skill)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Custom Skills group */}
+                    {customSkills.length > 0 && (
+                      <div>
+                        <button
+                          onClick={() => setCustomGroupOpen(!customGroupOpen)}
+                          className="w-full flex items-center gap-1.5 px-4 py-1 text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-400 transition-colors"
+                        >
+                          <ChevronRight
+                            className={clsx(
+                              "w-2.5 h-2.5 transition-transform duration-150 flex-shrink-0",
+                              customGroupOpen && "rotate-90"
+                            )}
+                          />
+                          <span>{t('sidebar.customSkills')}</span>
+                          <span className="ml-auto font-mono">{customSkills.length}</span>
+                        </button>
+                        {customGroupOpen && (
+                          <div className="space-y-0.5">
+                            {customSkills.map((skill) => (
+                              <AssetItem
+                                key={skill.id}
+                                name={skill.displayName || skill.name}
+                                subtitle={skill.description ? skill.description.slice(0, 30) : undefined}
+                                icon={Sparkles}
+                                onClick={() => handleSkillClick(skill)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

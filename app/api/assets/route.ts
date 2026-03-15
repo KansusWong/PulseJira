@@ -3,6 +3,7 @@
  *
  * Aggregated assets API — returns skills, PPTs, and other files.
  * - skills: from SkillRegistry filesystem scan (reuses /api/settings/skills logic)
+ *           + registry skills from agent bindings
  * - ppts: from code_artifacts table WHERE file_path LIKE '%.pptx'
  * - files: from code_artifacts table WHERE file_path NOT LIKE '%.pptx'
  */
@@ -13,6 +14,8 @@ import os from 'os';
 import { NextResponse } from 'next/server';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { loadSkillFromDir } from '@/lib/skills/skill-loader';
+import { getAllAgents } from '@/lib/config/agent-registry';
+import { getAllDisplayNames } from '@/lib/config/skill-display-names';
 
 export const runtime = 'nodejs';
 
@@ -22,7 +25,9 @@ const _readdirSync = fs.readdirSync.bind(fs);
 interface SkillAsset {
   id: string;
   name: string;
+  displayName?: string;
   description: string;
+  source: 'project' | 'codex' | 'registry';
   created_at: string | null;
 }
 
@@ -35,20 +40,28 @@ interface FileAsset {
   created_at: string;
 }
 
-function getSkillBaseDirs(): string[] {
+function getSkillBaseDirs(): { dir: string; source: 'project' | 'codex' }[] {
   const projectSkills = path.join(process.cwd(), 'skills');
   const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
   const codexSkills = path.join(codexHome, 'skills');
-  const dirs = [projectSkills];
-  if (codexSkills !== projectSkills) dirs.push(codexSkills);
+  const dirs: { dir: string; source: 'project' | 'codex' }[] = [
+    { dir: projectSkills, source: 'project' },
+  ];
+  if (codexSkills !== projectSkills) {
+    dirs.push({ dir: codexSkills, source: 'codex' });
+  }
   return dirs;
 }
 
 export async function GET() {
   try {
-    // --- Skills ---
+    const displayNames = getAllDisplayNames();
+
+    // --- Skills from filesystem ---
     const skills: SkillAsset[] = [];
-    for (const baseDir of getSkillBaseDirs()) {
+    const seenIds = new Set<string>();
+
+    for (const { dir: baseDir, source } of getSkillBaseDirs()) {
       let entries: string[];
       try {
         entries = _readdirSync(baseDir);
@@ -71,13 +84,42 @@ export async function GET() {
           createdAt = stat.birthtime?.toISOString() || stat.mtime?.toISOString() || null;
         } catch { /* ignore */ }
 
-        skills.push({
-          id: entry,
-          name: def.name || entry,
-          description: def.description || '',
-          created_at: createdAt,
-        });
+        const id = entry;
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          skills.push({
+            id,
+            name: def.name || entry,
+            displayName: displayNames[id],
+            description: def.description || '',
+            source,
+            created_at: createdAt,
+          });
+        }
       }
+    }
+
+    // --- Registry skills from agent bindings ---
+    try {
+      const agents = getAllAgents();
+      for (const agent of agents) {
+        for (const skill of agent.skills || []) {
+          const id = skill.name;
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            skills.push({
+              id,
+              name: skill.name,
+              displayName: displayNames[id],
+              description: skill.description || '',
+              source: 'registry',
+              created_at: null,
+            });
+          }
+        }
+      }
+    } catch {
+      // agent registry may not be initialized — skip
     }
 
     // --- PPTs and Files from code_artifacts ---

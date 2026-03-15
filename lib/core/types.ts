@@ -31,6 +31,31 @@ export interface AgentContext {
   /** Checkpoint callback — fired after each tool-call batch in the ReAct loop.
    *  Callers decide whether to persist (fire-and-forget DB write). */
   onCheckpoint?: (data: { messages: any[]; stepsCompleted: number }) => void;
+  /** Callback when context hits 75% threshold, offering upgrade to Team mode.
+   *  Returns true if user approves upgrade, false if rejected (or timeout).
+   *  Blocks the agent thread until resolved. */
+  onCompactionUpgradeRequired?: (params: {
+    tokenUsage: { estimated: number; max: number; ratio: number };
+  }) => Promise<boolean>;
+  /** Streaming text token callback — called for each content delta. */
+  onToken?: (token: string) => void;
+  /** Streaming reasoning token callback — called for each reasoning_content delta (GLM-5 thinking mode). */
+  onReasoningToken?: (token: string) => void;
+  /** Called when a tool call starts execution. */
+  onToolCallStart?: (params: {
+    toolName: string;
+    toolCallId: string;
+    args: string;
+  }) => void;
+  /** Called when a tool call completes execution. */
+  onToolCallEnd?: (params: {
+    toolName: string;
+    toolCallId: string;
+    result: string;
+    success: boolean;
+  }) => void;
+  /** Called when the LLM starts a new ReAct thinking step. */
+  onStepStart?: (stepNumber: number) => void;
 }
 
 export interface AgentConfig {
@@ -341,6 +366,14 @@ export type ChatEventType =
   | 'sub_agent_start'
   | 'sub_agent_complete'
   | 'questionnaire'
+  | 'compaction_upgrade_required'
+  | 'compaction_upgrade_resolved'
+  | 'team_upgrade'
+  | 'token'
+  | 'reasoning_token'
+  | 'tool_call_start'
+  | 'tool_call_end'
+  | 'step_start'
   | 'error'
   | 'done';
 

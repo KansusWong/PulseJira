@@ -222,6 +222,103 @@ function isFailoverEligibleError(error: any, policy: FailoverPolicy): boolean {
   return false;
 }
 
+/**
+ * Pool failover for streaming LLM calls.
+ * Failover only occurs during stream setup (`.create()` phase).
+ * Once the stream starts producing chunks, we commit to that account.
+ * Mid-stream failures are handled by the caller (e.g. ReAct loop retry).
+ */
+export async function withPoolFailoverStream(
+  runner: (resolved: ResolvedClient) => Promise<AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>>,
+  options: {
+    tags?: string[];
+    label?: string;
+    maxSwitches?: number;
+    projectId?: string | null;
+    agentName?: string | null;
+    model?: string | null;
+  } = {}
+): Promise<AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>> {
+  const label = options.label || 'llm-stream';
+  const maxSwitches =
+    typeof options.maxSwitches === 'number'
+      ? Math.max(0, options.maxSwitches)
+      : Math.max(0, Number(process.env.LLM_POOL_MAX_SWITCHES_PER_CALL || 2));
+
+  const pool = getLLMPool();
+  const runtimeConfig = pool.getRuntimeConfig();
+  const failoverPolicy: FailoverPolicy = runtimeConfig.failoverPolicy;
+  const candidates = pool.getFailoverChain({ tags: options.tags });
+  const chain = candidates.length > 0 ? candidates : [pool.getClientOrFallback({ tags: options.tags })];
+
+  let switches = 0;
+  let lastError: unknown = null;
+
+  for (let i = 0; i < chain.length; i++) {
+    const resolved = chain[i];
+    try {
+      const stream = await runner(resolved);
+      pool.markAccountSuccess(resolved.accountId);
+      return stream;
+    } catch (error: any) {
+      lastError = error;
+      const msg = getErrorMessage(error);
+      const status = getErrorStatusCode(error);
+      const code = getErrorCode(error);
+      const eligible = isFailoverEligibleError(error, failoverPolicy);
+
+      if (eligible) {
+        pool.markAccountFailure(resolved.accountId, msg);
+      }
+
+      const hasNext = i < chain.length - 1;
+      const canSwitch = eligible && hasNext && switches < maxSwitches;
+
+      if (canSwitch) {
+        const next = chain[i + 1];
+        switches += 1;
+
+        recordLlmFailoverEvent({
+          projectId: options.projectId,
+          agentName: options.agentName,
+          model: options.model,
+          eventType: 'switch',
+          fromAccountId: resolved.accountId,
+          fromAccountName: resolved.accountName,
+          toAccountId: next.accountId,
+          toAccountName: next.accountName,
+          reason: msg,
+          errorStatus: status,
+          errorCode: code,
+        }).catch((err) => console.error('[llm] Record failover switch event failed:', err));
+
+        console.warn(
+          `[llm-pool] ${label} switching account: ${resolved.accountName} -> ${next.accountName} (reason: ${msg || 'eligible failover'})`
+        );
+        continue;
+      }
+
+      if (eligible) {
+        recordLlmFailoverEvent({
+          projectId: options.projectId,
+          agentName: options.agentName,
+          model: options.model,
+          eventType: 'exhausted',
+          fromAccountId: resolved.accountId,
+          fromAccountName: resolved.accountName,
+          reason: msg,
+          errorStatus: status,
+          errorCode: code,
+        }).catch((err) => console.error('[llm] Record failover exhausted event failed:', err));
+      }
+
+      throw error;
+    }
+  }
+
+  throw (lastError || new Error(`[llm-pool] ${label} failed without specific error`));
+}
+
 export async function withPoolFailover<T>(
   runner: (resolved: ResolvedClient) => Promise<T>,
   options: {

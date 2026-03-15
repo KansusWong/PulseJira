@@ -62,8 +62,10 @@ interface TaskConfig {
 const BLOCKED_SUB_TOOLS = new Set([
   'task',
   'create_agent',
-  'create_sub_agent',
   'persist_agent',
+  'create_skill',
+  'persist_skill',
+  'promote_feature',
   'enter_plan_mode',
   'exit_plan_mode',
 ]);

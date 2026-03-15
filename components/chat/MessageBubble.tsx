@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import clsx from "clsx";
 import { Download } from "lucide-react";
 import type { ChatMessage } from "@/lib/core/types";
 import { useTranslation } from '@/lib/i18n';
+import { usePulseStore } from "@/store/usePulseStore.new";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { ToolUsageSummary } from "./ToolUsageSummary";
+import { useTypewriter } from "@/hooks/useTypewriter";
 
 const roleStyles: Record<string, { bg: string; text: string; label: string; align: string }> = {
   user: {
@@ -50,6 +53,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const { t } = useTranslation();
   const style = roleStyles[message.role] || defaultStyle;
   const agentName = message.metadata?.agent_name;
+  const bubbleRef = useRef<HTMLDivElement>(null);
+
+  // Typewriter animation
+  const shouldAnimate = usePulseStore((s) => s.typewriterMessageIds.has(message.id));
+  const removeTypewriterMessageId = usePulseStore((s) => s.removeTypewriterMessageId);
+
+  const { displayedContent, isAnimating, skipToEnd } = useTypewriter({
+    content: message.content,
+    enabled: shouldAnimate && message.role === "assistant",
+    onComplete: () => removeTypewriterMessageId(message.id),
+  });
+
+  // Auto-scroll during animation
+  useEffect(() => {
+    if (isAnimating && bubbleRef.current) {
+      bubbleRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [displayedContent, isAnimating]);
 
   const roleLabels: Record<string, string> = {
     user: t('chat.role.user'),
@@ -73,8 +94,20 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   const showExport = message.role === 'assistant' && message.metadata?.exportable === true;
 
+  // Determine content to render
+  const isAssistant = message.role === "assistant";
+  const contentToRender = isAssistant ? displayedContent : message.content;
+
+  // Tool usage summary — show after animation completes
+  const toolSteps = message.metadata?.toolSteps;
+  const showToolSummary = isAssistant && toolSteps?.length > 0 && !isAnimating;
+
   return (
-    <div className={clsx("max-w-[85%] w-fit", style.align)}>
+    <div
+      ref={bubbleRef}
+      className={clsx("max-w-[85%] w-fit", style.align)}
+      onClick={isAnimating ? skipToEnd : undefined}
+    >
       {/* Label */}
       <div className="flex items-center gap-2 mb-1 px-1">
         <span className="text-[11px] font-medium text-zinc-500">
@@ -95,7 +128,16 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             {message.content}
           </div>
         ) : (
-          <MarkdownRenderer content={message.content} />
+          <>
+            <MarkdownRenderer content={contentToRender} />
+            {isAnimating && (
+              <span className="inline-block w-[2px] h-[1em] bg-zinc-400 ml-0.5 animate-pulse align-text-bottom" />
+            )}
+          </>
+        )}
+
+        {showToolSummary && (
+          <ToolUsageSummary items={toolSteps} />
         )}
 
         {showExport && (

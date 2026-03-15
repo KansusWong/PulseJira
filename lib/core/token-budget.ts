@@ -52,11 +52,15 @@ function estimateMessageTokens(msg: OpenAI.Chat.ChatCompletionMessageParam): num
  * Tracks token usage and determines when compression is needed.
  */
 export class ContextBudget {
+  readonly maxTokens: number;
+
   constructor(
-    private maxTokens: number = 100_000,
+    maxTokens: number = parseInt(process.env.AGENT_MAX_CONTEXT_TOKENS || '200000', 10),
     private reservedForResponse: number = 4_000,
     private reservedForTools: number = 8_000,
-  ) {}
+  ) {
+    this.maxTokens = maxTokens;
+  }
 
   /** Calculate total token estimate for a message array. */
   measure(messages: OpenAI.Chat.ChatCompletionMessageParam[]): number {
@@ -72,5 +76,15 @@ export class ContextBudget {
   /** Tokens available for message history (total minus reserves). */
   availableBudget(): number {
     return this.maxTokens - this.reservedForResponse - this.reservedForTools;
+  }
+
+  /** Whether context usage has reached the Team upgrade threshold (75% of max). */
+  needsUpgrade(messages: OpenAI.Chat.ChatCompletionMessageParam[]): boolean {
+    return this.measure(messages) > this.maxTokens * 0.75;
+  }
+
+  /** Get the current usage ratio (0–1) for a message array. */
+  usageRatio(messages: OpenAI.Chat.ChatCompletionMessageParam[]): number {
+    return this.measure(messages) / this.maxTokens;
   }
 }

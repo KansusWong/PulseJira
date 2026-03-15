@@ -29,7 +29,6 @@ import { ValidateOutputTool } from './validate-output';
 import { CreateSkillTool } from './create-skill';
 import { PersistSkillTool } from './persist-skill';
 import { PromoteFeatureTool } from './promote-feature';
-import { CreateSubAgentTool } from './create-sub-agent';
 
 // --- Phase 2 tools ---
 import { MultiEditTool } from './multi-edit';
@@ -102,7 +101,6 @@ registerTool('validate_output', () => new ValidateOutputTool());
 registerTool('create_skill', () => new CreateSkillTool());
 registerTool('persist_skill', () => new PersistSkillTool());
 registerTool('promote_feature', () => new PromoteFeatureTool());
-registerTool('create_sub_agent', () => new CreateSubAgentTool());
 
 // ==========================================================================
 // Phase 2: Planning, Todo, Task tools

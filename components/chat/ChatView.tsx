@@ -8,9 +8,44 @@ import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import type { ChatMessage, ChatEvent, StructuredAgentStep } from "@/lib/core/types";
+import type { ToolStepSummary } from "./ToolUsageSummary";
 import { StreamingStepIndicator } from "./StreamingStepIndicator";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
 import { QuestionnaireInline } from "./QuestionnaireInline";
+import { CompactionUpgradeCard } from "./CompactionUpgradeCard";
+
+/** Build tool usage summary from streaming steps for message metadata. */
+function buildToolUsageSummary(steps: StructuredAgentStep[]): ToolStepSummary[] {
+  const result: ToolStepSummary[] = [];
+  let i = 0;
+  while (i < steps.length) {
+    const step = steps[i];
+    if (step.kind === "tool_call") {
+      const next = steps[i + 1];
+      if (next?.kind === "tool_result") {
+        result.push({
+          toolName: step.toolName || "unknown",
+          toolLabel: step.toolLabel,
+          argSummary: step.argSummary,
+          resultPreview: next.resultPreview,
+          success: next.success,
+        });
+        i += 2;
+      } else {
+        result.push({
+          toolName: step.toolName || "unknown",
+          toolLabel: step.toolLabel,
+          argSummary: step.argSummary,
+          success: undefined,
+        });
+        i++;
+      }
+    } else {
+      i++;
+    }
+  }
+  return result;
+}
 
 export function ChatView() {
   const { t } = useTranslation();
@@ -38,9 +73,42 @@ export function ChatView() {
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
   const setTeamCollaborationActive = usePulseStore((s) => s.setTeamCollaborationActive);
 
+  const addTypewriterMessageId = usePulseStore((s) => s.addTypewriterMessageId);
+
   const questionnaireData = usePulseStore((s) => s.questionnaireData);
   const setQuestionnaireData = usePulseStore((s) => s.setQuestionnaireData);
   const clearQuestionnaireData = usePulseStore((s) => s.clearQuestionnaireData);
+
+  const compactionUpgradePanel = usePulseStore((s) => s.compactionUpgradePanel);
+  const showCompactionUpgrade = usePulseStore((s) => s.showCompactionUpgrade);
+  const hideCompactionUpgrade = usePulseStore((s) => s.hideCompactionUpgrade);
+  const setPendingTeamUpgrade = usePulseStore((s) => s.setPendingTeamUpgrade);
+  const clearPendingTeamUpgrade = usePulseStore((s) => s.clearPendingTeamUpgrade);
+
+  // Streaming token state
+  const streamingContent = usePulseStore((s) => s.streamingContent);
+  const activeToolCall = usePulseStore((s) => s.activeToolCall);
+  const appendStreamingToken = usePulseStore((s) => s.appendStreamingToken);
+  const setActiveToolCall = usePulseStore((s) => s.setActiveToolCall);
+  const resetStreamingState = usePulseStore((s) => s.resetStreamingState);
+
+  // RAF-based token buffering to avoid excessive re-renders
+  const tokenBufferRef = useRef('');
+  const rafRef = useRef<number>();
+  const handleTokenBatch = useCallback(() => {
+    if (tokenBufferRef.current) {
+      appendStreamingToken(tokenBufferRef.current);
+      tokenBufferRef.current = '';
+    }
+    rafRef.current = undefined;
+  }, [appendStreamingToken]);
+
+  const handleToken = useCallback((token: string) => {
+    tokenBufferRef.current += token;
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(handleTokenBatch);
+    }
+  }, [handleTokenBatch]);
 
   const setMessages = usePulseStore((s) => s.setMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -138,7 +206,7 @@ export function ChatView() {
     if (isNearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, [messages, streamingContent]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -148,7 +216,22 @@ export function ChatView() {
         abortRef.current = null;
       }
 
+      // Auto-reject any pending compaction upgrade
+      const upgradePanel = usePulseStore.getState().compactionUpgradePanel;
+      if (upgradePanel.visible && upgradePanel.upgradeId) {
+        fetch(`/api/conversations/${activeConversationId}/plan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "reject_upgrade",
+            upgrade_id: upgradePanel.upgradeId,
+          }),
+        }).catch(() => {});
+        hideCompactionUpgrade();
+      }
+
       clearQuestionnaireData();
+      resetStreamingState();
       setStreaming(true);
       clearStreamingSteps();
       setTeamCollaborationActive(false);
@@ -230,6 +313,48 @@ export function ChatView() {
             }
           }
         }
+
+        // Auto-bridge: if team upgrade was approved, trigger second SSE stream
+        const upgradeState = usePulseStore.getState().pendingTeamUpgrade;
+        if (upgradeState) {
+          clearPendingTeamUpgrade();
+          try {
+            const res2 = await fetch("/api/chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                conversation_id: conversationId,
+                message: `[TEAM_INIT] Create a team from the current session.`,
+                team_init: true,
+                state_summary: upgradeState.stateSummary,
+              }),
+              signal: abortController.signal,
+            });
+
+            if (res2.ok && res2.body) {
+              const reader2 = res2.body.getReader();
+              let buffer2 = "";
+              while (true) {
+                const { done: done2, value: value2 } = await reader2.read();
+                if (done2) break;
+                buffer2 += decoder.decode(value2, { stream: true });
+                const lines2 = buffer2.split("\n");
+                buffer2 = lines2.pop() || "";
+                for (const line2 of lines2) {
+                  if (!line2.startsWith("data: ")) continue;
+                  try {
+                    const event2: ChatEvent = JSON.parse(line2.slice(6));
+                    handleSSEEvent(event2, conversationId!);
+                  } catch { /* skip */ }
+                }
+              }
+            }
+          } catch (bridgeErr: any) {
+            if (bridgeErr?.name !== "AbortError") {
+              console.error("[ChatView] Team init bridge failed:", bridgeErr);
+            }
+          }
+        }
       } catch (error: any) {
         // Don't show error message for intentional aborts (timeout or unmount)
         if (error?.name !== 'AbortError') {
@@ -247,25 +372,53 @@ export function ChatView() {
         abortRef.current = null;
         setStreaming(false);
         clearStreamingSteps();
+        resetStreamingState();
         setTeamCollaborationActive(false);
+        // Flush any remaining token buffer
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = undefined;
+        }
+        tokenBufferRef.current = '';
       }
     },
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData, hideCompactionUpgrade, clearPendingTeamUpgrade, resetStreamingState]
   );
 
   const handleSSEEvent = useCallback(
     (event: ChatEvent, conversationId: string) => {
       switch (event.type) {
         case "message": {
+          // Flush token buffer and reset streaming state — final message replaces streamed content
+          if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = undefined;
+          }
+          tokenBufferRef.current = '';
+          resetStreamingState();
+
+          // Snapshot tool steps before they get cleared in finally block
+          const currentSteps = usePulseStore.getState().streamingSteps;
+          const toolSteps = buildToolUsageSummary(currentSteps);
+
           const msg: ChatMessage = {
             id: event.data.id || crypto.randomUUID(),
             conversation_id: conversationId,
             role: event.data.role || "assistant",
             content: event.data.content,
-            metadata: event.data.metadata || null,
+            metadata: {
+              ...(event.data.metadata || {}),
+              ...(toolSteps.length > 0 ? { toolSteps } : {}),
+            },
             created_at: event.data.created_at || new Date().toISOString(),
           };
           addMessage(conversationId, msg);
+
+          // Mark for typewriter animation
+          if (msg.role === "assistant") {
+            addTypewriterMessageId(msg.id);
+          }
           break;
         }
 
@@ -363,6 +516,58 @@ export function ChatView() {
           break;
         }
 
+        case "compaction_upgrade_required": {
+          showCompactionUpgrade({
+            upgradeId: event.data.upgrade_id,
+            tokenUsage: event.data.token_usage,
+          });
+          break;
+        }
+
+        case "compaction_upgrade_resolved": {
+          hideCompactionUpgrade();
+          break;
+        }
+
+        case "team_upgrade": {
+          setPendingTeamUpgrade({
+            stateSummary: event.data.stateSummary,
+            conversationId,
+          });
+          break;
+        }
+
+        case "step_start": {
+          // New ReAct step starting — streaming will follow
+          break;
+        }
+
+        case "token": {
+          handleToken(event.data.content);
+          break;
+        }
+
+        case "reasoning_token": {
+          // Reasoning tokens are captured but not displayed inline currently
+          // Could be shown in a collapsible "thinking" section
+          break;
+        }
+
+        case "tool_call_start": {
+          setActiveToolCall({
+            toolName: event.data.toolName,
+            toolLabel: event.data.toolLabel,
+            toolCallId: event.data.toolCallId,
+            args: event.data.args,
+          });
+          break;
+        }
+
+        case "tool_call_end": {
+          setActiveToolCall(null);
+          break;
+        }
+
         case "done": {
           setTeamCollaborationActive(false);
           break;
@@ -381,7 +586,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, addProject, setRunning, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, addTypewriterMessageId, handleToken, setActiveToolCall, resetStreamingState, t]
   );
 
   return (
@@ -426,7 +631,36 @@ export function ChatView() {
               <StreamingStepIndicator steps={streamingSteps} />
             )}
 
-            {isStreaming && !teamCollaborationActive && streamingSteps.length === 0 && (
+            {/* Streaming token content — displayed before final message arrives */}
+            {isStreaming && !teamCollaborationActive && streamingContent && (
+              <div className="mr-auto max-w-[85%]">
+                <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
+                  <div className="text-sm text-zinc-200 whitespace-pre-wrap break-words">
+                    {streamingContent}
+                    <span className="inline-block w-0.5 h-4 bg-zinc-400 animate-pulse ml-0.5 align-text-bottom" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Active tool call indicator */}
+            {isStreaming && !teamCollaborationActive && activeToolCall && (
+              <div className="mr-auto">
+                <div className="rounded-2xl px-4 py-2.5 bg-zinc-900/60 border border-zinc-800/50">
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                    <span>{activeToolCall.toolLabel}</span>
+                    {activeToolCall.args && (
+                      <span className="text-zinc-600 truncate max-w-[200px]">
+                        {activeToolCall.args}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isStreaming && !teamCollaborationActive && streamingSteps.length === 0 && !streamingContent && !activeToolCall && (
               <div className="mr-auto">
                 <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
                   <div className="flex items-center gap-1.5">
@@ -438,7 +672,21 @@ export function ChatView() {
               </div>
             )}
 
-            {questionnaireData && !isStreaming && (
+            {/* Compaction upgrade card — takes priority over questionnaire */}
+            {compactionUpgradePanel.visible && compactionUpgradePanel.upgradeId && activeConversationId && (
+              <CompactionUpgradeCard
+                upgradeId={compactionUpgradePanel.upgradeId}
+                tokenUsage={compactionUpgradePanel.tokenUsage!}
+                timeoutAt={compactionUpgradePanel.timeoutAt!}
+                conversationId={activeConversationId}
+                onResolved={(approved) => {
+                  hideCompactionUpgrade();
+                }}
+              />
+            )}
+
+            {/* Normal questionnaire — only when no upgrade card visible */}
+            {questionnaireData && !isStreaming && !compactionUpgradePanel.visible && (
               <QuestionnaireInline
                 data={questionnaireData}
                 onSubmit={(text) => { clearQuestionnaireData(); handleSend(text); }}

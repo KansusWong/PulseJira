@@ -74,6 +74,20 @@ const en: TranslationDict = {
   'sidebar.settings.usage': 'Usage',
   'sidebar.settings.webhooks': 'Webhooks',
 
+  'sidebar.kernelSkills': 'Kernel Skills',
+  'sidebar.customSkills': 'Custom Skills',
+
+  // ── Studio ──
+  'studio.title': 'Studio',
+  'studio.close': 'Close',
+  'studio.rename': 'Rename',
+  'studio.download': 'Download',
+  'studio.fileTree': 'Files',
+  'studio.preview': 'Preview',
+  'studio.binaryFile': 'Binary file, {size}',
+  'studio.loadFailed': 'Load failed',
+  'studio.noTabs': 'Click a skill in sidebar to open',
+
   // ── Time groups ──
   'time.today': 'Today',
   'time.yesterday': 'Yesterday',
@@ -113,6 +127,14 @@ const en: TranslationDict = {
   'chat.role.system': 'System',
   'chat.role.plan': 'Plan',
   'chat.exportMarkdown': 'Export as Markdown',
+  'chat.toolsUsed': '{count} tool(s) used',
+  'chat.showMore': 'show more',
+
+  // ── Compaction Upgrade ──
+  'compactionUpgrade.question': 'Context window is {ratio}% full. Upgrade to Team mode? Each sub-agent becomes an independent Teammate with its own context.',
+  'compactionUpgrade.approve': 'Upgrade to Team Mode',
+  'compactionUpgrade.reject': 'Continue (compress context)',
+  'compactionUpgrade.countdown': 'Auto-declining in {seconds}s',
 
   // ── Plan Panel ──
   'plan.title': 'Execution Plan',
@@ -801,6 +823,10 @@ const en: TranslationDict = {
   'questionnaire.submit': 'Submit',
   'questionnaire.dismiss': 'Skip',
   'questionnaire.multiSelect': 'select multiple',
+  'questionnaire.of': '{current} of {total}',
+  'questionnaire.continue': 'Continue',
+  'questionnaire.somethingElse': 'Something else',
+  'questionnaire.skip': 'Skip',
 
   // ── Mermaid Chart ──
   'mermaid.export': 'Export SVG',
