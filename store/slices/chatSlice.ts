@@ -113,9 +113,6 @@ export interface ChatSlice {
     collapsed: boolean;
   };
 
-  // Typewriter animation state (transient, not persisted)
-  typewriterMessageIds: Set<string>;
-
   // Compaction → Team upgrade panel state (transient, not persisted)
   compactionUpgradePanel: {
     visible: boolean;
@@ -132,7 +129,6 @@ export interface ChatSlice {
 
   // Streaming sections (inline bubble — tokens + tool calls interleaved)
   streamingSections: StreamingSection[];
-  hadStreamingContent: boolean;
 
   // Questionnaire inline state
   questionnaireData: QuestionnaireData | null;
@@ -193,9 +189,6 @@ export interface ChatSlice {
   setTeamCollaborationActive: (active: boolean) => void;
   setTeamCollaborationCollapsed: (collapsed: boolean) => void;
 
-  addTypewriterMessageId: (id: string) => void;
-  removeTypewriterMessageId: (id: string) => void;
-
   showCompactionUpgrade: (data: { upgradeId: string; tokenUsage: { estimated: number; max: number; ratio: number } }) => void;
   hideCompactionUpgrade: () => void;
   setPendingTeamUpgrade: (data: { stateSummary: string; conversationId: string }) => void;
@@ -205,7 +198,6 @@ export interface ChatSlice {
   startStreamingToolCall: (data: { toolName: string; toolLabel: string; toolCallId: string; args: string }) => void;
   endStreamingToolCall: (data: { toolCallId: string; resultPreview?: string; success: boolean }) => void;
   resetStreamingState: () => void;
-  clearHadStreaming: () => void;
 
   setQuestionnaireData: (data: QuestionnaireData) => void;
   clearQuestionnaireData: () => void;
@@ -297,8 +289,6 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     collapsed: false,
   },
 
-  typewriterMessageIds: new Set<string>(),
-
   compactionUpgradePanel: {
     visible: false,
     upgradeId: null,
@@ -309,7 +299,6 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   pendingTeamUpgrade: null,
 
   streamingSections: [],
-  hadStreamingContent: false,
 
   questionnaireData: null,
 
@@ -646,20 +635,6 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       teamCollaboration: { ...state.teamCollaboration, collapsed },
     })),
 
-  addTypewriterMessageId: (id) =>
-    set((state) => {
-      const next = new Set(state.typewriterMessageIds);
-      next.add(id);
-      return { typewriterMessageIds: next };
-    }),
-
-  removeTypewriterMessageId: (id) =>
-    set((state) => {
-      const next = new Set(state.typewriterMessageIds);
-      next.delete(id);
-      return { typewriterMessageIds: next };
-    }),
-
   showCompactionUpgrade: (data) =>
     set({
       compactionUpgradePanel: {
@@ -695,7 +670,7 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       } else {
         sections.push({ type: 'text', content: token });
       }
-      return { streamingSections: sections, hadStreamingContent: true };
+      return { streamingSections: sections };
     }),
 
   startStreamingToolCall: (data) =>
@@ -717,9 +692,6 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
 
   resetStreamingState: () =>
     set({ streamingSections: [] }),
-
-  clearHadStreaming: () =>
-    set({ hadStreamingContent: false }),
 
   setQuestionnaireData: (data) => set({ questionnaireData: data }),
   clearQuestionnaireData: () => set({ questionnaireData: null }),

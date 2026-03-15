@@ -1,43 +1,41 @@
 "use client";
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef } from "react";
 import clsx from "clsx";
 import { Download } from "lucide-react";
 import type { ChatMessage } from "@/lib/core/types";
 import { useTranslation } from '@/lib/i18n';
-import { usePulseStore } from "@/store/usePulseStore.new";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { ToolUsageSummary } from "./ToolUsageSummary";
-import { useTypewriter } from "@/hooks/useTypewriter";
 
 const roleStyles: Record<string, { bg: string; text: string; label: string; align: string }> = {
   user: {
-    bg: "bg-zinc-800",
+    bg: "bg-zinc-800/80 rounded-2xl",
     text: "text-zinc-100",
     label: "You",
     align: "ml-auto",
   },
   assistant: {
-    bg: "bg-zinc-900/60 border border-zinc-800/50",
-    text: "text-zinc-200",
-    label: "RebuilD",
+    bg: "",
+    text: "text-zinc-300",
+    label: "",
     align: "mr-auto",
   },
   agent: {
-    bg: "bg-indigo-500/10 border border-indigo-500/20",
-    text: "text-indigo-200",
-    label: "Agent",
+    bg: "",
+    text: "text-zinc-300",
+    label: "",
     align: "mr-auto",
   },
   system: {
-    bg: "bg-amber-500/10 border border-amber-500/20",
-    text: "text-amber-200",
+    bg: "bg-amber-500/5 rounded-lg",
+    text: "text-amber-200/80",
     label: "System",
     align: "mx-auto",
   },
   plan: {
-    bg: "bg-cyan-500/10 border border-cyan-500/20",
-    text: "text-cyan-200",
+    bg: "bg-cyan-500/5 rounded-lg",
+    text: "text-cyan-200/80",
     label: "Plan",
     align: "mr-auto",
   },
@@ -55,28 +53,13 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const agentName = message.metadata?.agent_name;
   const bubbleRef = useRef<HTMLDivElement>(null);
 
-  // Typewriter animation — skip when user already saw content via streaming
-  const shouldAnimate = usePulseStore((s) => s.typewriterMessageIds.has(message.id));
-  const hadStreaming = usePulseStore((s) => s.hadStreamingContent);
-  const removeTypewriterMessageId = usePulseStore((s) => s.removeTypewriterMessageId);
-
-  const { displayedContent, isAnimating, skipToEnd } = useTypewriter({
-    content: message.content,
-    enabled: shouldAnimate && message.role === "assistant" && !hadStreaming,
-    onComplete: () => removeTypewriterMessageId(message.id),
-  });
-
-  // Auto-scroll during animation
-  useEffect(() => {
-    if (isAnimating && bubbleRef.current) {
-      bubbleRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-  }, [displayedContent, isAnimating]);
+  const isUser = message.role === "user";
+  const isAssistant = message.role === "assistant" || message.role === "agent";
 
   const roleLabels: Record<string, string> = {
     user: t('chat.role.user'),
-    assistant: 'RebuilD',
-    agent: t('chat.role.agent'),
+    assistant: '',
+    agent: '',
     system: t('chat.role.system'),
     plan: t('chat.role.plan'),
   };
@@ -95,46 +78,40 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   const showExport = message.role === 'assistant' && message.metadata?.exportable === true;
 
-  // Determine content to render
-  const isAssistant = message.role === "assistant";
-  const contentToRender = isAssistant ? displayedContent : message.content;
-
-  // Tool usage summary — show after animation completes
+  // Tool usage summary
   const toolSteps = message.metadata?.toolSteps;
-  const showToolSummary = isAssistant && toolSteps?.length > 0 && !isAnimating;
+  const showToolSummary = isAssistant && toolSteps?.length > 0;
+
+  const displayLabel = agentName
+    ? `${roleLabels[message.role] || style.label} (${agentName})`
+    : roleLabels[message.role] || style.label;
 
   return (
     <div
       ref={bubbleRef}
       className={clsx("max-w-[85%] w-fit", style.align)}
-      onClick={isAnimating ? skipToEnd : undefined}
     >
-      {/* Label */}
-      <div className="flex items-center gap-2 mb-1 px-1">
-        <span className="text-[11px] font-medium text-zinc-500">
-          {agentName ? `${roleLabels[message.role] || style.label} (${agentName})` : roleLabels[message.role] || style.label}
-        </span>
-        <span className="text-[10px] text-zinc-700">
-          {new Date(message.created_at).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-      </div>
+      {/* Label — only for roles with a label */}
+      {displayLabel && (
+        <div className="mb-1 px-1">
+          <span className="text-[11px] font-medium text-zinc-500">
+            {displayLabel}
+          </span>
+        </div>
+      )}
 
       {/* Bubble */}
-      <div className={clsx("rounded-2xl px-4 py-3", style.bg, style.text)}>
-        {message.role === "user" ? (
+      <div className={clsx(
+        isUser ? "rounded-2xl px-4 py-3" : "px-1 py-1",
+        style.bg,
+        style.text,
+      )}>
+        {isUser ? (
           <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
             {message.content}
           </div>
         ) : (
-          <>
-            <MarkdownRenderer content={contentToRender} />
-            {isAnimating && (
-              <span className="inline-block w-[2px] h-[1em] bg-zinc-400 ml-0.5 animate-pulse align-text-bottom" />
-            )}
-          </>
+          <MarkdownRenderer content={message.content} />
         )}
 
         {showToolSummary && (
@@ -142,17 +119,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         )}
 
         {showExport && (
-          <>
-            <div className="border-t border-zinc-700/50 mt-3 pt-2 flex justify-end">
-              <button
-                onClick={handleExport}
-                className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors px-2 py-1 rounded-md hover:bg-zinc-800/60"
-              >
-                <Download size={14} />
-                {t('chat.exportMarkdown')}
-              </button>
-            </div>
-          </>
+          <div className="border-t border-zinc-800/30 mt-3 pt-2 flex justify-end">
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors px-2 py-1 rounded-md hover:bg-zinc-800/60"
+            >
+              <Download size={14} />
+              {t('chat.exportMarkdown')}
+            </button>
+          </div>
         )}
       </div>
     </div>

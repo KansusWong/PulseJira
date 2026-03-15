@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
@@ -73,8 +73,6 @@ export function ChatView() {
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
   const setTeamCollaborationActive = usePulseStore((s) => s.setTeamCollaborationActive);
 
-  const addTypewriterMessageId = usePulseStore((s) => s.addTypewriterMessageId);
-
   const questionnaireData = usePulseStore((s) => s.questionnaireData);
   const setQuestionnaireData = usePulseStore((s) => s.setQuestionnaireData);
   const clearQuestionnaireData = usePulseStore((s) => s.clearQuestionnaireData);
@@ -91,7 +89,6 @@ export function ChatView() {
   const startStreamingToolCall = usePulseStore((s) => s.startStreamingToolCall);
   const endStreamingToolCall = usePulseStore((s) => s.endStreamingToolCall);
   const resetStreamingState = usePulseStore((s) => s.resetStreamingState);
-  const clearHadStreaming = usePulseStore((s) => s.clearHadStreaming);
 
   // RAF-based token buffering to avoid excessive re-renders
   const tokenBufferRef = useRef('');
@@ -232,7 +229,6 @@ export function ChatView() {
       }
 
       clearQuestionnaireData();
-      clearHadStreaming();
       resetStreamingState();
       setStreaming(true);
       clearStreamingSteps();
@@ -385,20 +381,19 @@ export function ChatView() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData, hideCompactionUpgrade, clearPendingTeamUpgrade, resetStreamingState, clearHadStreaming]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData, hideCompactionUpgrade, clearPendingTeamUpgrade, resetStreamingState]
   );
 
   const handleSSEEvent = useCallback(
     (event: ChatEvent, conversationId: string) => {
       switch (event.type) {
         case "message": {
-          // Flush token buffer and reset streaming state — final message replaces streamed content
+          // Flush token buffer
           if (rafRef.current) {
             cancelAnimationFrame(rafRef.current);
             rafRef.current = undefined;
           }
           tokenBufferRef.current = '';
-          resetStreamingState();
 
           // Snapshot tool steps before they get cleared in finally block
           const currentSteps = usePulseStore.getState().streamingSteps;
@@ -415,12 +410,9 @@ export function ChatView() {
             },
             created_at: event.data.created_at || new Date().toISOString(),
           };
+          // Add message first, then reset streaming — React batches both in same render
           addMessage(conversationId, msg);
-
-          // Mark for typewriter animation
-          if (msg.role === "assistant") {
-            addTypewriterMessageId(msg.id);
-          }
+          resetStreamingState();
           break;
         }
 
@@ -592,7 +584,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, addTypewriterMessageId, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, t]
   );
 
   return (
@@ -637,15 +629,12 @@ export function ChatView() {
               <StreamingBubble sections={streamingSections} />
             )}
 
-            {/* Three-dot bounce — only before first token arrives */}
+            {/* Thinking indicator — only before first token arrives */}
             {isStreaming && !teamCollaborationActive && streamingSections.length === 0 && (
-              <div className="mr-auto">
-                <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <div className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <div className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
+              <div className="mr-auto max-w-[85%] px-1 py-1">
+                <div className="flex items-center gap-2 text-sm text-zinc-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Thinking...</span>
                 </div>
               </div>
             )}

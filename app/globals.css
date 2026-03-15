@@ -115,6 +115,14 @@ body {
   animation: fire-pulse 2s ease-in-out infinite;
 }
 
+/* Claude Code style: max font-weight 500 in prose */
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  font-weight: 500 !important;
+}
+.prose strong {
+  font-weight: 500 !important;
+}
+
 /* ── highlight.js dark theme (github-dark-dimmed style) ────── */
 .prose pre code.hljs { display: block; padding: 1em; overflow-x: auto; }
 .prose code.hljs { padding: 3px 5px; }

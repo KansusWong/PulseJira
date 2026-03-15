@@ -48,7 +48,7 @@ function CodeBlockWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative group">
       <CopyButton preRef={preRef} />
-      <pre ref={preRef} className="overflow-x-auto rounded-lg bg-zinc-950/80 p-4 text-sm">
+      <pre ref={preRef} className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-sm border border-zinc-800/30">
         {children}
       </pre>
     </div>
@@ -77,7 +77,7 @@ const mdComponents: Components = {
     if (isInline) {
       return (
         <code
-          className="rounded bg-zinc-800 px-1.5 py-0.5 text-[0.85em] text-zinc-200 font-mono"
+          className="rounded-sm bg-zinc-800/60 px-1 py-0.5 text-[0.85em] text-zinc-200 font-mono"
           {...props}
         >
           {children}
@@ -107,7 +107,14 @@ interface MarkdownRendererProps {
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   return (
-    <div className={clsx("prose prose-invert prose-sm max-w-none break-words", className)}>
+    <div className={clsx(
+      "prose prose-invert prose-sm max-w-none break-words",
+      "prose-headings:font-medium prose-headings:text-zinc-200",
+      "prose-p:text-zinc-300 prose-p:leading-relaxed",
+      "prose-strong:font-medium prose-strong:text-zinc-200",
+      "prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline",
+      className,
+    )}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
