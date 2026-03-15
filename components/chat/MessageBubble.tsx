@@ -55,13 +55,14 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const agentName = message.metadata?.agent_name;
   const bubbleRef = useRef<HTMLDivElement>(null);
 
-  // Typewriter animation
+  // Typewriter animation — skip when user already saw content via streaming
   const shouldAnimate = usePulseStore((s) => s.typewriterMessageIds.has(message.id));
+  const hadStreaming = usePulseStore((s) => s.hadStreamingContent);
   const removeTypewriterMessageId = usePulseStore((s) => s.removeTypewriterMessageId);
 
   const { displayedContent, isAnimating, skipToEnd } = useTypewriter({
     content: message.content,
-    enabled: shouldAnimate && message.role === "assistant",
+    enabled: shouldAnimate && message.role === "assistant" && !hadStreaming,
     onComplete: () => removeTypewriterMessageId(message.id),
   });
 

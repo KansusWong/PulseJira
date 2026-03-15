@@ -9,7 +9,7 @@ import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import type { ChatMessage, ChatEvent, StructuredAgentStep } from "@/lib/core/types";
 import type { ToolStepSummary } from "./ToolUsageSummary";
-import { StreamingStepIndicator } from "./StreamingStepIndicator";
+import { StreamingBubble } from "./StreamingBubble";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
 import { QuestionnaireInline } from "./QuestionnaireInline";
 import { CompactionUpgradeCard } from "./CompactionUpgradeCard";
@@ -85,12 +85,13 @@ export function ChatView() {
   const setPendingTeamUpgrade = usePulseStore((s) => s.setPendingTeamUpgrade);
   const clearPendingTeamUpgrade = usePulseStore((s) => s.clearPendingTeamUpgrade);
 
-  // Streaming token state
-  const streamingContent = usePulseStore((s) => s.streamingContent);
-  const activeToolCall = usePulseStore((s) => s.activeToolCall);
+  // Streaming sections state (inline bubble)
+  const streamingSections = usePulseStore((s) => s.streamingSections);
   const appendStreamingToken = usePulseStore((s) => s.appendStreamingToken);
-  const setActiveToolCall = usePulseStore((s) => s.setActiveToolCall);
+  const startStreamingToolCall = usePulseStore((s) => s.startStreamingToolCall);
+  const endStreamingToolCall = usePulseStore((s) => s.endStreamingToolCall);
   const resetStreamingState = usePulseStore((s) => s.resetStreamingState);
+  const clearHadStreaming = usePulseStore((s) => s.clearHadStreaming);
 
   // RAF-based token buffering to avoid excessive re-renders
   const tokenBufferRef = useRef('');
@@ -206,7 +207,7 @@ export function ChatView() {
     if (isNearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, streamingContent]);
+  }, [messages, streamingSections]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -231,6 +232,7 @@ export function ChatView() {
       }
 
       clearQuestionnaireData();
+      clearHadStreaming();
       resetStreamingState();
       setStreaming(true);
       clearStreamingSteps();
@@ -383,7 +385,7 @@ export function ChatView() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData, hideCompactionUpgrade, clearPendingTeamUpgrade, resetStreamingState]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData, hideCompactionUpgrade, clearPendingTeamUpgrade, resetStreamingState, clearHadStreaming]
   );
 
   const handleSSEEvent = useCallback(
@@ -554,7 +556,7 @@ export function ChatView() {
         }
 
         case "tool_call_start": {
-          setActiveToolCall({
+          startStreamingToolCall({
             toolName: event.data.toolName,
             toolLabel: event.data.toolLabel,
             toolCallId: event.data.toolCallId,
@@ -564,7 +566,11 @@ export function ChatView() {
         }
 
         case "tool_call_end": {
-          setActiveToolCall(null);
+          endStreamingToolCall({
+            toolCallId: event.data.toolCallId,
+            resultPreview: event.data.result,
+            success: event.data.success !== false,
+          });
           break;
         }
 
@@ -586,7 +592,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, addTypewriterMessageId, handleToken, setActiveToolCall, resetStreamingState, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, addTypewriterMessageId, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, t]
   );
 
   return (
@@ -626,41 +632,13 @@ export function ChatView() {
               </div>
             )}
 
-            {/* Streaming indicator — normal (non-team) mode only */}
-            {isStreaming && !teamCollaborationActive && streamingSteps.length > 0 && (
-              <StreamingStepIndicator steps={streamingSteps} />
+            {/* Inline streaming bubble — text + tool calls interleaved */}
+            {isStreaming && !teamCollaborationActive && streamingSections.length > 0 && (
+              <StreamingBubble sections={streamingSections} />
             )}
 
-            {/* Streaming token content — displayed before final message arrives */}
-            {isStreaming && !teamCollaborationActive && streamingContent && (
-              <div className="mr-auto max-w-[85%]">
-                <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
-                  <div className="text-sm text-zinc-200 whitespace-pre-wrap break-words">
-                    {streamingContent}
-                    <span className="inline-block w-0.5 h-4 bg-zinc-400 animate-pulse ml-0.5 align-text-bottom" />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Active tool call indicator */}
-            {isStreaming && !teamCollaborationActive && activeToolCall && (
-              <div className="mr-auto">
-                <div className="rounded-2xl px-4 py-2.5 bg-zinc-900/60 border border-zinc-800/50">
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-                    <span>{activeToolCall.toolLabel}</span>
-                    {activeToolCall.args && (
-                      <span className="text-zinc-600 truncate max-w-[200px]">
-                        {activeToolCall.args}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isStreaming && !teamCollaborationActive && streamingSteps.length === 0 && !streamingContent && !activeToolCall && (
+            {/* Three-dot bounce — only before first token arrives */}
+            {isStreaming && !teamCollaborationActive && streamingSections.length === 0 && (
               <div className="mr-auto">
                 <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
                   <div className="flex items-center gap-1.5">

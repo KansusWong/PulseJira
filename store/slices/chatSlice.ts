@@ -15,6 +15,12 @@ import type {
 
 export type PlanStepStatus = 'pending' | 'active' | 'completed' | 'skipped';
 
+/** A section in the inline streaming bubble (text or tool call). */
+export type StreamingSection =
+  | { type: 'text'; content: string }
+  | { type: 'tool_call'; toolName: string; toolLabel: string; toolCallId: string;
+      args: string; status: 'running' | 'success' | 'error'; resultPreview?: string };
+
 /** Snapshot of all right-side panel states — used for per-conversation caching. */
 export interface PanelSnapshot {
   planPanel: ChatSlice['planPanel'];
@@ -124,15 +130,9 @@ export interface ChatSlice {
     conversationId: string;
   } | null;
 
-  // Streaming token state (transient — tokens flowing from ReAct loop)
-  streamingContent: string;
-  streamingReasoning: string;
-  activeToolCall: {
-    toolName: string;
-    toolLabel: string;
-    toolCallId: string;
-    args: string;
-  } | null;
+  // Streaming sections (inline bubble — tokens + tool calls interleaved)
+  streamingSections: StreamingSection[];
+  hadStreamingContent: boolean;
 
   // Questionnaire inline state
   questionnaireData: QuestionnaireData | null;
@@ -202,9 +202,10 @@ export interface ChatSlice {
   clearPendingTeamUpgrade: () => void;
 
   appendStreamingToken: (token: string) => void;
-  appendReasoningToken: (token: string) => void;
-  setActiveToolCall: (data: { toolName: string; toolLabel: string; toolCallId: string; args: string } | null) => void;
+  startStreamingToolCall: (data: { toolName: string; toolLabel: string; toolCallId: string; args: string }) => void;
+  endStreamingToolCall: (data: { toolCallId: string; resultPreview?: string; success: boolean }) => void;
   resetStreamingState: () => void;
+  clearHadStreaming: () => void;
 
   setQuestionnaireData: (data: QuestionnaireData) => void;
   clearQuestionnaireData: () => void;
@@ -307,9 +308,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
 
   pendingTeamUpgrade: null,
 
-  streamingContent: '',
-  streamingReasoning: '',
-  activeToolCall: null,
+  streamingSections: [],
+  hadStreamingContent: false,
 
   questionnaireData: null,
 
@@ -687,16 +687,39 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     set({ pendingTeamUpgrade: null }),
 
   appendStreamingToken: (token) =>
-    set((state) => ({ streamingContent: state.streamingContent + token })),
+    set((state) => {
+      const sections = [...state.streamingSections];
+      const last = sections[sections.length - 1];
+      if (last && last.type === 'text') {
+        sections[sections.length - 1] = { ...last, content: last.content + token };
+      } else {
+        sections.push({ type: 'text', content: token });
+      }
+      return { streamingSections: sections, hadStreamingContent: true };
+    }),
 
-  appendReasoningToken: (token) =>
-    set((state) => ({ streamingReasoning: state.streamingReasoning + token })),
+  startStreamingToolCall: (data) =>
+    set((state) => ({
+      streamingSections: [
+        ...state.streamingSections,
+        { type: 'tool_call' as const, ...data, status: 'running' as const },
+      ],
+    })),
 
-  setActiveToolCall: (data) =>
-    set({ activeToolCall: data }),
+  endStreamingToolCall: (data) =>
+    set((state) => ({
+      streamingSections: state.streamingSections.map((s) =>
+        s.type === 'tool_call' && s.toolCallId === data.toolCallId
+          ? { ...s, status: data.success ? 'success' as const : 'error' as const, resultPreview: data.resultPreview }
+          : s
+      ),
+    })),
 
   resetStreamingState: () =>
-    set({ streamingContent: '', streamingReasoning: '', activeToolCall: null }),
+    set({ streamingSections: [] }),
+
+  clearHadStreaming: () =>
+    set({ hadStreamingContent: false }),
 
   setQuestionnaireData: (data) => set({ questionnaireData: data }),
   clearQuestionnaireData: () => set({ questionnaireData: null }),
