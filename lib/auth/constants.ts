@@ -18,7 +18,7 @@ export const KEY_CACHE_TTL_MS = 60_000;
 export const AUDIT_BODY_MAX_LENGTH = 1_000;
 
 /** Paths that are always accessible without authentication */
-export const PUBLIC_PATHS = ["/api/health", "/api/auth/bootstrap"];
+export const PUBLIC_PATHS = ["/api/health", "/api/auth/bootstrap", "/api/auth/register", "/login", "/no-organization"];
 
 /** Path prefixes that use CRON_SECRET instead of API key auth */
 export const CRON_PATH_PREFIXES = ["/api/cron/"];
@@ -34,3 +34,21 @@ export const REDACTED_BODY_PATHS = [
 export const ROLE_HIERARCHY = ["viewer", "developer", "admin"] as const;
 
 export type AuthRole = (typeof ROLE_HIERARCHY)[number];
+
+/** Organization role hierarchy — higher index = more permissions */
+export const ORG_ROLE_HIERARCHY = ['viewer', 'member', 'admin', 'owner'] as const;
+
+export type OrgRole = (typeof ORG_ROLE_HIERARCHY)[number];
+
+/**
+ * Maps organization role to API key role for permission checking.
+ */
+export function mapOrgRoleToApiKeyRole(orgRole: string | undefined | null): AuthRole {
+  switch (orgRole) {
+    case 'owner': return 'admin';
+    case 'admin': return 'admin';
+    case 'member': return 'developer';
+    case 'viewer': return 'viewer';
+    default: return 'viewer';
+  }
+}

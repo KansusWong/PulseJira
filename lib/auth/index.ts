@@ -10,6 +10,9 @@ export interface AuthContext {
   keyName: string | null;
   role: AuthRole;
   authEnabled: boolean;
+  userId: string | null;
+  orgId: string | null;
+  orgRole: 'owner' | 'admin' | 'member' | 'viewer' | null;
 }
 
 export class AuthError extends Error {
@@ -31,8 +34,11 @@ export function getAuthContext(): AuthContext {
   const keyId = headerStore.get("x-auth-key-id") || null;
   const keyName = headerStore.get("x-auth-key-name") || null;
   const authEnabled = headerStore.get("x-auth-enabled") === "true";
+  const userId = headerStore.get("x-auth-user-id") || null;
+  const orgId = headerStore.get("x-auth-org-id") || null;
+  const orgRole = (headerStore.get("x-auth-org-role") as 'owner' | 'admin' | 'member' | 'viewer' | null) || null;
 
-  return { keyId, keyName, role, authEnabled };
+  return { keyId, keyName, role, authEnabled, userId, orgId, orgRole };
 }
 
 /**
