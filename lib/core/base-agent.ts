@@ -40,6 +40,7 @@ const contextBudget = new ContextBudget();
 function resolveMappedModelForAccount(
   requestedModel: string,
   modelMapping?: Record<string, string>,
+  accountDefaultModel?: string,
 ): string {
   const mapping = modelMapping || {};
   const requestedKey = requestedModel.trim().toLowerCase();
@@ -51,6 +52,14 @@ function resolveMappedModelForAccount(
 
   const wildcard = mapping['*'] || mapping.default || mapping.DEFAULT;
   if (typeof wildcard === 'string' && wildcard.trim()) return wildcard.trim();
+
+  // If the account has a modelMapping but this model isn't in it,
+  // the model likely belongs to a different provider.
+  // Fall back to the account's default model to avoid "invalid model" errors.
+  if (accountDefaultModel && Object.keys(mapping).length > 0) {
+    return accountDefaultModel;
+  }
+
   return requestedModel;
 }
 
@@ -388,7 +397,7 @@ export class BaseAgent {
     return withPoolFailover(
       async (resolved) => {
         const requestedModel = String(params?.model || this.config.model || process.env.LLM_MODEL_NAME || 'glm-5');
-        const mappedModel = resolveMappedModelForAccount(requestedModel, resolved.modelMapping);
+        const mappedModel = resolveMappedModelForAccount(requestedModel, resolved.modelMapping, resolved.model);
         const nextParams = mappedModel === requestedModel ? params : { ...params, model: mappedModel };
         const completion = await resolved.client.chat.completions.create(nextParams, { timeout: LLM_TIMEOUT_MS });
         // Update usage attribution to the actual account used by this successful call.
@@ -426,7 +435,7 @@ export class BaseAgent {
     return withPoolFailoverStream(
       async (resolved) => {
         const requestedModel = String(params?.model || this.config.model || process.env.LLM_MODEL_NAME || 'glm-5');
-        const mappedModel = resolveMappedModelForAccount(requestedModel, resolved.modelMapping);
+        const mappedModel = resolveMappedModelForAccount(requestedModel, resolved.modelMapping, resolved.model);
         const nextParams: any = {
           ...params,
           model: mappedModel,

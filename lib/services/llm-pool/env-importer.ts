@@ -28,14 +28,16 @@ export function detectEnvAccounts(dismissedIds: string[] = []): LLMAccount[] {
 
   if (process.env.DEEPSEEK_API_KEY && !dismissed.has('env-deepseek')) {
     const backupBaseURL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+    const deepseekThinking = process.env.DEEPSEEK_MODEL_NAME || 'deepseek-reasoner';
+    const deepseekFast = process.env.DEEPSEEK_FAST_MODEL_NAME || 'deepseek-chat';
     accounts.push({
       id: 'env-deepseek',
       name: '备用模型 (环境变量)',
       provider: inferProvider(backupBaseURL),
       apiKey: process.env.DEEPSEEK_API_KEY,
       baseURL: backupBaseURL,
-      defaultModel: process.env.DEEPSEEK_MODEL_NAME || 'deepseek-reasoner',
-      modelMapping: buildDefaultModelMapping(primaryRequestedModel, process.env.DEEPSEEK_MODEL_NAME || 'deepseek-reasoner'),
+      defaultModel: deepseekThinking,
+      modelMapping: buildDefaultModelMapping(primaryRequestedModel, deepseekThinking, deepseekFast),
       enabled: true,
       priority: 10,
       tags: ['red-team'],
@@ -57,11 +59,26 @@ function inferProvider(baseURL?: string): string {
 }
 
 function buildDefaultModelMapping(
-  requestedModel: string | undefined,
-  targetModel: string | undefined,
+  primaryModel: string | undefined,
+  targetThinkingModel: string | undefined,
+  targetFastModel?: string,
 ): ModelMapping | undefined {
-  const source = String(requestedModel || '').trim();
-  const target = String(targetModel || '').trim();
-  if (!source || !target || source.toLowerCase() === target.toLowerCase()) return undefined;
-  return { [source]: target };
+  const source = String(primaryModel || '').trim();
+  const thinkingTarget = String(targetThinkingModel || '').trim();
+  const fastSource = String(process.env.AGENT_FAST_MODEL || '').trim();
+  const fastTarget = String(targetFastModel || '').trim();
+
+  const mapping: ModelMapping = {};
+
+  // Map primary (thinking) model → target thinking model
+  if (source && thinkingTarget && source.toLowerCase() !== thinkingTarget.toLowerCase()) {
+    mapping[source] = thinkingTarget;
+  }
+
+  // Map fast model → target fast model
+  if (fastSource && fastTarget && fastSource.toLowerCase() !== fastTarget.toLowerCase()) {
+    mapping[fastSource] = fastTarget;
+  }
+
+  return Object.keys(mapping).length > 0 ? mapping : undefined;
 }

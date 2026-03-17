@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { ArrowUp, Paperclip, Square, Sparkles } from "lucide-react";
+import { ArrowUp, Paperclip, Square, ChevronDown, Check, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
 import { ContextWindowIndicator } from "./ContextWindowIndicator";
 import { AttachmentPreview } from "./AttachmentPreview";
 import type { AttachmentMeta } from "@/lib/core/types";
+
+const FAST_MODEL_LABEL = process.env.NEXT_PUBLIC_FAST_MODEL_LABEL || 'GLM-4-Flash';
+const THINKING_MODEL_LABEL = process.env.NEXT_PUBLIC_THINKING_MODEL_LABEL || 'GLM-5';
 
 const ALLOWED_TYPES = [
   "image/png", "image/jpeg", "image/gif", "image/webp",
@@ -49,8 +52,10 @@ export function ChatInput({
   const [text, setText] = useState("");
   const [pendingFiles, setPendingFiles] = useState<AttachmentMeta[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showModelMenu, setShowModelMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -59,6 +64,18 @@ export function ChatInput({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [text]);
+
+  // Click outside to close model menu
+  useEffect(() => {
+    if (!showModelMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setShowModelMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showModelMenu]);
 
   const uploadFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -133,6 +150,7 @@ export function ChatInput({
   };
 
   const canSend = (text.trim() || pendingFiles.length > 0) && !disabled && !uploading;
+  const modelLabel = thinkingMode ? THINKING_MODEL_LABEL : FAST_MODEL_LABEL;
 
   return (
     <div className="px-4 py-3">
@@ -151,48 +169,8 @@ export function ChatInput({
               </div>
             )}
 
-            {/* Input row */}
-            <div className="flex items-end gap-2 px-4 py-3">
-              {/* Attach button */}
-              <button
-                onClick={handleFileSelect}
-                disabled={uploading || streaming}
-                className={clsx(
-                  "p-1 transition-colors flex-shrink-0 mb-0.5",
-                  uploading || streaming
-                    ? "text-zinc-700 cursor-not-allowed"
-                    : "text-zinc-600 hover:text-zinc-400"
-                )}
-                title={t('chat.attach')}
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={ALLOWED_EXTENSIONS}
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
-              {/* Thinking mode toggle */}
-              <button
-                onClick={() => onThinkingModeChange?.(!thinkingMode)}
-                className={clsx(
-                  "p-1 rounded transition-colors flex-shrink-0 mb-0.5",
-                  thinkingMode
-                    ? "text-violet-400 bg-violet-500/10"
-                    : "text-zinc-600 hover:text-zinc-400"
-                )}
-                title={thinkingMode ? t('chat.thinkingModeOn') : t('chat.thinkingModeOff')}
-              >
-                <Sparkles className="w-4 h-4" />
-              </button>
-
-              {/* Input */}
+            {/* Textarea row */}
+            <div className="flex items-end gap-2 px-4 pt-3 pb-1">
               <textarea
                 ref={textareaRef}
                 value={text}
@@ -203,44 +181,136 @@ export function ChatInput({
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none resize-none min-h-[24px] max-h-[200px]"
               />
+            </div>
 
-              {/* Mode indicator */}
-              {executionMode && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 flex-shrink-0 mb-0.5">
-                  {executionMode.replace("_", " ")}
-                </span>
-              )}
-
-              {/* Submit / Stop */}
-              {streaming && !text.trim() ? (
+            {/* Bottom toolbar row */}
+            <div className="flex items-center justify-between px-4 pb-3 pt-1">
+              {/* Left: attach + mode indicator */}
+              <div className="flex items-center gap-2">
+                {/* Attach button */}
                 <button
-                  onClick={onStop}
-                  className="p-1.5 rounded-lg transition-all flex-shrink-0 mb-0.5 bg-red-500/80 text-white hover:bg-red-500"
-                  title={t('chat.stopGenerating')}
-                >
-                  <Square className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={!canSend}
+                  onClick={handleFileSelect}
+                  disabled={uploading || streaming}
                   className={clsx(
-                    "p-1.5 rounded-lg transition-all flex-shrink-0 mb-0.5",
-                    canSend
-                      ? streaming
-                        ? "bg-amber-500 text-zinc-900 hover:bg-amber-400"
-                        : "bg-zinc-100 text-zinc-900 hover:bg-white"
-                      : "bg-zinc-800 text-zinc-600"
+                    "p-1 transition-colors flex-shrink-0",
+                    uploading || streaming
+                      ? "text-zinc-700 cursor-not-allowed"
+                      : "text-zinc-600 hover:text-zinc-400"
                   )}
-                  title={streaming ? t('chat.sendWillInterrupt') : undefined}
+                  title={t('chat.attach')}
                 >
-                  {streaming && text.trim() ? (
-                    <Square className="w-3.5 h-3.5" />
-                  ) : (
-                    <ArrowUp className="w-4 h-4" />
-                  )}
+                  <Paperclip className="w-4 h-4" />
                 </button>
-              )}
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={ALLOWED_EXTENSIONS}
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                {/* Mode indicator */}
+                {executionMode && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 flex-shrink-0">
+                    {executionMode.replace("_", " ")}
+                  </span>
+                )}
+              </div>
+
+              {/* Right: model selector + submit/stop */}
+              <div className="flex items-center gap-2">
+                {/* Model selector dropdown */}
+                <div ref={modelMenuRef} className="relative">
+                  <button
+                    onClick={() => setShowModelMenu(!showModelMenu)}
+                    className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded-lg hover:bg-zinc-800 transition-colors"
+                  >
+                    <span>{modelLabel}</span>
+                    <ChevronDown className={clsx("w-3 h-3 transition-transform", showModelMenu && "rotate-180")} />
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {showModelMenu && (
+                    <div className="absolute bottom-full right-0 mb-2 w-64 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden z-50">
+                      {/* Fast model option */}
+                      <button
+                        onClick={() => { onThinkingModeChange?.(false); setShowModelMenu(false); }}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-800/60 transition-colors text-left"
+                      >
+                        <div>
+                          <div className="text-sm text-zinc-200">{FAST_MODEL_LABEL}</div>
+                          <div className="text-xs text-zinc-500 mt-0.5">{t('chat.modelFastDesc')}</div>
+                        </div>
+                        {!thinkingMode && <Check className="w-4 h-4 text-blue-400 flex-shrink-0 ml-3" />}
+                      </button>
+
+                      <div className="border-t border-zinc-800 mx-3" />
+
+                      {/* Extended thinking toggle */}
+                      <div className="flex items-center justify-between px-4 py-3 hover:bg-zinc-800/60 transition-colors">
+                        <div>
+                          <div className="text-sm text-zinc-200 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            {t('chat.extendedThinking')}
+                          </div>
+                          <div className="text-xs text-zinc-500 mt-0.5">{t('chat.extendedThinkingDesc')}</div>
+                        </div>
+                        {/* Toggle switch */}
+                        <button
+                          onClick={() => onThinkingModeChange?.(!thinkingMode)}
+                          className={clsx(
+                            "inline-flex items-center w-9 h-5 rounded-full transition-colors flex-shrink-0 ml-3 p-0.5",
+                            thinkingMode ? "bg-zinc-200" : "bg-zinc-700"
+                          )}
+                        >
+                          <span
+                            className={clsx(
+                              "block w-4 h-4 rounded-full transition-transform shadow-sm",
+                              thinkingMode
+                                ? "translate-x-[16px] bg-zinc-900"
+                                : "translate-x-0 bg-zinc-400"
+                            )}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit / Stop */}
+                {streaming && !text.trim() ? (
+                  <button
+                    onClick={onStop}
+                    className="p-1.5 rounded-lg transition-all flex-shrink-0 bg-red-500/80 text-white hover:bg-red-500"
+                    title={t('chat.stopGenerating')}
+                  >
+                    <Square className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!canSend}
+                    className={clsx(
+                      "p-1.5 rounded-lg transition-all flex-shrink-0",
+                      canSend
+                        ? streaming
+                          ? "bg-amber-500 text-zinc-900 hover:bg-amber-400"
+                          : "bg-zinc-100 text-zinc-900 hover:bg-white"
+                        : "bg-zinc-800 text-zinc-600"
+                    )}
+                    title={streaming ? t('chat.sendWillInterrupt') : undefined}
+                  >
+                    {streaming && text.trim() ? (
+                      <Square className="w-3.5 h-3.5" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
