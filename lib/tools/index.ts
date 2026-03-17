@@ -59,6 +59,7 @@ import { MouseClickTool } from './mouse-click';
 import { KeyboardTypeTool } from './keyboard-type';
 import { KeyboardHotkeyTool } from './keyboard-hotkey';
 import { MouseMoveTool } from './mouse-move';
+import { VisualizerTool } from './visualizer';
 
 // ==========================================================================
 // Phase 1: Renamed tools (new primary names + old aliases)
@@ -138,6 +139,7 @@ registerTool('mouse_click', () => new MouseClickTool());
 registerTool('keyboard_type', () => new KeyboardTypeTool());
 registerTool('keyboard_hotkey', () => new KeyboardHotkeyTool());
 registerTool('mouse_move', () => new MouseMoveTool());
+registerTool('visualizer', () => new VisualizerTool());
 
 // --- Workspace-scoped tool factories ---
 // These are NOT registered globally because they require runtime context.
@@ -165,6 +167,7 @@ export { EnterPlanModeTool, ExitPlanModeTool, AskUserQuestionTool } from './plan
 export { TodoWriteTool, TodoReadTool, getActiveTodoSnapshot } from './todo';
 export { TaskTool } from './task';
 export { MemoryTool } from './memory';
+export { VaultTool } from './vault';
 
 // Phase 3 tool exports
 export { WebFetchTool } from './web-fetch';
@@ -188,6 +191,7 @@ export { MouseClickTool } from './mouse-click';
 export { KeyboardTypeTool } from './keyboard-type';
 export { KeyboardHotkeyTool } from './keyboard-hotkey';
 export { MouseMoveTool } from './mouse-move';
+export { VisualizerTool } from './visualizer';
 
 // Shared infrastructure exports
 export { getToolDescVersion, setToolDescVersion, selectDesc } from './tool-desc-version';
