@@ -1,9 +1,9 @@
 -- ============================================================================
--- BASELINE SCHEMA — consolidated from migrations 001–039
+-- BASELINE SCHEMA — consolidated from migrations 001–061 + P0 multi-tenant
 --
--- Generated: 2026-03-13
+-- Generated: 2026-03-13 | Updated: 2026-03-17 (consolidated P0 multi-tenant)
 -- This file captures the final state of all tables, indexes, constraints,
--- and RPC functions. It replaces migrations 001 through 039 for fresh
+-- and RPC functions. It replaces migrations 001 through 061 for fresh
 -- Supabase deployments.
 --
 -- PREREQUISITES (tables created outside the migration system):
@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS projects (
   -- agent pipeline state
   agent_logs              jsonb,
   pipeline_checkpoint     jsonb,
+  -- multi-tenant columns
+  org_id                  uuid,        -- FK added in multi-tenant section
+  created_by              uuid,        -- FK added in multi-tenant section
   created_at              timestamptz DEFAULT timezone('utc'::text, now()),
   updated_at              timestamptz DEFAULT timezone('utc'::text, now())
 );
@@ -355,18 +358,13 @@ CREATE INDEX IF NOT EXISTS idx_skill_embeddings_embedding ON skill_embeddings
 -- ############################################################################
 
 CREATE TABLE IF NOT EXISTS user_preferences (
-  user_id              text PRIMARY KEY DEFAULT 'default',
-  topics               text[] DEFAULT '{}',
-  platforms            jsonb DEFAULT '{"reddit":{"enabled":false,"sources":[]},"twitter":{"enabled":false,"sources":[]},"youtube":{"enabled":false,"sources":[]}}',
-  agent_execution_mode text NOT NULL DEFAULT 'simple'
-                       CHECK (agent_execution_mode IN ('simple','medium','advanced')),
-  trust_level          text NOT NULL DEFAULT 'standard'
-                       CHECK (trust_level IN ('auto','standard','collaborative')),
-  updated_at           timestamptz DEFAULT timezone('utc'::text, now())
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL,     -- FK added in multi-tenant section
+  org_id      UUID NOT NULL,     -- FK added in multi-tenant section
+  preferences JSONB DEFAULT '{}',
+  updated_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, org_id)
 );
-
-INSERT INTO user_preferences (user_id) VALUES ('default')
-ON CONFLICT (user_id) DO NOTHING;
 
 -- ############################################################################
 -- SECTION 8: LLM Usage & Failover
@@ -389,6 +387,8 @@ CREATE TABLE IF NOT EXISTS llm_usage (
   trace_id          text,
   cost_usd          numeric,
   duration_ms       integer,
+  org_id            uuid,        -- FK added in multi-tenant section
+  user_id           uuid,        -- FK added in multi-tenant section
   used_at           timestamptz DEFAULT timezone('utc'::text, now())
 );
 
@@ -481,6 +481,8 @@ CREATE TABLE IF NOT EXISTS conversations (
   architect_checkpoint      JSONB,
   architect_result          JSONB,
   assessed_at_message_count INT DEFAULT 0,
+  org_id                    UUID,   -- FK added in multi-tenant section
+  created_by                UUID,   -- FK added in multi-tenant section
   created_at                TIMESTAMPTZ DEFAULT NOW(),
   updated_at                TIMESTAMPTZ DEFAULT NOW()
 );
@@ -497,6 +499,7 @@ CREATE TABLE IF NOT EXISTS messages (
                   CHECK (role IN ('user','assistant','system','agent','plan')),
   content         TEXT NOT NULL,
   metadata        JSONB,
+  user_id         UUID,            -- FK added in multi-tenant section
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -601,6 +604,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
   last_used_at       timestamptz,
   scoped_project_ids uuid[],
   metadata           jsonb DEFAULT '{}'::jsonb,
+  org_id             uuid,         -- FK added in multi-tenant section
+  user_id            uuid,         -- FK added in multi-tenant section
   created_at         timestamptz DEFAULT now(),
   updated_at         timestamptz DEFAULT now()
 );
@@ -621,6 +626,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   ip_address           text,
   user_agent           text,
   request_body_summary text,
+  org_id               uuid,       -- FK added in multi-tenant section
   created_at           timestamptz DEFAULT now()
 );
 
@@ -694,6 +700,7 @@ CREATE TABLE IF NOT EXISTS webhook_configs (
   active           BOOLEAN NOT NULL DEFAULT TRUE,
   message_template TEXT DEFAULT NULL,
   display_name     TEXT DEFAULT NULL,
+  org_id           UUID,       -- FK added in multi-tenant section
   created_at       TIMESTAMPTZ DEFAULT NOW(),
   updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1025,6 +1032,312 @@ BEGIN
   LIMIT match_count;
 END;
 $$;
+
+-- ############################################################################
+-- SECTION 18: Vault Artifacts & Asset Marketplace
+-- ############################################################################
+
+CREATE TABLE IF NOT EXISTS vault_artifacts (
+  id                text PRIMARY KEY,
+  project_id        uuid,          -- FK added in multi-tenant section (ON DELETE SET NULL)
+  artifact_type     text NOT NULL
+                    CHECK (artifact_type IN ('skill', 'tool', 'doc', 'pptx', 'code')),
+  path              text NOT NULL DEFAULT '',
+  name              text NOT NULL,
+  description       text NOT NULL DEFAULT '',
+  created_by_epic   text NOT NULL DEFAULT '',
+  created_by_agent  text NOT NULL DEFAULT 'rebuild',
+  reuse_count       integer NOT NULL DEFAULT 0,
+  tags              text[] DEFAULT '{}',
+  depends_on        text[] DEFAULT '{}',
+  version           integer NOT NULL DEFAULT 1,
+  -- P0 multi-tenant extensions
+  org_id            uuid NOT NULL,       -- FK added in multi-tenant section
+  visibility        text DEFAULT 'org' CHECK (visibility IN ('private','org','public')),
+  version_label     text,
+  status            text DEFAULT 'draft' CHECK (status IN ('draft','published','deprecated','superseded')),
+  payload           jsonb,
+  created_by        uuid,                -- FK added in multi-tenant section
+  published_by      uuid,                -- FK added in multi-tenant section
+  published_at      timestamptz,
+  superseded_by     text,
+  embedding         vector(256),
+  created_at        timestamptz DEFAULT timezone('utc', now()),
+  updated_at        timestamptz DEFAULT timezone('utc', now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_vault_project        ON vault_artifacts (project_id);
+CREATE INDEX IF NOT EXISTS idx_vault_type            ON vault_artifacts (artifact_type);
+CREATE INDEX IF NOT EXISTS idx_vault_epic            ON vault_artifacts (created_by_epic);
+CREATE INDEX IF NOT EXISTS idx_vault_reuse           ON vault_artifacts (reuse_count DESC);
+CREATE INDEX IF NOT EXISTS idx_vault_tags            ON vault_artifacts USING GIN (tags);
+CREATE INDEX IF NOT EXISTS idx_vault_artifacts_org   ON vault_artifacts(org_id);
+CREATE INDEX IF NOT EXISTS vault_artifacts_embedding_idx ON vault_artifacts
+  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+CREATE INDEX IF NOT EXISTS vault_artifacts_org_status_idx ON vault_artifacts(org_id, status);
+CREATE INDEX IF NOT EXISTS vault_artifacts_org_type_idx ON vault_artifacts(org_id, artifact_type);
+
+-- ############################################################################
+-- SECTION 19: Multi-Tenant Identity & Auth
+-- ############################################################################
+
+-- ----------------------------------------------------------------------------
+-- 19.1  organizations
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS organizations (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT NOT NULL,
+  slug       TEXT NOT NULL UNIQUE,
+  plan       TEXT NOT NULL DEFAULT 'trial' CHECK (plan IN ('trial','standard','enterprise')),
+  settings   JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_slug ON organizations(slug);
+
+-- ----------------------------------------------------------------------------
+-- 19.2  users (multi-tenant user accounts)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         TEXT NOT NULL UNIQUE,
+  name          TEXT,
+  password_hash TEXT,
+  avatar_url    TEXT,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- ----------------------------------------------------------------------------
+-- 19.3  org_members
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS org_members (
+  id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id    UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+  user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role      TEXT NOT NULL CHECK (role IN ('owner','admin','member','viewer')),
+  joined_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_org_members_org  ON org_members(org_id);
+
+-- ----------------------------------------------------------------------------
+-- 19.4  auth_accounts (SSO provider linking)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS auth_accounts (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider            TEXT NOT NULL,
+  provider_account_id TEXT NOT NULL,
+  access_token        TEXT,
+  refresh_token       TEXT,
+  expires_at          TIMESTAMPTZ,
+  UNIQUE(provider, provider_account_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_accounts_user ON auth_accounts(user_id);
+
+-- ----------------------------------------------------------------------------
+-- 19.5  org_invitations
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS org_invitations (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  email       TEXT NOT NULL,
+  role        TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner','admin','member','viewer')),
+  invited_by  UUID NOT NULL REFERENCES users(id),
+  token       TEXT NOT NULL UNIQUE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  accepted_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_invitations_pending
+  ON org_invitations(org_id, email) WHERE accepted_at IS NULL;
+
+-- ############################################################################
+-- SECTION 20: Platform Secrets & Quotas
+-- ############################################################################
+
+-- ----------------------------------------------------------------------------
+-- 20.1  platform_secrets (AES-256-GCM encrypted)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS platform_secrets (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID REFERENCES organizations(id),
+  key_name        TEXT NOT NULL,
+  encrypted_value TEXT NOT NULL,
+  key_version     INT NOT NULL DEFAULT 1,
+  provider        TEXT NOT NULL,
+  is_active       BOOLEAN DEFAULT true,
+  priority        INT NOT NULL DEFAULT 0,
+  created_by      UUID REFERENCES users(id),
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id, key_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_platform_secrets_provider ON platform_secrets(provider, is_active);
+
+-- ----------------------------------------------------------------------------
+-- 20.2  org_quotas
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS org_quotas (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  period      TEXT NOT NULL DEFAULT 'monthly',
+  token_limit BIGINT NOT NULL,
+  token_used  BIGINT NOT NULL DEFAULT 0,
+  reset_at    TIMESTAMPTZ NOT NULL,
+  updated_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id)
+);
+
+-- ############################################################################
+-- SECTION 21: Multi-Tenant Foreign Keys (deferred, depends on organizations + users)
+-- ############################################################################
+
+-- projects
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'projects_org_id_fkey') THEN
+    ALTER TABLE projects ADD CONSTRAINT projects_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'projects_created_by_fkey') THEN
+    ALTER TABLE projects ADD CONSTRAINT projects_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_projects_org ON projects(org_id);
+
+-- conversations
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'conversations_org_id_fkey') THEN
+    ALTER TABLE conversations ADD CONSTRAINT conversations_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'conversations_created_by_fkey') THEN
+    ALTER TABLE conversations ADD CONSTRAINT conversations_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_conversations_org ON conversations(org_id);
+
+-- messages
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'messages_user_id_fkey') THEN
+    ALTER TABLE messages ADD CONSTRAINT messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+  END IF;
+END $$;
+
+-- api_keys
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'api_keys_org_id_fkey') THEN
+    ALTER TABLE api_keys ADD CONSTRAINT api_keys_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'api_keys_user_id_fkey') THEN
+    ALTER TABLE api_keys ADD CONSTRAINT api_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+  END IF;
+END $$;
+
+-- llm_usage
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'llm_usage_org_id_fkey') THEN
+    ALTER TABLE llm_usage ADD CONSTRAINT llm_usage_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'llm_usage_user_id_fkey') THEN
+    ALTER TABLE llm_usage ADD CONSTRAINT llm_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+  END IF;
+END $$;
+
+-- webhook_configs
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'webhook_configs_org_id_fkey') THEN
+    ALTER TABLE webhook_configs ADD CONSTRAINT webhook_configs_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+
+-- audit_log
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'audit_log_org_id_fkey') THEN
+    ALTER TABLE audit_log ADD CONSTRAINT audit_log_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+
+-- user_preferences
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'user_preferences_user_id_fkey') THEN
+    ALTER TABLE user_preferences ADD CONSTRAINT user_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'user_preferences_org_id_fkey') THEN
+    ALTER TABLE user_preferences ADD CONSTRAINT user_preferences_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- vault_artifacts
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vault_artifacts_org_id_fkey') THEN
+    ALTER TABLE vault_artifacts ADD CONSTRAINT vault_artifacts_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vault_artifacts_created_by_fkey') THEN
+    ALTER TABLE vault_artifacts ADD CONSTRAINT vault_artifacts_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vault_artifacts_published_by_fkey') THEN
+    ALTER TABLE vault_artifacts ADD CONSTRAINT vault_artifacts_published_by_fkey FOREIGN KEY (published_by) REFERENCES users(id);
+  END IF;
+END $$;
+
+-- vault_artifacts project_id FK: change to SET NULL
+ALTER TABLE vault_artifacts DROP CONSTRAINT IF EXISTS vault_artifacts_project_id_fkey;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vault_artifacts_project_id_fkey') THEN
+    ALTER TABLE vault_artifacts ADD CONSTRAINT vault_artifacts_project_id_fkey
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- ############################################################################
+-- SECTION 22: Quota RPC Functions
+-- ############################################################################
+
+CREATE OR REPLACE FUNCTION deduct_quota(p_org_id UUID, p_tokens BIGINT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  updated_count INT;
+BEGIN
+  UPDATE org_quotas
+  SET token_used = token_used + p_tokens,
+      updated_at = now()
+  WHERE org_id = p_org_id
+    AND token_used + p_tokens <= token_limit;
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  RETURN updated_count > 0;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION correct_quota(p_org_id UUID, p_diff BIGINT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE org_quotas
+  SET token_used = GREATEST(0, token_used + p_diff),
+      updated_at = now()
+  WHERE org_id = p_org_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ############################################################################
+-- SECTION 23: System Org & Default Data
+-- ############################################################################
+
+INSERT INTO organizations (id, name, slug, plan)
+VALUES ('00000000-0000-0000-0000-000000000001', 'System', 'system', 'enterprise')
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO users (id, email, name)
+VALUES ('00000000-0000-0000-0000-000000000001', 'system@internal', 'System')
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO org_members (org_id, user_id, role)
+VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'owner')
+ON CONFLICT (org_id, user_id) DO NOTHING;
 
 -- ============================================================================
 -- END OF BASELINE
