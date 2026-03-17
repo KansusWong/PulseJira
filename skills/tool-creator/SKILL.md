@@ -1,7 +1,7 @@
 ---
 name: 工具创建
 description: 创建和管理自定义工具——将外部 API 或自定义逻辑封装为 Agent 可调用的工具。当用户需要接入新的 API 服务、创建数据处理工具、修改现有工具、或组织工具包时使用此技能。
-core_skill: true
+core_skill: false
 ---
 
 # 自定义工具
