@@ -14,9 +14,10 @@
  * Uses lightweight Supabase REST calls (no heavy client in Edge).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from 'next-auth/jwt';
 
 // ── Constants (inlined to avoid importing from lib/ in Edge) ─────────────
-const PUBLIC_PATHS = ["/api/health", "/api/auth/bootstrap"];
+const PUBLIC_PATHS = ["/api/health", "/api/auth/bootstrap", "/api/auth/register", "/login", "/no-organization"];
 const CRON_PATH_PREFIX = "/api/cron/";
 const ROLE_HIERARCHY = ["viewer", "developer", "admin"];
 const KEY_CACHE_TTL_MS = 60_000;
@@ -90,6 +91,17 @@ const ROUTE_PERMISSIONS: RouteRule[] = [
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
+/** Map org_members role to API key role for backward-compatible permission checks */
+function mapOrgRoleToApiKeyRole(orgRole: string | undefined | null): string {
+  switch (orgRole) {
+    case 'owner': return 'admin';
+    case 'admin': return 'admin';
+    case 'member': return 'developer';
+    case 'viewer': return 'viewer';
+    default: return 'viewer';
+  }
+}
+
 function matchPath(pattern: string, path: string): boolean {
   const pp = pattern.split("/").filter(Boolean);
   const pa = path.split("/").filter(Boolean);
@@ -157,6 +169,8 @@ interface CachedKey {
   role: string;
   is_active: boolean;
   expires_at: string | null;
+  org_id: string | null;
+  user_id: string | null;
   cachedAt: number;
 }
 
@@ -201,7 +215,7 @@ async function lookupKeyByHash(
   if (!sb) return null;
 
   const res = await fetch(
-    `${sb.url}/rest/v1/api_keys?key_hash=eq.${hash}&select=id,name,role,is_active,expires_at&limit=1`,
+    `${sb.url}/rest/v1/api_keys?key_hash=eq.${hash}&select=id,name,role,is_active,expires_at,org_id,user_id&limit=1`,
     {
       headers: {
         apikey: sb.key,
@@ -225,6 +239,8 @@ async function lookupKeyByHash(
     role: row.role,
     is_active: row.is_active,
     expires_at: row.expires_at,
+    org_id: row.org_id,
+    user_id: row.user_id,
     cachedAt: Date.now(),
   };
 
@@ -370,7 +386,42 @@ export async function middleware(req: NextRequest) {
     return withCors(NextResponse.next({ request: { headers } }), req);
   }
 
-  // ── Step 4: Check for Supabase configuration ───────────────────────
+  // ── Step 4: JWT session check (takes priority over API key) ───────
+  const jwtToken = await getToken({ req });
+  if (jwtToken?.userId) {
+    const reqHeaders = new Headers(req.headers);
+    reqHeaders.set('x-auth-user-id', jwtToken.userId as string);
+
+    // Support x-org-id header override (for org switching without re-login)
+    const overrideOrgId = req.headers.get('x-org-id');
+    let orgId = (jwtToken.currentOrgId as string) || '';
+    let orgRole = (jwtToken.orgRole as string) || '';
+
+    if (overrideOrgId && overrideOrgId !== jwtToken.currentOrgId) {
+      orgId = overrideOrgId;
+      orgRole = ''; // Will be resolved by app layer
+    }
+
+    reqHeaders.set('x-auth-org-id', orgId);
+    reqHeaders.set('x-auth-org-role', orgRole);
+    reqHeaders.set('x-auth-role', mapOrgRoleToApiKeyRole(orgRole));
+    reqHeaders.set('x-auth-enabled', 'true');
+
+    // If no orgId, only allow auth and invitation routes
+    if (!orgId) {
+      const path = req.nextUrl.pathname;
+      if (!path.startsWith('/api/auth/') &&
+          !path.startsWith('/api/org/invitations/accept') &&
+          path !== '/no-organization' &&
+          path !== '/login') {
+        return NextResponse.redirect(new URL('/no-organization', req.url));
+      }
+    }
+
+    return withCors(NextResponse.next({ request: { headers: reqHeaders } }), req);
+  }
+
+  // ── Step 5: Check for Supabase configuration ───────────────────────
   const sb = getSupabaseConfig();
   if (!sb) {
     // Supabase not configured — demo mode, pass through with warning
@@ -381,7 +432,7 @@ export async function middleware(req: NextRequest) {
     return withCors(NextResponse.next({ request: { headers } }), req);
   }
 
-  // ── Step 5: Extract and validate Bearer token ──────────────────────
+  // ── Step 6: Extract and validate Bearer token ──────────────────────
   const authHeader = req.headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return jsonResponse(
@@ -398,7 +449,7 @@ export async function middleware(req: NextRequest) {
     );
   }
 
-  // ── Step 6: Hash and lookup ────────────────────────────────────────
+  // ── Step 7: Hash and lookup ────────────────────────────────────────
   const keyHash = await sha256Hex(rawKey);
   const keyRecord = await lookupKeyByHash(keyHash);
 
@@ -409,7 +460,7 @@ export async function middleware(req: NextRequest) {
     );
   }
 
-  // ── Step 7: Validate active status ─────────────────────────────────
+  // ── Step 8: Validate active status ─────────────────────────────────
   if (!keyRecord.is_active) {
     return jsonResponse(
       { success: false, error: "Unauthorized: API key has been revoked" },
@@ -417,7 +468,7 @@ export async function middleware(req: NextRequest) {
     );
   }
 
-  // ── Step 8: Validate expiry ────────────────────────────────────────
+  // ── Step 9: Validate expiry ────────────────────────────────────────
   if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
     return jsonResponse(
       { success: false, error: "Unauthorized: API key has expired" },
@@ -425,7 +476,7 @@ export async function middleware(req: NextRequest) {
     );
   }
 
-  // ── Step 9: Check role against route permissions ───────────────────
+  // ── Step 10: Check role against route permissions ──────────────────
   const requiredPermission = getRequiredPermission(method, pathname);
 
   if (requiredPermission !== "public" && !hasRole(keyRecord.role, requiredPermission)) {
@@ -449,14 +500,16 @@ export async function middleware(req: NextRequest) {
     );
   }
 
-  // ── Step 10: Inject headers and pass through ──────────────────────
+  // ── Step 11: Inject headers and pass through ──────────────────────
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-auth-key-id", keyRecord.id);
   requestHeaders.set("x-auth-key-name", keyRecord.name);
   requestHeaders.set("x-auth-role", keyRecord.role);
   requestHeaders.set("x-auth-enabled", "true");
+  requestHeaders.set('x-auth-org-id', keyRecord.org_id || '');
+  requestHeaders.set('x-auth-user-id', keyRecord.user_id || '');
 
-  // ── Step 11: Fire-and-forget updates ──────────────────────────────
+  // ── Step 12: Fire-and-forget updates ──────────────────────────────
   touchLastUsed(keyRecord.id);
 
   writeAuditLog({
@@ -473,5 +526,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/:path*",
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|login|no-organization).*)',
+  ],
 };
