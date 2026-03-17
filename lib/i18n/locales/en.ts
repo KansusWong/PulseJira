@@ -114,6 +114,8 @@ const en: TranslationDict = {
   'chat.systemDesignExample': 'Design a microservices architecture for our e-commerce platform',
   'chat.placeholder': 'Ask anything or describe what you need...',
   'chat.enterToSend': 'Enter to send, Shift+Enter for new line',
+  'chat.thinkingModeOn': 'Extended thinking (GLM-5)',
+  'chat.thinkingModeOff': 'Quick mode — click for extended thinking',
   'chat.sendWillInterrupt': 'Sending will interrupt current generation',
   'chat.signalSummary': '/signal-summary for daily signals',
   'chat.commands': 'Commands',

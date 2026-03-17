@@ -39,9 +39,12 @@ export async function POST() {
     // Only preload skills marked with core_skill: true in SKILL.md
     const coreSkills = getCoreSkills();
     buildSkillPromptForAgent('rebuild');
-    await embedAllSkills(coreSkills);
+    // Embedding is fire-and-forget — don't block preload response on API calls
+    embedAllSkills(coreSkills).catch((err) =>
+      console.error('[preload] Background embedding failed:', err),
+    );
     console.log(
-      `[preload] 2/3 Skill prompt built — ${coreSkills.length} core skills embedded (core_skill flag) in ${Date.now() - t1}ms`,
+      `[preload] 2/3 Skill prompt built — ${coreSkills.length} core skills (embedding in background) in ${Date.now() - t1}ms`,
     );
 
     // ── Step 3: Tool definitions ───────────────────────────────────────

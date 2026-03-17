@@ -84,6 +84,7 @@ function buildHistoryContext(messages: ChatMessage[], tokenBudget: number = HIST
 interface CachedAgent {
   agent: ReturnType<typeof createRebuilDAgent>;
   workspace?: string;
+  model?: string;
   createdAt: number;
 }
 
@@ -110,14 +111,14 @@ function getCachedAgent(conversationId: string, workspace?: string): CachedAgent
   return entry;
 }
 
-function setCachedAgent(conversationId: string, agent: ReturnType<typeof createRebuilDAgent>, workspace?: string): void {
+function setCachedAgent(conversationId: string, agent: ReturnType<typeof createRebuilDAgent>, workspace?: string, model?: string): void {
   // LRU eviction when at capacity
   if (agentCache.size >= AGENT_CACHE_MAX && !agentCache.has(conversationId)) {
     // Evict oldest entry
     const oldestKey = agentCache.keys().next().value;
     if (oldestKey) agentCache.delete(oldestKey);
   }
-  agentCache.set(conversationId, { agent, workspace, createdAt: Date.now() });
+  agentCache.set(conversationId, { agent, workspace, model, createdAt: Date.now() });
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +131,8 @@ interface ChatContext {
   userMessage: string;
   assessment: ComplexityAssessment | null;
   attachments?: AttachmentMeta[];
+  /** User-selected thinking mode: true = primary model (GLM-5), false/undefined = fast model. */
+  thinking?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -278,6 +281,7 @@ export class ChatEngine {
     conversationId: string,
     message: string,
     attachments?: AttachmentMeta[],
+    options?: { thinking?: boolean },
   ): AsyncGenerator<ChatEvent> {
     // 1. Load or create conversation
     const conversation = await this.getOrCreateConversation(conversationId);
@@ -303,6 +307,7 @@ export class ChatEngine {
       userMessage: message,
       assessment: null,
       attachments,
+      thinking: options?.thinking,
     };
 
     yield* this.handleUnified(context);
@@ -458,22 +463,29 @@ export class ChatEngine {
         new CreateWorkspaceTool(conversationId, workspaceRef, onProjectCreated),
       ];
 
-      // Reuse cached agent for the same conversation + workspace, or create new
+      // Model routing: thinking=true → primary model, false → fast model (if configured)
+      const FAST_MODEL = process.env.AGENT_FAST_MODEL || '';
+      const effectiveModel = context.thinking
+        ? (configOverride.model || undefined)
+        : (FAST_MODEL || configOverride.model || undefined);
+
+      // Reuse cached agent for the same conversation + workspace + model, or create new
       const cachedEntry = getCachedAgent(conversationId, workspace?.localPath);
-      const agent = cachedEntry
+      const modelChanged = cachedEntry && cachedEntry.model !== effectiveModel;
+      const agent = (cachedEntry && !modelChanged)
         ? cachedEntry.agent
         : createRebuilDAgent({
             workspace: workspace?.localPath,
             maxLoops: configOverride.maxLoops ?? 30,
-            model: configOverride.model,
+            model: effectiveModel,
             systemPrompt: configOverride.systemPrompt,
             soulPrompt: soulContent || undefined,
             extraTools,
           });
 
       // Cache the agent for future messages in this conversation
-      if (!cachedEntry) {
-        setCachedAgent(conversationId, agent, workspace?.localPath);
+      if (!cachedEntry || modelChanged) {
+        setCachedAgent(conversationId, agent, workspace?.localPath, effectiveModel);
       }
 
       // --- 4. Build input with conversation history ---
@@ -597,7 +609,7 @@ export class ChatEngine {
             const fullAgent = createRebuilDAgent({
               workspace: workspaceRef.path,
               maxLoops: configOverride.maxLoops ?? 30,
-              model: configOverride.model,
+              model: effectiveModel,
               systemPrompt: configOverride.systemPrompt,
               soulPrompt: soulContent || undefined,
             });

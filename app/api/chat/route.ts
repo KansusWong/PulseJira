@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { conversation_id, message, attachments } = body;
+  const { conversation_id, message, attachments, thinking } = body;
 
   if (!message || typeof message !== 'string') {
     return new Response(JSON.stringify({ success: false, error: 'message is required' }), {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   }
 
   return makeSSEResponseFromGenerator(
-    chatEngine.handleMessage(conversation_id, message, attachments),
+    chatEngine.handleMessage(conversation_id, message, attachments, { thinking: !!thinking }),
     { signal: req.signal },
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { ArrowUp, Paperclip, Square } from "lucide-react";
+import { ArrowUp, Paperclip, Square, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
 import { ContextWindowIndicator } from "./ContextWindowIndicator";
@@ -29,6 +29,8 @@ interface ChatInputProps {
   executionMode?: string | null;
   contextUsage?: { estimated: number; max: number; ratio: number } | null;
   conversationId?: string;
+  thinkingMode?: boolean;
+  onThinkingModeChange?: (enabled: boolean) => void;
 }
 
 export function ChatInput({
@@ -40,6 +42,8 @@ export function ChatInput({
   executionMode,
   contextUsage,
   conversationId,
+  thinkingMode,
+  onThinkingModeChange,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
@@ -173,6 +177,20 @@ export function ChatInput({
                 onChange={handleFileChange}
                 className="hidden"
               />
+
+              {/* Thinking mode toggle */}
+              <button
+                onClick={() => onThinkingModeChange?.(!thinkingMode)}
+                className={clsx(
+                  "p-1 rounded transition-colors flex-shrink-0 mb-0.5",
+                  thinkingMode
+                    ? "text-violet-400 bg-violet-500/10"
+                    : "text-zinc-600 hover:text-zinc-400"
+                )}
+                title={thinkingMode ? t('chat.thinkingModeOn') : t('chat.thinkingModeOff')}
+              >
+                <Sparkles className="w-4 h-4" />
+              </button>
 
               {/* Input */}
               <textarea

@@ -96,6 +96,8 @@ export function ChatView() {
   const resetStreamingState = usePulseStore((s) => s.resetStreamingState);
   const contextUsage = usePulseStore((s) => s.contextUsage);
   const setContextUsage = usePulseStore((s) => s.setContextUsage);
+  const thinkingMode = usePulseStore((s) => s.thinkingMode);
+  const setThinkingMode = usePulseStore((s) => s.setThinkingMode);
 
   // RAF-based token buffering to avoid excessive re-renders
   const tokenBufferRef = useRef('');
@@ -317,6 +319,7 @@ export function ChatView() {
 
       // Stream from API
       try {
+        const currentThinkingMode = usePulseStore.getState().thinkingMode;
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -324,6 +327,7 @@ export function ChatView() {
             conversation_id: conversationId,
             message: text,
             attachments: attachments || undefined,
+            thinking: currentThinkingMode || undefined,
           }),
           signal: abortController.signal,
         });
@@ -720,7 +724,7 @@ export function ChatView() {
 
       {/* Input */}
       <div className="border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
-        <ChatInput onSubmit={handleSend} onStop={handleStop} streaming={isStreaming} contextUsage={contextUsage} conversationId={activeConversationId ?? undefined} />
+        <ChatInput onSubmit={handleSend} onStop={handleStop} streaming={isStreaming} thinkingMode={thinkingMode} onThinkingModeChange={setThinkingMode} contextUsage={contextUsage} conversationId={activeConversationId ?? undefined} />
       </div>
     </div>
   );

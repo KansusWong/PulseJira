@@ -67,6 +67,8 @@ export interface AgentConfig {
   systemPrompt: string;
   tools?: import('./base-tool').BaseTool[];
   model?: string;
+  /** Fast model for intermediate tool-calling steps (e.g. 'glm-4-flash'). Falls back to model if unset. */
+  fastModel?: string;
   client?: OpenAI;
   maxLoops?: number;
   exitToolName?: string;

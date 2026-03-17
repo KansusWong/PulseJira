@@ -16,8 +16,10 @@ const MAX_CONTEXT_MESSAGES = parseInt(process.env.AGENT_MAX_CONTEXT_MESSAGES || 
 const LLM_TIMEOUT_MS = parseInt(process.env.AGENT_LLM_TIMEOUT_MS || '120000', 10);
 /** Fixed model for context compression (cheap & fast, independent of agent model). */
 const COMPRESSION_MODEL = process.env.AGENT_COMPRESSION_MODEL || 'glm-5';
-/** Delay between ReAct loop steps to avoid 429 rate limiting (ms). */
-const INTER_STEP_DELAY_MS = parseInt(process.env.AGENT_INTER_STEP_DELAY_MS || '1500', 10);
+/** Base delay between ReAct loop steps (ms). Default 0 — only back off on 429. */
+const INTER_STEP_DELAY_MS = parseInt(process.env.AGENT_INTER_STEP_DELAY_MS || '0', 10);
+/** Maximum adaptive backoff delay after 429 rate-limit errors (ms). */
+const MAX_BACKOFF_MS = parseInt(process.env.AGENT_MAX_BACKOFF_MS || '10000', 10);
 
 // --- Tool-result shrinking constants ---
 /** Number of recent messages considered "fresh" — tool results kept at higher char limit. */
@@ -30,6 +32,8 @@ const TOOL_RESULT_STALE_CHARS = parseInt(process.env.AGENT_TOOL_RESULT_STALE_CHA
 const TOOL_RESULT_MIN_TRUNCATE = parseInt(process.env.AGENT_TOOL_RESULT_MIN_TRUNCATE || '200', 10);
 /** Enable parallel tool execution when no approval is needed. Set to 'false' to disable. */
 const PARALLEL_TOOL_EXEC = process.env.AGENT_PARALLEL_TOOL_EXEC !== 'false';
+/** Fast model for intermediate tool-calling steps. Unset = always use primary model. */
+const FAST_MODEL = process.env.AGENT_FAST_MODEL || '';
 /** Token budget controller — triggers compression based on estimated token count. */
 const contextBudget = new ContextBudget();
 
@@ -537,10 +541,11 @@ export class BaseAgent {
     const collectedMarkers: string[] = [];
     const MARKER_RE = /\[\[(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\][\s\S]*?\[\[\/(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\]/g;
     let upgradeOffered = false;
+    let adaptiveDelay = INTER_STEP_DELAY_MS; // starts at base (default 0), grows on 429
 
     for (let step = 0; step < maxLoops!; step++) {
-      if (step > 0 && INTER_STEP_DELAY_MS > 0) {
-        await new Promise(resolve => setTimeout(resolve, INTER_STEP_DELAY_MS));
+      if (step > 0 && adaptiveDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
       }
 
       // Check for user-injected messages (per-mate chat)
@@ -582,21 +587,35 @@ export class BaseAgent {
         }
       }
 
+      // --- Model routing: fast model for intermediate tool-calling steps ---
+      const fastModelId = this.config.fastModel || FAST_MODEL;
+      const isFirstStep = step === 0;
+      const isNearEnd = exitToolName && (maxLoops! - step) <= 2;
+      const stepModel = (fastModelId && !isFirstStep && !isNearEnd) ? fastModelId : model!;
+      if (stepModel !== model!) {
+        await log(`[${name}] Step ${step + 1}: Using fast model "${stepModel}"`);
+      }
+
       // --- Streaming LLM call ---
       const completionStartAt = Date.now();
       let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
       try {
         stream = await this.createStreamingCompletionWithFailover(
           {
-            model: model!,
+            model: stepModel,
             messages: await compressContext(messages, MAX_CONTEXT_MESSAGES),
             ...(openAITools ? { tools: openAITools, tool_choice: 'auto' } : {}),
           },
           `${name}.step-${step + 1}`,
-          { projectId: context.projectId, agentName: name, model: model! },
+          { projectId: context.projectId, agentName: name, model: stepModel },
         );
       } catch (streamSetupErr: any) {
-        // Stream setup failed — treat as fatal for this step
+        const is429 = streamSetupErr.message?.includes('429') || streamSetupErr.status === 429;
+        if (is429 && step < maxLoops! - 1) {
+          adaptiveDelay = Math.min(Math.max(adaptiveDelay * 2, 2000), MAX_BACKOFF_MS);
+          await log(`[${name}] Rate limited (429) at step ${step + 1}. Backing off ${adaptiveDelay}ms before retry.`);
+          continue; // retry this step after backoff
+        }
         throw new Error(`[${name}] Streaming LLM call failed: ${streamSetupErr.message}`);
       }
 
@@ -619,6 +638,11 @@ export class BaseAgent {
         }
       }
       const completionDurationMs = Date.now() - completionStartAt;
+
+      // Successful LLM call — decay adaptive delay back toward base
+      if (adaptiveDelay > INTER_STEP_DELAY_MS) {
+        adaptiveDelay = Math.max(INTER_STEP_DELAY_MS, Math.floor(adaptiveDelay / 2));
+      }
 
       // Record usage (from final chunk)
       this._recordUsage(acc.usage, step, name, model!, context, traceId, completionDurationMs, slog);
@@ -1040,11 +1064,11 @@ export class BaseAgent {
     const collectedMarkers: string[] = [];
     const MARKER_RE = /\[\[(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\][\s\S]*?\[\[\/(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\]/g;
     let upgradeOffered = false;
+    let adaptiveDelay = INTER_STEP_DELAY_MS;
 
     for (let step = 0; step < maxLoops!; step++) {
-      // Delay between steps to avoid 429 rate limiting on shared LLM accounts
-      if (step > 0 && INTER_STEP_DELAY_MS > 0) {
-        await new Promise(resolve => setTimeout(resolve, INTER_STEP_DELAY_MS));
+      if (step > 0 && adaptiveDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
       }
 
       // Check for user-injected messages (per-mate chat)
@@ -1082,17 +1106,42 @@ export class BaseAgent {
         // If rejected, fall through to normal compression + LLM call
       }
 
+      // --- Model routing: fast model for intermediate tool-calling steps ---
+      const fastModelId = this.config.fastModel || FAST_MODEL;
+      const isFirstStep = step === 0;
+      const isNearEnd = exitToolName && (maxLoops! - step) <= 2;
+      const stepModel = (fastModelId && !isFirstStep && !isNearEnd) ? fastModelId : model!;
+      if (stepModel !== model!) {
+        await log(`[${name}] Step ${step + 1}: Using fast model "${stepModel}"`);
+      }
+
       const completionStartAt = Date.now();
-      const completion = await this.createCompletionWithFailover(
-        {
-          model: model!,
-          messages: await compressContext(messages, MAX_CONTEXT_MESSAGES),
-          ...(openAITools ? { tools: openAITools, tool_choice: 'auto' } : {}),
-        },
-        `${name}.step-${step + 1}`,
-        { projectId: context.projectId, agentName: name, model: model! },
-      );
+      let completion: any;
+      try {
+        completion = await this.createCompletionWithFailover(
+          {
+            model: stepModel,
+            messages: await compressContext(messages, MAX_CONTEXT_MESSAGES),
+            ...(openAITools ? { tools: openAITools, tool_choice: 'auto' } : {}),
+          },
+          `${name}.step-${step + 1}`,
+          { projectId: context.projectId, agentName: name, model: stepModel },
+        );
+      } catch (llmErr: any) {
+        const is429 = llmErr.message?.includes('429') || llmErr.status === 429;
+        if (is429 && step < maxLoops! - 1) {
+          adaptiveDelay = Math.min(Math.max(adaptiveDelay * 2, 2000), MAX_BACKOFF_MS);
+          await log(`[${name}] Rate limited (429) at step ${step + 1}. Backing off ${adaptiveDelay}ms before retry.`);
+          continue;
+        }
+        throw llmErr;
+      }
       const completionDurationMs = Date.now() - completionStartAt;
+
+      // Successful LLM call — decay adaptive delay back toward base
+      if (adaptiveDelay > INTER_STEP_DELAY_MS) {
+        adaptiveDelay = Math.max(INTER_STEP_DELAY_MS, Math.floor(adaptiveDelay / 2));
+      }
 
       const message = completion.choices[0]?.message;
       if (!message) throw new Error(`[${name}] No response from LLM`);

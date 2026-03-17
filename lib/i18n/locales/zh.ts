@@ -114,6 +114,8 @@ const zh: TranslationDict = {
   'chat.systemDesignExample': '为我们的电商平台设计微服务架构',
   'chat.placeholder': '输入任何内容或描述你的需求...',
   'chat.enterToSend': '回车发送，Shift+回车换行',
+  'chat.thinkingModeOn': '深度思考 (GLM-5)',
+  'chat.thinkingModeOff': '快速模式 — 点击开启深度思考',
   'chat.sendWillInterrupt': '发送新消息将中断当前生成',
   'chat.signalSummary': '/signal-summary 获取每日信号',
   'chat.commands': '命令',

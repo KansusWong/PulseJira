@@ -141,6 +141,9 @@ export interface ChatSlice {
   // Questionnaire inline state
   questionnaireData: QuestionnaireData | null;
 
+  // Thinking mode toggle (user-facing model selector)
+  thinkingMode: boolean;
+
   // Studio panel state (global, not per-conversation)
   studioPanel: {
     visible: boolean;
@@ -217,6 +220,8 @@ export interface ChatSlice {
 
   setQuestionnaireData: (data: QuestionnaireData) => void;
   clearQuestionnaireData: () => void;
+
+  setThinkingMode: (enabled: boolean) => void;
 
   // Studio panel actions
   openStudioTab: (skillId: string, displayName: string) => void;
@@ -323,6 +328,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   contextUsage: null,
 
   questionnaireData: null,
+
+  thinkingMode: false,
 
   studioPanel: {
     visible: false,
@@ -750,6 +757,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
 
   setQuestionnaireData: (data) => set({ questionnaireData: data }),
   clearQuestionnaireData: () => set({ questionnaireData: null }),
+
+  setThinkingMode: (enabled) => set({ thinkingMode: enabled }),
 
   openStudioTab: (skillId, displayName) =>
     set((state) => {
