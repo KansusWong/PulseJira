@@ -1,0 +1,2 @@
+ALTER TABLE llm_usage ADD COLUMN IF NOT EXISTS org_id UUID REFERENCES organizations(id);
+ALTER TABLE llm_usage ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id);
