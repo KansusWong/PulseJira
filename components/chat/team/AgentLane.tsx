@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Loader2, CheckCircle2, AlertCircle, Send } from "lucide-react";
 import { getAgentUI } from "@/lib/config/agent-ui-meta";
 import { useTranslation } from "@/lib/i18n";
-import type { StructuredAgentStep, AgentStatus } from "@/lib/core/types";
+import { usePulseStore } from "@/store/usePulseStore.new";
+import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
+import type { StructuredAgentStep, AgentStatus, AgentMailMessage } from "@/lib/core/types";
 import {
   buildDisplayItems,
   formatDuration,
@@ -22,16 +24,40 @@ const statusColors: Record<string, string> = {
   failed: "text-red-400",
 };
 
+interface MateChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
 interface Props {
   agentName: string;
   status: AgentStatus["status"];
   currentTask?: string;
   steps: StructuredAgentStep[];
+  teamId: string | null;
+  chatMessages?: MateChatMessage[];
+  streamingContent?: string;
+  onSendMessage?: (msg: string) => void;
+  communications?: AgentMailMessage[];
 }
 
-export function AgentLane({ agentName, status, currentTask, steps }: Props) {
+export function AgentLane({
+  agentName,
+  status,
+  currentTask,
+  steps,
+  teamId,
+  chatMessages,
+  streamingContent,
+  onSendMessage,
+  communications = [],
+}: Props) {
   const { t } = useTranslation();
   const [now, setNow] = useState(Date.now());
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const addMateChatMessage = usePulseStore((s) => s.addMateChatMessage);
   const ui = getAgentUI(agentName);
   const borderColor = ui?.borderColor || "border-zinc-500";
   const badgeClass = ui?.badgeClass || "bg-zinc-500/20 text-zinc-400";
@@ -42,9 +68,12 @@ export function AgentLane({ agentName, status, currentTask, steps }: Props) {
     return () => clearInterval(timer);
   }, []);
 
-  const allItems = buildDisplayItems(steps);
+  // Auto-scroll chat area
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages?.length, streamingContent, communications.length]);
 
-  // Filter out completed thinking steps (keep last only)
+  const allItems = buildDisplayItems(steps);
   const filtered = allItems.filter(
     (item, idx) => item.type !== "thinking" || idx === allItems.length - 1,
   );
@@ -57,9 +86,35 @@ export function AgentLane({ agentName, status, currentTask, steps }: Props) {
   const isFailed = status === "failed";
   const isIdle = status === "idle";
 
+  const hasChatContent = (chatMessages && chatMessages.length > 0) || streamingContent || communications.length > 0;
+
+  // Build a unified timeline of chat messages and communications, sorted by timestamp
+  const chatTimeline = useMemo(() => {
+    const items: Array<
+      | { kind: 'chat'; msg: MateChatMessage; ts: number }
+      | { kind: 'comm'; msg: AgentMailMessage; ts: number }
+    > = [];
+    for (const msg of chatMessages || []) {
+      items.push({ kind: 'chat', msg, ts: msg.timestamp });
+    }
+    for (const comm of communications) {
+      items.push({ kind: 'comm', msg: comm, ts: new Date(comm.created_at).getTime() });
+    }
+    items.sort((a, b) => a.ts - b.ts);
+    return items;
+  }, [chatMessages, communications]);
+
+  const handleSendChat = () => {
+    const text = chatInput.trim();
+    if (!text || !onSendMessage) return;
+    addMateChatMessage(agentName, 'user', text);
+    onSendMessage(text);
+    setChatInput("");
+  };
+
   return (
     <div
-      className={`flex flex-col border-l-2 ${borderColor} rounded-lg bg-zinc-900/50 border border-zinc-800/50 overflow-hidden ${
+      className={`flex flex-col min-h-0 border-l-2 ${borderColor} rounded-lg bg-zinc-900/50 border border-zinc-800/50 overflow-hidden ${
         isCompleted ? "opacity-60" : ""
       }`}
     >
@@ -96,7 +151,7 @@ export function AgentLane({ agentName, status, currentTask, steps }: Props) {
       </div>
 
       {/* Steps body */}
-      <div className="flex-1 max-h-[280px] overflow-y-auto px-3 py-2 space-y-1.5">
+      <div className="flex-shrink-0 max-h-[140px] overflow-y-auto px-3 py-2 space-y-1.5">
         {hiddenCount > 0 && (
           <div className="text-[10px] text-zinc-600 mb-1">
             {t("team.collaboration.earlierSteps").replace(
@@ -217,12 +272,110 @@ export function AgentLane({ agentName, status, currentTask, steps }: Props) {
         })}
       </div>
 
-      {/* Footer: current task */}
-      {currentTask && (
-        <div className="px-3 py-1.5 border-t border-zinc-800/30 text-[10px] text-zinc-500 truncate">
-          {currentTask}
+      {/* Mini-chat area */}
+      <div className="flex-1 min-h-0 flex flex-col border-t border-zinc-800/30">
+        {/* Chat messages + inter-agent comms + streaming content */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
+          {chatTimeline.map((item, i) => {
+            if (item.kind === 'chat') {
+              const msg = item.msg;
+              if (msg.role === 'user') {
+                return (
+                  <div
+                    key={`chat-${i}`}
+                    className="text-[11px] text-blue-300 bg-blue-500/10 rounded px-2 py-1"
+                  >
+                    <span className="text-[10px] text-blue-400/70 mr-1">You:</span>
+                    <span className="break-words whitespace-pre-wrap">
+                      {msg.content.length > 500 ? msg.content.slice(0, 500) + '...' : msg.content}
+                    </span>
+                  </div>
+                );
+              }
+              // Assistant message — render with MarkdownRenderer
+              return (
+                <div key={`chat-${i}`} className="lane-prose">
+                  <MarkdownRenderer content={msg.content} />
+                </div>
+              );
+            }
+            // Inter-agent communication
+            const comm = item.msg;
+            const isSent = comm.from_agent === agentName;
+            const otherAgent = isSent ? comm.to_agent : comm.from_agent;
+            const otherUI = getAgentUI(otherAgent);
+            const otherColor = otherUI?.badgeClass
+              ? otherUI.badgeClass.split(" ").find((c: string) => c.startsWith("text-")) || "text-zinc-400"
+              : "text-zinc-400";
+            const payload =
+              typeof comm.payload === "string"
+                ? comm.payload
+                : comm.payload?.message ||
+                  comm.payload?.instruction ||
+                  JSON.stringify(comm.payload).slice(0, 120);
+            return (
+              <div
+                key={`comm-${comm.id}`}
+                className={`text-[11px] rounded px-2 py-1 ${
+                  isSent
+                    ? 'bg-amber-500/5 border border-amber-500/10'
+                    : 'bg-violet-500/5 border border-violet-500/10'
+                }`}
+              >
+                <span className="text-[10px] text-zinc-500 mr-1">
+                  {isSent ? '→' : '←'}
+                </span>
+                <span className={`text-[10px] font-medium ${otherColor} mr-1`}>
+                  {otherAgent}
+                </span>
+                <span className="text-zinc-400 break-words whitespace-pre-wrap">
+                  {payload.length > 300 ? payload.slice(0, 300) + '...' : payload}
+                </span>
+              </div>
+            );
+          })}
+
+          {/* Streaming content — MarkdownRenderer with streaming flag */}
+          {streamingContent && (
+            <div className="relative lane-prose">
+              <MarkdownRenderer content={streamingContent} isStreaming />
+              <span className="inline-block w-0.5 h-4 bg-zinc-500 animate-pulse ml-0.5 align-text-bottom" />
+            </div>
+          )}
+
+          {!hasChatContent && (
+            <div className="text-[10px] text-zinc-600 py-1">
+              {currentTask || t("team.collaboration.waitingForTask")}
+            </div>
+          )}
+
+          <div ref={chatEndRef} />
         </div>
-      )}
+
+        {/* Chat input */}
+        <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-zinc-800/20">
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendChat();
+              }
+            }}
+            placeholder={t("team.collaboration.sendInstruction")}
+            className="flex-1 bg-zinc-900/80 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
+          />
+          <button
+            onClick={handleSendChat}
+            disabled={!chatInput.trim()}
+            className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 transition-colors"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

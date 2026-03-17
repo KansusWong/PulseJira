@@ -71,6 +71,7 @@ export class CreateSkillTool extends BaseTool<CreateSkillInput, CreateSkillOutpu
       tools: [],
       tags: tags ?? [],
       instructions,
+      coreSkill: false,
       source: 'local',
     };
     registerSkill(skillDef);

@@ -74,8 +74,8 @@ const zh: TranslationDict = {
   'sidebar.settings.usage': '用量',
   'sidebar.settings.webhooks': 'Webhook 通知',
 
-  'sidebar.kernelSkills': '内核技能',
-  'sidebar.customSkills': '自定义技能',
+  'sidebar.coreSkills': '核心技能',
+  'sidebar.normalSkills': '普通技能',
 
   // ── Studio ──
   'studio.title': '工作室',
@@ -117,6 +117,16 @@ const zh: TranslationDict = {
   'chat.sendWillInterrupt': '发送新消息将中断当前生成',
   'chat.signalSummary': '/signal-summary 获取每日信号',
   'chat.commands': '命令',
+  'chat.stopGenerating': '停止生成',
+  'chat.generationStopped': '已停止生成',
+  'chat.clickToStop': '点击停止生成',
+  'chat.contextUsage': '上下文窗口：已使用 {percent}%',
+  'chat.attach': '添加附件',
+  'chat.uploading': '上传中...',
+  'chat.uploadFailed': '上传失败',
+  'chat.fileTooLarge': '文件过大（最大20MB）',
+  'chat.unsupportedType': '不支持的文件类型',
+  'chat.maxFiles': '每条消息最多5个文件',
   'chat.modeSimple': '简单模式',
   'chat.modeTeam': '团队模式',
 

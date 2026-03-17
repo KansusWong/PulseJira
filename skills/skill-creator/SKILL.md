@@ -1,6 +1,7 @@
 ---
 name: skill-creator
 description: 技能创建指南。当用户想要创建新技能（或更新现有技能）来扩展 Agent 的能力时使用此技能，包括专业知识、工作流程或工具集成。
+core_skill: true
 license: 完整条款见 LICENSE.txt
 ---
 

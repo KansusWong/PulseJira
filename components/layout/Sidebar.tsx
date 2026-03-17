@@ -38,6 +38,7 @@ export interface SkillAsset {
   name: string;
   displayName?: string;
   description: string;
+  coreSkill?: boolean;
   source?: 'project' | 'codex' | 'registry';
   created_at: string | null;
 }
@@ -124,8 +125,8 @@ export function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [conversationsFolderOpen, setConversationsFolderOpen] = useState(false);
   const [skillsFolderOpen, setSkillsFolderOpen] = useState(false);
-  const [kernelGroupOpen, setKernelGroupOpen] = useState(true);
-  const [customGroupOpen, setCustomGroupOpen] = useState(true);
+  const [coreGroupOpen, setCoreGroupOpen] = useState(false);
+  const [normalGroupOpen, setNormalGroupOpen] = useState(false);
   const [pptsFolderOpen, setPptsFolderOpen] = useState(false);
   const [filesFolderOpen, setFilesFolderOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(pathname === "/settings");
@@ -171,9 +172,9 @@ export function Sidebar({
     ? (assets?.files || []).filter((f) => f.name.toLowerCase().includes(q))
     : assets?.files || [];
 
-  // Split skills into kernel (registry) and custom (project/codex)
-  const kernelSkills = filteredSkills.filter((s) => s.source === 'registry');
-  const customSkills = filteredSkills.filter((s) => s.source !== 'registry');
+  // Split skills into core (coreSkill flag) and normal
+  const coreSkills = filteredSkills.filter((s) => s.coreSkill);
+  const normalSkills = filteredSkills.filter((s) => !s.coreSkill);
 
   const handleSkillClick = (skill: SkillAsset) => {
     openStudioTab(skill.id, skill.displayName || skill.name);
@@ -312,29 +313,28 @@ export function Sidebar({
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {/* Kernel Skills group */}
-                    {kernelSkills.length > 0 && (
+                    {/* Core Skills group */}
+                    {coreSkills.length > 0 && (
                       <div>
                         <button
-                          onClick={() => setKernelGroupOpen(!kernelGroupOpen)}
+                          onClick={() => setCoreGroupOpen(!coreGroupOpen)}
                           className="w-full flex items-center gap-1.5 px-4 py-1 text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-400 transition-colors"
                         >
                           <ChevronRight
                             className={clsx(
                               "w-2.5 h-2.5 transition-transform duration-150 flex-shrink-0",
-                              kernelGroupOpen && "rotate-90"
+                              coreGroupOpen && "rotate-90"
                             )}
                           />
-                          <span>{t('sidebar.kernelSkills')}</span>
-                          <span className="ml-auto font-mono">{kernelSkills.length}</span>
+                          <span>{t('sidebar.coreSkills')}</span>
+                          <span className="ml-auto font-mono">{coreSkills.length}</span>
                         </button>
-                        {kernelGroupOpen && (
+                        {coreGroupOpen && (
                           <div className="space-y-0.5">
-                            {kernelSkills.map((skill) => (
+                            {coreSkills.map((skill) => (
                               <AssetItem
                                 key={skill.id}
-                                name={skill.displayName || skill.name}
-                                subtitle={skill.description ? skill.description.slice(0, 30) : undefined}
+                                name={skill.displayName || skill.id}
                                 icon={Sparkles}
                                 onClick={() => handleSkillClick(skill)}
                               />
@@ -344,29 +344,28 @@ export function Sidebar({
                       </div>
                     )}
 
-                    {/* Custom Skills group */}
-                    {customSkills.length > 0 && (
+                    {/* Normal Skills group */}
+                    {normalSkills.length > 0 && (
                       <div>
                         <button
-                          onClick={() => setCustomGroupOpen(!customGroupOpen)}
+                          onClick={() => setNormalGroupOpen(!normalGroupOpen)}
                           className="w-full flex items-center gap-1.5 px-4 py-1 text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-400 transition-colors"
                         >
                           <ChevronRight
                             className={clsx(
                               "w-2.5 h-2.5 transition-transform duration-150 flex-shrink-0",
-                              customGroupOpen && "rotate-90"
+                              normalGroupOpen && "rotate-90"
                             )}
                           />
-                          <span>{t('sidebar.customSkills')}</span>
-                          <span className="ml-auto font-mono">{customSkills.length}</span>
+                          <span>{t('sidebar.normalSkills')}</span>
+                          <span className="ml-auto font-mono">{normalSkills.length}</span>
                         </button>
-                        {customGroupOpen && (
+                        {normalGroupOpen && (
                           <div className="space-y-0.5">
-                            {customSkills.map((skill) => (
+                            {normalSkills.map((skill) => (
                               <AssetItem
                                 key={skill.id}
-                                name={skill.displayName || skill.name}
-                                subtitle={skill.description ? skill.description.slice(0, 30) : undefined}
+                                name={skill.displayName || skill.id}
                                 icon={Sparkles}
                                 onClick={() => handleSkillClick(skill)}
                               />

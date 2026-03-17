@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import path from 'path';
-import fs from 'fs';
+import { pathExists } from '@/lib/utils/fs-helpers';
 import { previewManager } from '@/lib/sandbox/preview-manager';
 import { supabase, assertSupabase } from '@/lib/db/client';
 
@@ -20,7 +20,7 @@ function resolveWorkspacePath(projectName: string, projectId: string): string | 
   const dirName = (projectName || `project-${projectId}`)
     .replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_');
   const absPath = path.join(process.cwd(), 'projects', dirName);
-  return fs.existsSync(absPath) ? absPath : null;
+  return pathExists(absPath) ? absPath : null;
 }
 
 // ---------------------------------------------------------------------------

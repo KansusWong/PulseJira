@@ -321,6 +321,27 @@ tools/ 下的内容全部为用户或 Agent 创建的自定义工具，均可修
 - 当前会话目录是**执行工作台** — 所有执行产出默认写入此处。
 - 不同会话之间的文件是隔离的，跨会话共享请用 \`files/\`
 
+## 产出文件分类规范
+
+创建文件时，**必须按文件类型放入对应子目录**，不要将所有文件平铺在根目录。
+
+| 文件类型 | 目标目录 | 示例 |
+|---------|---------|------|
+| **演示文稿** (.pptx, .key) | \`documents/presentations/\` | \`documents/presentations/quarterly-report.pptx\` |
+| **文档** (.docx, .pdf, .md 报告) | \`documents/\` | \`documents/technical-spec.md\` |
+| **表格/数据** (.xlsx, .csv, .json 数据文件) | \`data/\` | \`data/user-analysis.csv\` |
+| **源代码** (.ts, .tsx, .js, .py, .go 等) | \`src/\` (或项目约定的代码目录) | \`src/utils/formatter.ts\` |
+| **配置文件** (.env, .json 配置, .yaml) | 项目根目录或 \`config/\` | \`config/database.yaml\` |
+| **图片/媒体** (.png, .jpg, .svg, .mp4) | \`assets/\` | \`assets/logo.png\` |
+| **脚本/自动化** (一次性脚本、构建脚本) | \`scripts/\` | \`scripts/migrate-data.py\` |
+
+**规则**：
+1. 创建文件前，先检查目标目录是否已存在，已有目录结构优先沿用
+2. 如果项目已有约定的目录结构（如 Next.js 的 \`app/\`、\`components/\`），**遵循项目约定**而非上表
+3. 新项目无既有结构时，按上表创建分类目录
+4. 目录不存在时自动创建（\`write\` 工具会递归建目录）
+5. 中间产物（临时文件、构建缓存）放在 \`tmp/\`，任务完成后清理
+
 ## 创建子代理（Sub-Agent）
 
 子代理定义是**持久化配置**，创建后通过 \`task\` 工具调度执行（参见上方「子 Agent 委派策略」）。

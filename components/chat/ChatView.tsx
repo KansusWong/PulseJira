@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2 } from "lucide-react";
 import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage, ChatEvent, StructuredAgentStep } from "@/lib/core/types";
+import type { ChatMessage, ChatEvent, StructuredAgentStep, AttachmentMeta } from "@/lib/core/types";
 import type { ToolStepSummary } from "./ToolUsageSummary";
 import { StreamingBubble } from "./StreamingBubble";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
@@ -73,6 +73,11 @@ export function ChatView() {
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
   const setTeamCollaborationActive = usePulseStore((s) => s.setTeamCollaborationActive);
 
+  const addMateChatMessage = usePulseStore((s) => s.addMateChatMessage);
+  const appendMateStreamingToken = usePulseStore((s) => s.appendMateStreamingToken);
+  const clearMateStreamingTokens = usePulseStore((s) => s.clearMateStreamingTokens);
+  const clearAllMateState = usePulseStore((s) => s.clearAllMateState);
+
   const questionnaireData = usePulseStore((s) => s.questionnaireData);
   const setQuestionnaireData = usePulseStore((s) => s.setQuestionnaireData);
   const clearQuestionnaireData = usePulseStore((s) => s.clearQuestionnaireData);
@@ -89,6 +94,8 @@ export function ChatView() {
   const startStreamingToolCall = usePulseStore((s) => s.startStreamingToolCall);
   const endStreamingToolCall = usePulseStore((s) => s.endStreamingToolCall);
   const resetStreamingState = usePulseStore((s) => s.resetStreamingState);
+  const contextUsage = usePulseStore((s) => s.contextUsage);
+  const setContextUsage = usePulseStore((s) => s.setContextUsage);
 
   // RAF-based token buffering to avoid excessive re-renders
   const tokenBufferRef = useRef('');
@@ -112,20 +119,6 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-
-  // Fetch user execution mode preference
-  const [execMode, setExecMode] = useState<'simple' | 'medium' | null>(null);
-
-  useEffect(() => {
-    fetch('/api/settings/preferences')
-      .then(r => r.json())
-      .then(json => {
-        if (json.success && json.data?.preferences) {
-          setExecMode(json.data.preferences.agentExecutionMode || 'simple');
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   // Abort active stream if conversation changes or is deleted
   useEffect(() => {
@@ -206,8 +199,57 @@ export function ChatView() {
     }
   }, [messages, streamingSections]);
 
+  const handleStop = useCallback(() => {
+    if (!abortRef.current) return;
+
+    const conversationId = activeConversationId;
+    if (!conversationId) return;
+
+    // Flush any buffered tokens
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = undefined;
+    }
+    tokenBufferRef.current = '';
+
+    // Collect partial content from streaming sections
+    const sections = usePulseStore.getState().streamingSections;
+    const partialContent = sections
+      .filter((s): s is { type: 'text'; content: string } => s.type === 'text')
+      .map((s) => s.content)
+      .join('');
+
+    // Abort the stream
+    abortRef.current.abort();
+    abortRef.current = null;
+
+    // Save partial response as a message with stopped flag
+    if (partialContent.trim()) {
+      const currentSteps = usePulseStore.getState().streamingSteps;
+      const toolSteps = buildToolUsageSummary(currentSteps);
+
+      addMessage(conversationId, {
+        id: crypto.randomUUID(),
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: partialContent,
+        metadata: {
+          stopped: true,
+          ...(toolSteps.length > 0 ? { toolSteps } : {}),
+        },
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    // Reset all streaming state
+    resetStreamingState();
+    setStreaming(false);
+    clearStreamingSteps();
+    setTeamCollaborationActive(false);
+  }, [activeConversationId, addMessage, resetStreamingState, setStreaming, clearStreamingSteps, setTeamCollaborationActive]);
+
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, attachments?: AttachmentMeta[]) => {
       // If currently streaming, abort the previous generation first
       if (abortRef.current) {
         abortRef.current.abort();
@@ -268,7 +310,7 @@ export function ChatView() {
         conversation_id: conversationId,
         role: "user",
         content: text,
-        metadata: null,
+        metadata: attachments?.length ? { attachments } : null,
         created_at: new Date().toISOString(),
       };
       addMessage(conversationId, userMsg);
@@ -281,6 +323,7 @@ export function ChatView() {
           body: JSON.stringify({
             conversation_id: conversationId,
             message: text,
+            attachments: attachments || undefined,
           }),
           signal: abortController.signal,
         });
@@ -372,6 +415,7 @@ export function ChatView() {
         clearStreamingSteps();
         resetStreamingState();
         setTeamCollaborationActive(false);
+        clearAllMateState();
         // Flush any remaining token buffer
         if (rafRef.current) {
           cancelAnimationFrame(rafRef.current);
@@ -492,6 +536,12 @@ export function ChatView() {
           const success = event.data.status === "success";
           const durationMs = event.data.duration_ms;
           const durationStr = durationMs ? ` (${(durationMs / 1000).toFixed(1)}s)` : "";
+          // Flush streaming tokens to chat history
+          const streamedContent = usePulseStore.getState().mateStreamingTokens[agentName];
+          if (streamedContent) {
+            addMateChatMessage(agentName, 'assistant', streamedContent);
+            clearMateStreamingTokens(agentName);
+          }
           addStreamingStep({
             id: `sub-done-${agentName}-${Date.now()}`,
             agent: agentName,
@@ -502,6 +552,11 @@ export function ChatView() {
               : `${t('streaming.subAgentFailed', { name: agentName })}${event.data.error ? `: ${event.data.error}` : ""}`,
             timestamp: Date.now(),
           });
+          break;
+        }
+
+        case "mate_token": {
+          appendMateStreamingToken(event.data.agent, event.data.content);
           break;
         }
 
@@ -533,6 +588,11 @@ export function ChatView() {
 
         case "step_start": {
           // New ReAct step starting — streaming will follow
+          break;
+        }
+
+        case "context_usage": {
+          setContextUsage(event.data);
           break;
         }
 
@@ -584,91 +644,83 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, t]
   );
+
+  const teamFullscreen = teamCollaborationActive && isStreaming;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages area */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        {/* Mode badge — sticky top-left */}
-        {execMode && (
-          <div className="sticky top-0 z-10 px-4 pt-3">
-            <span className={
-              execMode === 'medium'
-                ? "inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20"
-                : "inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-green-500/10 text-green-500 border border-green-500/20"
-            }>
-              <span className={
-                execMode === 'medium'
-                  ? "w-1.5 h-1.5 rounded-full bg-yellow-400"
-                  : "w-1.5 h-1.5 rounded-full bg-green-400"
-              } />
-              {execMode === 'medium' ? t('chat.modeTeam') : t('chat.modeSimple')}
-            </span>
-          </div>
-        )}
-
+      {/* Messages area — shrinks when team is fullscreen */}
+      <div ref={scrollContainerRef} className={`${teamFullscreen ? 'flex-shrink-0 max-h-[15vh]' : 'flex-1'} overflow-y-auto`}>
         {messages.length === 0 ? (
           <EmptyState onSend={handleSend} />
         ) : (
-          <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
-            ))}
+          <>
+            {/* Messages — constrained width for readability */}
+            <div className="max-w-3xl mx-auto px-4 pt-6 space-y-4">
+              {messages.map((msg) => (
+                <MessageBubble key={msg.id} message={msg} />
+              ))}
+            </div>
 
-            {/* Team collaboration view — replaces StreamingStepIndicator in team mode */}
-            {teamCollaborationActive && isStreaming && (
-              <div className="max-w-none -mx-4">
-                <TeamCollaborationView />
+            {/* Post-team content — constrained width */}
+            {!teamFullscreen && (
+              <div className="max-w-3xl mx-auto px-4 pb-6 space-y-4">
+                {/* Inline streaming bubble — text + tool calls interleaved */}
+                {isStreaming && streamingSections.length > 0 && (
+                  <StreamingBubble sections={streamingSections} />
+                )}
+
+                {/* Thinking indicator — only before first token arrives */}
+                {isStreaming && streamingSections.length === 0 && (
+                  <div className="mr-auto max-w-[85%] px-1 py-1">
+                    <div className="flex items-center gap-2 text-sm text-zinc-500">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>{t('streaming.thinking')}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Compaction upgrade card — takes priority over questionnaire */}
+                {compactionUpgradePanel.visible && compactionUpgradePanel.upgradeId && activeConversationId && (
+                  <CompactionUpgradeCard
+                    upgradeId={compactionUpgradePanel.upgradeId}
+                    tokenUsage={compactionUpgradePanel.tokenUsage!}
+                    timeoutAt={compactionUpgradePanel.timeoutAt!}
+                    conversationId={activeConversationId}
+                    onResolved={(approved) => {
+                      hideCompactionUpgrade();
+                    }}
+                  />
+                )}
+
+                {/* Normal questionnaire — only when no upgrade card visible */}
+                {questionnaireData && !isStreaming && !compactionUpgradePanel.visible && (
+                  <QuestionnaireInline
+                    data={questionnaireData}
+                    onSubmit={(text) => { clearQuestionnaireData(); handleSend(text); }}
+                    onDismiss={clearQuestionnaireData}
+                  />
+                )}
+
+                <div ref={messagesEndRef} />
               </div>
             )}
-
-            {/* Inline streaming bubble — text + tool calls interleaved */}
-            {isStreaming && !teamCollaborationActive && streamingSections.length > 0 && (
-              <StreamingBubble sections={streamingSections} />
-            )}
-
-            {/* Thinking indicator — only before first token arrives */}
-            {isStreaming && !teamCollaborationActive && streamingSections.length === 0 && (
-              <div className="mr-auto max-w-[85%] px-1 py-1">
-                <div className="flex items-center gap-2 text-sm text-zinc-500">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Thinking...</span>
-                </div>
-              </div>
-            )}
-
-            {/* Compaction upgrade card — takes priority over questionnaire */}
-            {compactionUpgradePanel.visible && compactionUpgradePanel.upgradeId && activeConversationId && (
-              <CompactionUpgradeCard
-                upgradeId={compactionUpgradePanel.upgradeId}
-                tokenUsage={compactionUpgradePanel.tokenUsage!}
-                timeoutAt={compactionUpgradePanel.timeoutAt!}
-                conversationId={activeConversationId}
-                onResolved={(approved) => {
-                  hideCompactionUpgrade();
-                }}
-              />
-            )}
-
-            {/* Normal questionnaire — only when no upgrade card visible */}
-            {questionnaireData && !isStreaming && !compactionUpgradePanel.visible && (
-              <QuestionnaireInline
-                data={questionnaireData}
-                onSubmit={(text) => { clearQuestionnaireData(); handleSend(text); }}
-                onDismiss={clearQuestionnaireData}
-              />
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
+          </>
         )}
       </div>
 
+      {/* Team collaboration view — fills remaining viewport outside scroll area */}
+      {teamFullscreen && (
+        <div className="flex-1 min-h-0 flex flex-col px-3 pb-2">
+          <TeamCollaborationView />
+        </div>
+      )}
+
       {/* Input */}
       <div className="border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
-        <ChatInput onSubmit={handleSend} streaming={isStreaming} />
+        <ChatInput onSubmit={handleSend} onStop={handleStop} streaming={isStreaming} contextUsage={contextUsage} conversationId={activeConversationId ?? undefined} />
       </div>
     </div>
   );

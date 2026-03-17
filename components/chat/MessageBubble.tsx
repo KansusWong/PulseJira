@@ -2,11 +2,12 @@
 
 import { useCallback, useRef } from "react";
 import clsx from "clsx";
-import { Download } from "lucide-react";
-import type { ChatMessage } from "@/lib/core/types";
+import { Download, Square } from "lucide-react";
+import type { ChatMessage, AttachmentMeta } from "@/lib/core/types";
 import { useTranslation } from '@/lib/i18n';
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { ToolUsageSummary } from "./ToolUsageSummary";
+import { MessageAttachments } from "./MessageAttachments";
 
 const roleStyles: Record<string, { bg: string; text: string; label: string; align: string }> = {
   user: {
@@ -77,6 +78,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   }, [message.content]);
 
   const showExport = message.role === 'assistant' && message.metadata?.exportable === true;
+  const wasStopped = message.metadata?.stopped === true;
+  const attachments = (message.metadata?.attachments as AttachmentMeta[] | undefined) ?? [];
 
   // Tool usage summary
   const toolSteps = message.metadata?.toolSteps;
@@ -112,6 +115,17 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         ) : (
           <MarkdownRenderer content={message.content} />
+        )}
+
+        {attachments.length > 0 && (
+          <MessageAttachments attachments={attachments} />
+        )}
+
+        {wasStopped && (
+          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-zinc-800/30">
+            <Square className="w-3 h-3 text-zinc-500" />
+            <span className="text-xs text-zinc-500">{t('chat.generationStopped')}</span>
+          </div>
         )}
 
         {showToolSummary && (

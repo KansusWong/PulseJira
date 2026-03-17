@@ -46,6 +46,8 @@ export interface SkillFrontmatter {
     tools?: string[];
   };
   tags?: string[];
+  /** 是否为核心技能（预加载 & 前端分区） */
+  core_skill?: boolean;
   /** 资源层配置 */
   resources?: {
     inject_references?: boolean;
@@ -79,6 +81,8 @@ export interface SkillDefinition {
   cachedAt?: string;
   /** 资源清单（eagerly scanned metadata, lazy content） */
   resources?: SkillResources;
+  /** 是否为核心技能 */
+  coreSkill: boolean;
   /** 解析后的资源配置（已填充默认值） */
   resourceConfig?: {
     inject_references: boolean;

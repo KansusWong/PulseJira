@@ -27,6 +27,7 @@ interface SkillAsset {
   name: string;
   displayName?: string;
   description: string;
+  coreSkill: boolean;
   source: 'project' | 'codex' | 'registry';
   created_at: string | null;
 }
@@ -89,9 +90,10 @@ export async function GET() {
           seenIds.add(id);
           skills.push({
             id,
-            name: def.name || entry,
+            name: displayNames[id] || entry,
             displayName: displayNames[id],
             description: def.description || '',
+            coreSkill: def.coreSkill === true,
             source,
             created_at: createdAt,
           });
@@ -112,6 +114,7 @@ export async function GET() {
               name: skill.name,
               displayName: displayNames[id],
               description: skill.description || '',
+              coreSkill: false,
               source: 'registry',
               created_at: null,
             });

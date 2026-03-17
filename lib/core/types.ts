@@ -56,6 +56,10 @@ export interface AgentContext {
   }) => void;
   /** Called when the LLM starts a new ReAct thinking step. */
   onStepStart?: (stepNumber: number) => void;
+  /** Called at each ReAct step with current context window usage. */
+  onContextUsage?: (usage: { estimated: number; max: number; ratio: number }) => void;
+  /** Called between ReAct steps. Returns a user-injected message, or null. */
+  onUserMessageCheck?: () => Promise<string | null>;
 }
 
 export interface AgentConfig {
@@ -296,6 +300,17 @@ export interface ChatMessage {
   created_at: string;
 }
 
+/** Attachment metadata for chat messages. Stored in message.metadata.attachments. */
+export interface AttachmentMeta {
+  id: string;
+  name: string;
+  size: number;
+  type: 'image' | 'document';
+  mimeType: string;
+  relativePath: string;
+  absolutePath: string;
+}
+
 /** Agent team record. */
 export interface AgentTeam {
   id: string;
@@ -374,6 +389,8 @@ export type ChatEventType =
   | 'tool_call_start'
   | 'tool_call_end'
   | 'step_start'
+  | 'context_usage'
+  | 'mate_token'
   | 'error'
   | 'done';
 

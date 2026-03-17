@@ -113,6 +113,11 @@ export interface ChatSlice {
     collapsed: boolean;
   };
 
+  // Per-mate chat messages and streaming tokens
+  mateChatMessages: Record<string, Array<{ role: 'user' | 'assistant'; content: string; timestamp: number }>>;
+  mateStreamingTokens: Record<string, string>;
+  agentLanePage: number;
+
   // Compaction → Team upgrade panel state (transient, not persisted)
   compactionUpgradePanel: {
     visible: boolean;
@@ -129,6 +134,9 @@ export interface ChatSlice {
 
   // Streaming sections (inline bubble — tokens + tool calls interleaved)
   streamingSections: StreamingSection[];
+
+  // Context window usage indicator
+  contextUsage: { estimated: number; max: number; ratio: number } | null;
 
   // Questionnaire inline state
   questionnaireData: QuestionnaireData | null;
@@ -189,6 +197,12 @@ export interface ChatSlice {
   setTeamCollaborationActive: (active: boolean) => void;
   setTeamCollaborationCollapsed: (collapsed: boolean) => void;
 
+  addMateChatMessage: (agentName: string, role: 'user' | 'assistant', content: string) => void;
+  appendMateStreamingToken: (agentName: string, token: string) => void;
+  clearMateStreamingTokens: (agentName: string) => void;
+  clearAllMateState: () => void;
+  setAgentLanePage: (page: number) => void;
+
   showCompactionUpgrade: (data: { upgradeId: string; tokenUsage: { estimated: number; max: number; ratio: number } }) => void;
   hideCompactionUpgrade: () => void;
   setPendingTeamUpgrade: (data: { stateSummary: string; conversationId: string }) => void;
@@ -198,6 +212,8 @@ export interface ChatSlice {
   startStreamingToolCall: (data: { toolName: string; toolLabel: string; toolCallId: string; args: string }) => void;
   endStreamingToolCall: (data: { toolCallId: string; resultPreview?: string; success: boolean }) => void;
   resetStreamingState: () => void;
+
+  setContextUsage: (usage: { estimated: number; max: number; ratio: number } | null) => void;
 
   setQuestionnaireData: (data: QuestionnaireData) => void;
   clearQuestionnaireData: () => void;
@@ -289,6 +305,10 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     collapsed: false,
   },
 
+  mateChatMessages: {},
+  mateStreamingTokens: {},
+  agentLanePage: 0,
+
   compactionUpgradePanel: {
     visible: false,
     upgradeId: null,
@@ -299,6 +319,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   pendingTeamUpgrade: null,
 
   streamingSections: [],
+
+  contextUsage: null,
 
   questionnaireData: null,
 
@@ -635,6 +657,37 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       teamCollaboration: { ...state.teamCollaboration, collapsed },
     })),
 
+  addMateChatMessage: (agentName, role, content) =>
+    set((state) => {
+      const existing = state.mateChatMessages[agentName] ?? [];
+      return {
+        mateChatMessages: {
+          ...state.mateChatMessages,
+          [agentName]: [...existing, { role, content, timestamp: Date.now() }],
+        },
+      };
+    }),
+
+  appendMateStreamingToken: (agentName, token) =>
+    set((state) => ({
+      mateStreamingTokens: {
+        ...state.mateStreamingTokens,
+        [agentName]: (state.mateStreamingTokens[agentName] ?? '') + token,
+      },
+    })),
+
+  clearMateStreamingTokens: (agentName) =>
+    set((state) => {
+      const { [agentName]: _, ...rest } = state.mateStreamingTokens;
+      return { mateStreamingTokens: rest };
+    }),
+
+  clearAllMateState: () =>
+    set({ mateChatMessages: {}, mateStreamingTokens: {}, agentLanePage: 0 }),
+
+  setAgentLanePage: (page) =>
+    set({ agentLanePage: page }),
+
   showCompactionUpgrade: (data) =>
     set({
       compactionUpgradePanel: {
@@ -692,6 +745,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
 
   resetStreamingState: () =>
     set({ streamingSections: [] }),
+
+  setContextUsage: (usage) => set({ contextUsage: usage }),
 
   setQuestionnaireData: (data) => set({ questionnaireData: data }),
   clearQuestionnaireData: () => set({ questionnaireData: null }),

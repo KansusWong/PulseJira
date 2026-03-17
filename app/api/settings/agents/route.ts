@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
-import { getAgentRegistry, loadAgentConfig, saveAgentConfig, saveOneAgentConfig } from '@/lib/config/agent-config';
+import { pathExists } from '@/lib/utils/fs-helpers';
+import { getAgentRegistry, loadAgentConfig, saveAgentConfig, saveOneAgentConfig, hasPromptFile, savePromptFile } from '@/lib/config/agent-config';
 import { registerAgent, deregisterAgent } from '@/lib/config/agent-registry';
 import { parseFrontmatter } from '@/lib/tools/subagent-registry';
 import type { AgentOverride, AgentRegistryEntry } from '@/lib/config/agent-config';
@@ -146,7 +147,16 @@ export async function PATCH(req: Request) {
     if (!agentId) {
       return NextResponse.json({ success: false, error: 'agentId is required' }, { status: 400 });
     }
-    saveOneAgentConfig(agentId, override || {});
+
+    // If agent has a prompt .md file, write systemPrompt there instead of override JSON
+    if (override?.systemPrompt !== undefined && hasPromptFile(agentId)) {
+      savePromptFile(agentId, override.systemPrompt);
+      const { systemPrompt: _, ...rest } = override;
+      saveOneAgentConfig(agentId, rest);
+    } else {
+      saveOneAgentConfig(agentId, override || {});
+    }
+
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 400 });
@@ -174,7 +184,7 @@ export async function POST(req: Request) {
     // Generate unique directory name
     let agentId = sanitizeId(displayName);
     const agentDir = path.join(SUBAGENTS_DIR, agentId);
-    if (fs.existsSync(agentDir)) {
+    if (pathExists(agentDir)) {
       agentId = `${agentId}-${Date.now().toString(36)}`;
     }
     const finalDir = path.join(SUBAGENTS_DIR, agentId);
@@ -252,7 +262,7 @@ export async function DELETE(req: Request) {
 
     // Guard: only allow deleting subagents (not builtin)
     const agentDir = path.join(SUBAGENTS_DIR, agentId);
-    if (!fs.existsSync(agentDir)) {
+    if (!pathExists(agentDir)) {
       return NextResponse.json(
         { success: false, error: `Subagent "${agentId}" not found. Only subagents can be deleted.` },
         { status: 404 },

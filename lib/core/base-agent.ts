@@ -18,6 +18,18 @@ const LLM_TIMEOUT_MS = parseInt(process.env.AGENT_LLM_TIMEOUT_MS || '120000', 10
 const COMPRESSION_MODEL = process.env.AGENT_COMPRESSION_MODEL || 'glm-5';
 /** Delay between ReAct loop steps to avoid 429 rate limiting (ms). */
 const INTER_STEP_DELAY_MS = parseInt(process.env.AGENT_INTER_STEP_DELAY_MS || '1500', 10);
+
+// --- Tool-result shrinking constants ---
+/** Number of recent messages considered "fresh" — tool results kept at higher char limit. */
+const TOOL_RESULT_FRESH_WINDOW = parseInt(process.env.AGENT_TOOL_RESULT_FRESH_WINDOW || '10', 10);
+/** Max chars for tool results in the fresh window. */
+const TOOL_RESULT_FRESH_CHARS = parseInt(process.env.AGENT_TOOL_RESULT_FRESH_CHARS || '12000', 10);
+/** Max chars for tool results outside the fresh window (stale). */
+const TOOL_RESULT_STALE_CHARS = parseInt(process.env.AGENT_TOOL_RESULT_STALE_CHARS || '1500', 10);
+/** Minimum content length before truncation applies (skip tiny results). */
+const TOOL_RESULT_MIN_TRUNCATE = parseInt(process.env.AGENT_TOOL_RESULT_MIN_TRUNCATE || '200', 10);
+/** Enable parallel tool execution when no approval is needed. Set to 'false' to disable. */
+const PARALLEL_TOOL_EXEC = process.env.AGENT_PARALLEL_TOOL_EXEC !== 'false';
 /** Token budget controller — triggers compression based on estimated token count. */
 const contextBudget = new ContextBudget();
 
@@ -62,7 +74,7 @@ async function compressContext(
   // Dual trigger: message count OR token budget exceeded
   const countExceeded = messages.length > maxRecent + 2;
   const budgetExceeded = contextBudget.needsCompression(messages);
-  if (!countExceeded && !budgetExceeded) return messages;
+  if (!countExceeded && !budgetExceeded) return shrinkToolResults(messages);
 
   const systemMsg = messages[0];
   const userMsg = messages[1];
@@ -116,7 +128,7 @@ ${excerpts}`;
     content: `[Compressed Context — ${trimmedMessages.length} earlier messages summarized]\n\n${summaryContent}\n\n[End of compressed context. Continue with recent messages below.]`,
   };
 
-  return [systemMsg, userMsg, contextMsg, ...recentMessages];
+  return shrinkToolResults([systemMsg, userMsg, contextMsg, ...recentMessages]);
 }
 
 /**
@@ -146,7 +158,39 @@ function trimMessages(
     content: `[Context note: ${trimmedCount} earlier messages (tool calls and results) were trimmed to manage context size. Continue with the recent context below.]`,
   };
 
-  return [systemMsg, userMsg, summaryMsg, ...recentMessages];
+  return shrinkToolResults([systemMsg, userMsg, summaryMsg, ...recentMessages]);
+}
+
+/**
+ * Shrink tool-result messages to reduce prompt token growth across ReAct steps.
+ *
+ * Two-tier truncation based on recency:
+ * - Fresh (last TOOL_RESULT_FRESH_WINDOW messages): truncate to TOOL_RESULT_FRESH_CHARS
+ * - Stale (older): truncate to TOOL_RESULT_STALE_CHARS
+ *
+ * Preserves error results in full (start with "Error") for agent self-correction.
+ * Returns a new array — never mutates the input.
+ */
+function shrinkToolResults(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const freshStart = Math.max(0, messages.length - TOOL_RESULT_FRESH_WINDOW);
+
+  return messages.map((msg, idx) => {
+    if (msg.role !== 'tool') return msg;
+
+    const content = typeof msg.content === 'string' ? msg.content : '';
+    if (content.length < TOOL_RESULT_MIN_TRUNCATE) return msg;
+    if (content.startsWith('Error')) return msg;
+
+    const limit = idx >= freshStart ? TOOL_RESULT_FRESH_CHARS : TOOL_RESULT_STALE_CHARS;
+    if (content.length <= limit) return msg;
+
+    const truncated = content.slice(0, limit) +
+      `\n...[truncated, ${content.length} chars total]`;
+
+    return { ...msg, content: truncated };
+  });
 }
 
 /**
@@ -499,7 +543,21 @@ export class BaseAgent {
         await new Promise(resolve => setTimeout(resolve, INTER_STEP_DELAY_MS));
       }
 
+      // Check for user-injected messages (per-mate chat)
+      if (context.onUserMessageCheck) {
+        const injectedMsg = await context.onUserMessageCheck();
+        if (injectedMsg) {
+          messages.push({ role: 'user', content: `[User Feedback]: ${injectedMsg}` });
+          await log(`[${name}] Received user feedback: ${injectedMsg.slice(0, 100)}`);
+        }
+      }
+
       context.onStepStart?.(step + 1);
+      context.onContextUsage?.({
+        estimated: contextBudget.measure(messages),
+        max: contextBudget.maxTokens,
+        ratio: contextBudget.usageRatio(messages),
+      });
       await log(`[${name}] Step ${step + 1}: Thinking...`);
 
       // --- Team upgrade check (same as run()) ---
@@ -589,6 +647,10 @@ export class BaseAgent {
 
       // --- Handle tool calls ---
       if (toolCallsArray && toolCallsArray.length > 0) {
+        // Phase 1: Pre-scan — handle exit tool & unknown tools before execution
+        const executableCalls: Array<{ toolCall: typeof toolCallsArray[0]; tool: BaseTool }> = [];
+        let earlyExit: Record<string, unknown> | null = null;
+
         for (const toolCall of toolCallsArray) {
           const toolName = toolCall.function.name;
           const tool = tools.find(t => t.name === toolName);
@@ -602,12 +664,12 @@ export class BaseAgent {
             continue;
           }
 
-          // Exit condition
           if (exitToolName && toolName === exitToolName) {
             try {
               const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
               await log(`[${name}] Exit tool "${exitToolName}" called. Finishing.`);
-              return args;
+              earlyExit = args;
+              break;
             } catch (parseErr: unknown) {
               const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
               await log(`[${name}] Failed to parse exit tool arguments: ${parseMsg}. Continuing loop.`);
@@ -620,78 +682,164 @@ export class BaseAgent {
             }
           }
 
-          // Streaming callbacks: tool start
-          context.onToolCallStart?.({
-            toolName,
-            toolCallId: toolCall.id,
-            args: toolCall.function.arguments.slice(0, 200),
-          });
+          executableCalls.push({ toolCall, tool });
+        }
 
-          await log(`[${name}] Action: ${toolName}(${toolCall.function.arguments.slice(0, 100)})`);
-          let resultStr = '';
-          try {
-            const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
+        if (earlyExit) return earlyExit;
 
-            // Approval gate (same as run())
-            const needsApproval = tool.requiresApproval && context.onApprovalRequired && (
-              context.trustLevel === 'collaborative' || (
-                context.trustLevel === 'standard' && tool.riskLevel !== 'low'
-              )
-            );
-            if (needsApproval) {
-              const approved = await context.onApprovalRequired!({
-                toolName,
-                toolArgs: args,
-                agentName: name,
-              });
-              if (!approved) {
-                resultStr = 'Tool execution was rejected by the user. Adjust your plan accordingly.';
-                messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
-                context.onToolCallEnd?.({ toolName, toolCallId: toolCall.id, result: resultStr, success: false });
-                continue;
+        // Phase 2: Decide execution mode
+        const anyNeedsApproval = executableCalls.some(({ tool }) =>
+          tool.requiresApproval && context.onApprovalRequired && (
+            context.trustLevel === 'collaborative' || (
+              context.trustLevel === 'standard' && tool.riskLevel !== 'low'
+            )
+          )
+        );
+        const canParallel = PARALLEL_TOOL_EXEC && !anyNeedsApproval && executableCalls.length >= 2;
+
+        if (canParallel) {
+          // --- Parallel execution path ---
+          // Fire all onToolCallStart callbacks upfront
+          for (const { toolCall, tool } of executableCalls) {
+            context.onToolCallStart?.({
+              toolName: tool.name,
+              toolCallId: toolCall.id,
+              args: toolCall.function.arguments.slice(0, 200),
+            });
+            await log(`[${name}] Action: ${tool.name}(${toolCall.function.arguments.slice(0, 100)})`);
+          }
+
+          // Execute all tools concurrently
+          const settled = await Promise.allSettled(
+            executableCalls.map(async ({ toolCall, tool }) => {
+              const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
+              const result = await tool.execute(args, toolCtx);
+              return result;
+            })
+          );
+
+          // Process results in original order
+          for (let i = 0; i < settled.length; i++) {
+            const { toolCall, tool } = executableCalls[i];
+            const outcome = settled[i];
+            let resultStr: string;
+
+            if (outcome.status === 'fulfilled') {
+              const result = outcome.value;
+              if (result.success) {
+                resultStr = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+              } else {
+                resultStr = `Error: ${result.error}`;
               }
+            } else {
+              const reason = outcome.reason;
+              const isTimeout = reason instanceof Error && (reason.message.includes('timeout') || reason.message.includes('ETIMEDOUT'));
+              const isRateLimit = reason instanceof Error && (reason.message.includes('429') || reason.message.includes('rate limit'));
+              const errorType = isTimeout ? 'TIMEOUT' : isRateLimit ? 'RATE_LIMIT' : 'EXECUTION_ERROR';
+              const errorMsg = reason instanceof Error ? reason.message : String(reason);
+              console.error(`[${name}] Tool "${tool.name}" ${errorType}:`, reason);
+              resultStr = `Error executing tool (${errorType}): ${errorMsg}`;
             }
 
-            const result = await tool.execute(args, toolCtx);
-            resultStr = result.success
-              ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))
-              : `Error: ${result.error}`;
-          } catch (e: unknown) {
-            const isTimeout = e instanceof Error && (e.message.includes('timeout') || e.message.includes('ETIMEDOUT'));
-            const isRateLimit = e instanceof Error && (e.message.includes('429') || e.message.includes('rate limit'));
-            const errorType = isTimeout ? 'TIMEOUT' : isRateLimit ? 'RATE_LIMIT' : 'EXECUTION_ERROR';
-            const errorMsg = e instanceof Error ? e.message : String(e);
-            console.error(`[${name}] Tool "${toolName}" ${errorType}:`, e);
-            resultStr = `Error executing tool (${errorType}): ${errorMsg}`;
-          }
+            messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
 
-          messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
+            let markerMatch: RegExpExecArray | null;
+            MARKER_RE.lastIndex = 0;
+            while ((markerMatch = MARKER_RE.exec(resultStr)) !== null) {
+              collectedMarkers.push(markerMatch[0]);
+            }
 
-          // Collect markers
-          let markerMatch: RegExpExecArray | null;
-          MARKER_RE.lastIndex = 0;
-          while ((markerMatch = MARKER_RE.exec(resultStr)) !== null) {
-            collectedMarkers.push(markerMatch[0]);
-          }
+            const isError = resultStr.startsWith('Error');
+            const preview = resultStr.slice(0, 150).replace(/\n/g, ' ');
+            await log(`[${name}] Result: ${tool.name} | ${isError ? 'ERROR' : 'OK'} | ${preview}`);
 
-          const isError = resultStr.startsWith('Error');
-          const preview = resultStr.slice(0, 150).replace(/\n/g, ' ');
-          await log(`[${name}] Result: ${toolName} | ${isError ? 'ERROR' : 'OK'} | ${preview}`);
-
-          // Streaming callbacks: tool end
-          context.onToolCallEnd?.({
-            toolName,
-            toolCallId: toolCall.id,
-            result: preview,
-            success: !isError,
-          });
-
-          // Corrective hint for code_edit on missing file
-          if (toolName === 'code_edit' && resultStr.includes('File not found')) {
-            messages.push({
-              role: 'user',
-              content: '⚠️ 上面的 code_edit 调用失败了，因为文件不存在。你必须改用 code_write 来创建这个新文件，不要再次尝试 code_edit。',
+            context.onToolCallEnd?.({
+              toolName: tool.name,
+              toolCallId: toolCall.id,
+              result: preview,
+              success: !isError,
             });
+
+            if (tool.name === 'code_edit' && resultStr.includes('File not found')) {
+              messages.push({
+                role: 'user',
+                content: '⚠️ 上面的 code_edit 调用失败了，因为文件不存在。你必须改用 code_write 来创建这个新文件，不要再次尝试 code_edit。',
+              });
+            }
+          }
+        } else {
+          // --- Sequential execution path (approval needed or single tool) ---
+          for (const { toolCall, tool } of executableCalls) {
+            const toolName = tool.name;
+
+            context.onToolCallStart?.({
+              toolName,
+              toolCallId: toolCall.id,
+              args: toolCall.function.arguments.slice(0, 200),
+            });
+
+            await log(`[${name}] Action: ${toolName}(${toolCall.function.arguments.slice(0, 100)})`);
+            let resultStr = '';
+            try {
+              const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
+
+              const needsApproval = tool.requiresApproval && context.onApprovalRequired && (
+                context.trustLevel === 'collaborative' || (
+                  context.trustLevel === 'standard' && tool.riskLevel !== 'low'
+                )
+              );
+              if (needsApproval) {
+                const approved = await context.onApprovalRequired!({
+                  toolName,
+                  toolArgs: args,
+                  agentName: name,
+                });
+                if (!approved) {
+                  resultStr = 'Tool execution was rejected by the user. Adjust your plan accordingly.';
+                  messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
+                  context.onToolCallEnd?.({ toolName, toolCallId: toolCall.id, result: resultStr, success: false });
+                  continue;
+                }
+              }
+
+              const result = await tool.execute(args, toolCtx);
+              resultStr = result.success
+                ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))
+                : `Error: ${result.error}`;
+            } catch (e: unknown) {
+              const isTimeout = e instanceof Error && (e.message.includes('timeout') || e.message.includes('ETIMEDOUT'));
+              const isRateLimit = e instanceof Error && (e.message.includes('429') || e.message.includes('rate limit'));
+              const errorType = isTimeout ? 'TIMEOUT' : isRateLimit ? 'RATE_LIMIT' : 'EXECUTION_ERROR';
+              const errorMsg = e instanceof Error ? e.message : String(e);
+              console.error(`[${name}] Tool "${toolName}" ${errorType}:`, e);
+              resultStr = `Error executing tool (${errorType}): ${errorMsg}`;
+            }
+
+            messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
+
+            let markerMatch: RegExpExecArray | null;
+            MARKER_RE.lastIndex = 0;
+            while ((markerMatch = MARKER_RE.exec(resultStr)) !== null) {
+              collectedMarkers.push(markerMatch[0]);
+            }
+
+            const isError = resultStr.startsWith('Error');
+            const preview = resultStr.slice(0, 150).replace(/\n/g, ' ');
+            await log(`[${name}] Result: ${toolName} | ${isError ? 'ERROR' : 'OK'} | ${preview}`);
+
+            context.onToolCallEnd?.({
+              toolName,
+              toolCallId: toolCall.id,
+              result: preview,
+              success: !isError,
+            });
+
+            if (toolName === 'code_edit' && resultStr.includes('File not found')) {
+              messages.push({
+                role: 'user',
+                content: '⚠️ 上面的 code_edit 调用失败了，因为文件不存在。你必须改用 code_write 来创建这个新文件，不要再次尝试 code_edit。',
+              });
+            }
           }
         }
 
@@ -751,15 +899,23 @@ export class BaseAgent {
         }
 
         await log(`[${name}] Completed with text response.`);
-        try {
-          const cleaned = cleanJSON(acc.content);
-          return JSON.parse(cleaned);
-        } catch {
-          if (collectedMarkers.length > 0) {
-            return collectedMarkers.join('\n') + '\n' + acc.content;
+        // Only attempt JSON parsing when agent has an exit tool (subagents
+        // returning structured data).  For chat agents whose response is
+        // markdown, blindly running cleanJSON would extract an embedded JSON
+        // code-block and discard the surrounding text — causing extractResponse
+        // to fail with the "unable to generate" fallback.
+        if (exitToolName && openAITools) {
+          try {
+            const cleaned = cleanJSON(acc.content);
+            return JSON.parse(cleaned);
+          } catch {
+            /* fall through to plain text return */
           }
-          return acc.content;
         }
+        if (collectedMarkers.length > 0) {
+          return collectedMarkers.join('\n') + '\n' + acc.content;
+        }
+        return acc.content;
       }
     }
 
@@ -891,6 +1047,15 @@ export class BaseAgent {
         await new Promise(resolve => setTimeout(resolve, INTER_STEP_DELAY_MS));
       }
 
+      // Check for user-injected messages (per-mate chat)
+      if (context.onUserMessageCheck) {
+        const injectedMsg = await context.onUserMessageCheck();
+        if (injectedMsg) {
+          messages.push({ role: 'user', content: `[User Feedback]: ${injectedMsg}` });
+          await log(`[${name}] Received user feedback: ${injectedMsg.slice(0, 100)}`);
+        }
+      }
+
       await log(`[${name}] Step ${step + 1}: Thinking...`);
 
       // --- Team upgrade check: offer before compaction if ≥75% context used ---
@@ -977,6 +1142,10 @@ export class BaseAgent {
 
       // --- Handle tool calls ---
       if (message.tool_calls && message.tool_calls.length > 0) {
+        // Phase 1: Pre-scan — handle exit tool & unknown tools before execution
+        const executableCalls: Array<{ toolCall: typeof message.tool_calls[0]; tool: BaseTool }> = [];
+        let earlyExit: Record<string, unknown> | null = null;
+
         for (const toolCall of message.tool_calls) {
           const toolName = toolCall.function.name;
           const tool = tools.find(t => t.name === toolName);
@@ -990,12 +1159,12 @@ export class BaseAgent {
             continue;
           }
 
-          // Exit condition: if this is the exit tool, return its arguments directly
           if (exitToolName && toolName === exitToolName) {
             try {
               const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
               await log(`[${name}] Exit tool "${exitToolName}" called. Finishing.`);
-              return args;
+              earlyExit = args;
+              break;
             } catch (parseErr: unknown) {
               const parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
               await log(`[${name}] Failed to parse exit tool arguments: ${parseMsg}. Continuing loop.`);
@@ -1008,75 +1177,135 @@ export class BaseAgent {
             }
           }
 
-          // Execute the tool
-          await log(`[${name}] Action: ${toolName}(${toolCall.function.arguments.slice(0, 100)})`);
-          let resultStr = '';
-          try {
-            const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
+          executableCalls.push({ toolCall, tool });
+        }
 
-            // Approval gate: block on human approval based on trustLevel + riskLevel.
-            // - auto mode: onApprovalRequired is undefined → skip all approvals
-            // - standard mode: skip low-risk tools, require approval for medium/high
-            // - collaborative mode: require approval for all tools with requiresApproval
-            const needsApproval = tool.requiresApproval && context.onApprovalRequired && (
-              context.trustLevel === 'collaborative' || (
-                context.trustLevel === 'standard' && tool.riskLevel !== 'low'
-              )
-            );
-            if (needsApproval) {
-              const approved = await context.onApprovalRequired!({
-                toolName,
-                toolArgs: args,
-                agentName: name,
-              });
-              if (!approved) {
-                resultStr = 'Tool execution was rejected by the user. Adjust your plan accordingly.';
-                messages.push({
-                  role: 'tool',
-                  tool_call_id: toolCall.id,
-                  content: resultStr,
-                });
-                continue;
+        if (earlyExit) return earlyExit;
+
+        // Phase 2: Decide execution mode
+        const anyNeedsApproval = executableCalls.some(({ tool }) =>
+          tool.requiresApproval && context.onApprovalRequired && (
+            context.trustLevel === 'collaborative' || (
+              context.trustLevel === 'standard' && tool.riskLevel !== 'low'
+            )
+          )
+        );
+        const canParallel = PARALLEL_TOOL_EXEC && !anyNeedsApproval && executableCalls.length >= 2;
+
+        if (canParallel) {
+          // --- Parallel execution path ---
+          for (const { toolCall, tool } of executableCalls) {
+            await log(`[${name}] Action: ${tool.name}(${toolCall.function.arguments.slice(0, 100)})`);
+          }
+
+          const settled = await Promise.allSettled(
+            executableCalls.map(async ({ toolCall, tool }) => {
+              const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
+              const result = await tool.execute(args, toolCtx);
+              return result;
+            })
+          );
+
+          for (let i = 0; i < settled.length; i++) {
+            const { toolCall, tool } = executableCalls[i];
+            const outcome = settled[i];
+            let resultStr: string;
+
+            if (outcome.status === 'fulfilled') {
+              const result = outcome.value;
+              if (result.success) {
+                resultStr = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+              } else {
+                resultStr = `Error: ${result.error}`;
               }
+            } else {
+              const reason = outcome.reason;
+              const isTimeout = reason instanceof Error && (reason.message.includes('timeout') || reason.message.includes('ETIMEDOUT'));
+              const isRateLimit = reason instanceof Error && (reason.message.includes('429') || reason.message.includes('rate limit'));
+              const errorType = isTimeout ? 'TIMEOUT' : isRateLimit ? 'RATE_LIMIT' : 'EXECUTION_ERROR';
+              const errorMsg = reason instanceof Error ? reason.message : String(reason);
+              console.error(`[${name}] Tool "${tool.name}" ${errorType}:`, reason);
+              resultStr = `Error executing tool (${errorType}): ${errorMsg}`;
             }
 
-            const result = await tool.execute(args, toolCtx);
-            resultStr = result.success
-              ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))
-              : `Error: ${result.error}`;
-          } catch (e: unknown) {
-            const isTimeout = e instanceof Error && (e.message.includes('timeout') || e.message.includes('ETIMEDOUT'));
-            const isRateLimit = e instanceof Error && (e.message.includes('429') || e.message.includes('rate limit'));
-            const errorType = isTimeout ? 'TIMEOUT' : isRateLimit ? 'RATE_LIMIT' : 'EXECUTION_ERROR';
-            const errorMsg = e instanceof Error ? e.message : String(e);
-            console.error(`[${name}] Tool "${toolName}" ${errorType}:`, e);
-            resultStr = `Error executing tool (${errorType}): ${errorMsg}`;
+            messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
+
+            let markerMatch: RegExpExecArray | null;
+            MARKER_RE.lastIndex = 0;
+            while ((markerMatch = MARKER_RE.exec(resultStr)) !== null) {
+              collectedMarkers.push(markerMatch[0]);
+            }
+
+            const isError = resultStr.startsWith('Error');
+            const preview = resultStr.slice(0, 150).replace(/\n/g, ' ');
+            await log(`[${name}] Result: ${tool.name} | ${isError ? 'ERROR' : 'OK'} | ${preview}`);
+
+            if (tool.name === 'code_edit' && resultStr.includes('File not found')) {
+              messages.push({
+                role: 'user',
+                content: '⚠️ 上面的 code_edit 调用失败了，因为文件不存在。你必须改用 code_write 来创建这个新文件，不要再次尝试 code_edit。',
+              });
+            }
           }
+        } else {
+          // --- Sequential execution path (approval needed or single tool) ---
+          for (const { toolCall, tool } of executableCalls) {
+            const toolName = tool.name;
 
-          messages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: resultStr,
-          });
+            await log(`[${name}] Action: ${toolName}(${toolCall.function.arguments.slice(0, 100)})`);
+            let resultStr = '';
+            try {
+              const args: Record<string, unknown> = JSON.parse(toolCall.function.arguments);
 
-          // Collect structured markers from tool results so they survive to the final response
-          let markerMatch: RegExpExecArray | null;
-          MARKER_RE.lastIndex = 0;
-          while ((markerMatch = MARKER_RE.exec(resultStr)) !== null) {
-            collectedMarkers.push(markerMatch[0]);
-          }
+              const needsApproval = tool.requiresApproval && context.onApprovalRequired && (
+                context.trustLevel === 'collaborative' || (
+                  context.trustLevel === 'standard' && tool.riskLevel !== 'low'
+                )
+              );
+              if (needsApproval) {
+                const approved = await context.onApprovalRequired!({
+                  toolName,
+                  toolArgs: args,
+                  agentName: name,
+                });
+                if (!approved) {
+                  resultStr = 'Tool execution was rejected by the user. Adjust your plan accordingly.';
+                  messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
+                  continue;
+                }
+              }
 
-          // Emit structured result log for frontend display
-          const isError = resultStr.startsWith('Error');
-          const preview = resultStr.slice(0, 150).replace(/\n/g, ' ');
-          await log(`[${name}] Result: ${toolName} | ${isError ? 'ERROR' : 'OK'} | ${preview}`);
+              const result = await tool.execute(args, toolCtx);
+              resultStr = result.success
+                ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))
+                : `Error: ${result.error}`;
+            } catch (e: unknown) {
+              const isTimeout = e instanceof Error && (e.message.includes('timeout') || e.message.includes('ETIMEDOUT'));
+              const isRateLimit = e instanceof Error && (e.message.includes('429') || e.message.includes('rate limit'));
+              const errorType = isTimeout ? 'TIMEOUT' : isRateLimit ? 'RATE_LIMIT' : 'EXECUTION_ERROR';
+              const errorMsg = e instanceof Error ? e.message : String(e);
+              console.error(`[${name}] Tool "${toolName}" ${errorType}:`, e);
+              resultStr = `Error executing tool (${errorType}): ${errorMsg}`;
+            }
 
-          // Inject corrective hint when code_edit fails on missing file
-          if (toolName === 'code_edit' && resultStr.includes('File not found')) {
-            messages.push({
-              role: 'user',
-              content: '⚠️ 上面的 code_edit 调用失败了，因为文件不存在。你必须改用 code_write 来创建这个新文件，不要再次尝试 code_edit。',
-            });
+            messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
+
+            let markerMatch: RegExpExecArray | null;
+            MARKER_RE.lastIndex = 0;
+            while ((markerMatch = MARKER_RE.exec(resultStr)) !== null) {
+              collectedMarkers.push(markerMatch[0]);
+            }
+
+            const isError = resultStr.startsWith('Error');
+            const preview = resultStr.slice(0, 150).replace(/\n/g, ' ');
+            await log(`[${name}] Result: ${toolName} | ${isError ? 'ERROR' : 'OK'} | ${preview}`);
+
+            if (toolName === 'code_edit' && resultStr.includes('File not found')) {
+              messages.push({
+                role: 'user',
+                content: '⚠️ 上面的 code_edit 调用失败了，因为文件不存在。你必须改用 code_write 来创建这个新文件，不要再次尝试 code_edit。',
+              });
+            }
           }
         }
 

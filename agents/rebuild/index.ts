@@ -9,7 +9,7 @@
 import { BaseAgent } from '@/lib/core/base-agent';
 import type { BaseTool } from '@/lib/core/base-tool';
 import { getToolsCached, isToolRegistered } from '@/lib/tools/index';
-import { REBUILD_SYSTEM_PROMPT_V1 } from './prompts/system';
+import { loadPromptFile } from '@/lib/config/agent-config';
 
 // Workspace-scoped tools (require runtime context)
 import { CodeWriteTool } from '@/lib/tools/code-write';
@@ -135,8 +135,8 @@ export function createRebuilDAgent(options?: {
     ? tools.filter(t => !exclude.has(t.name))
     : tools;
 
-  // Build system prompt (allow override)
-  let systemPrompt = options?.systemPrompt ?? REBUILD_SYSTEM_PROMPT_V1;
+  // Build system prompt — read from .md file at runtime (single source of truth)
+  let systemPrompt = options?.systemPrompt ?? loadPromptFile('rebuild');
   if (options?.soulPrompt) {
     systemPrompt += `\n\n## Agent Soul\n\n${options.soulPrompt}`;
   }

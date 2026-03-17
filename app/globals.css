@@ -123,6 +123,51 @@ body {
   font-weight: 500 !important;
 }
 
+/* ── Agent lane compact prose ─────────────────────────────── */
+.lane-prose .prose {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lane-prose .prose p {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+.lane-prose .prose h1,
+.lane-prose .prose h2,
+.lane-prose .prose h3,
+.lane-prose .prose h4 {
+  font-size: 13px;
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+}
+.lane-prose .prose pre {
+  font-size: 11px;
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+  padding: 0.5em;
+}
+.lane-prose .prose code:not(pre code) {
+  font-size: 11px;
+}
+.lane-prose .prose ul,
+.lane-prose .prose ol {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+  padding-left: 1.25em;
+}
+.lane-prose .prose li {
+  margin-top: 0.1em;
+  margin-bottom: 0.1em;
+}
+.lane-prose .prose table {
+  font-size: 11px;
+}
+.lane-prose .prose blockquote {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+  padding-left: 0.75em;
+}
+
 /* ── highlight.js dark theme (github-dark-dimmed style) ────── */
 .prose pre code.hljs { display: block; padding: 1em; overflow-x: auto; }
 .prose code.hljs { padding: 3px 5px; }

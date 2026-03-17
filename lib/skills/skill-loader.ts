@@ -290,6 +290,7 @@ export function parseSkillMd(
     remoteUrl: opts?.remoteUrl,
     localPath: opts?.localPath,
     instructions: body.trim(),
+    coreSkill: fm.core_skill === true,
     resourceConfig,
   };
 }

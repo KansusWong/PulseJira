@@ -65,8 +65,8 @@ export function createSafeWriter(writer: WritableStreamDefaultWriter<any>) {
 /** Heartbeat interval for long-running SSE streams (ms). */
 const SSE_HEARTBEAT_INTERVAL_MS = 30_000; // 30 seconds
 
-/** Default pipeline timeout — fires before Vercel Pro hard limit (300s) for graceful shutdown. */
-const SSE_PIPELINE_TIMEOUT_MS = 280_000; // 280 seconds
+/** Default pipeline timeout for SSE streams. */
+const SSE_PIPELINE_TIMEOUT_MS = 600_000; // 10 minutes
 
 export interface SSEOptions {
   /** Pipeline hard timeout (ms). Defaults to 280s. */

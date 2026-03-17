@@ -74,8 +74,8 @@ const en: TranslationDict = {
   'sidebar.settings.usage': 'Usage',
   'sidebar.settings.webhooks': 'Webhooks',
 
-  'sidebar.kernelSkills': 'Kernel Skills',
-  'sidebar.customSkills': 'Custom Skills',
+  'sidebar.coreSkills': 'Core Skills',
+  'sidebar.normalSkills': 'Normal Skills',
 
   // ── Studio ──
   'studio.title': 'Studio',
@@ -117,6 +117,16 @@ const en: TranslationDict = {
   'chat.sendWillInterrupt': 'Sending will interrupt current generation',
   'chat.signalSummary': '/signal-summary for daily signals',
   'chat.commands': 'Commands',
+  'chat.stopGenerating': 'Stop generating',
+  'chat.generationStopped': 'Generation stopped',
+  'chat.clickToStop': 'Click to stop generating',
+  'chat.contextUsage': 'Context window: {percent}% used',
+  'chat.attach': 'Attach files',
+  'chat.uploading': 'Uploading...',
+  'chat.uploadFailed': 'Upload failed',
+  'chat.fileTooLarge': 'File too large (max 20MB)',
+  'chat.unsupportedType': 'Unsupported file type',
+  'chat.maxFiles': 'Maximum 5 files per message',
   'chat.modeSimple': 'Simple',
   'chat.modeTeam': 'Team',
 

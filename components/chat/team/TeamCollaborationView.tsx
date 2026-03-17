@@ -4,7 +4,6 @@ import { usePulseStore } from "@/store/usePulseStore.new";
 import { useAgentSteps } from "./useAgentSteps";
 import { TeamStatusBar } from "./TeamStatusBar";
 import { AgentLaneGrid } from "./AgentLaneGrid";
-import { TeamCommunicationBar } from "./TeamCommunicationBar";
 import { TeamInterventionInput } from "./TeamInterventionInput";
 
 export function TeamCollaborationView() {
@@ -14,6 +13,11 @@ export function TeamCollaborationView() {
   const setCollapsed = usePulseStore((s) => s.setTeamCollaborationCollapsed);
   const communications = usePulseStore((s) => s.teamPanel.communications);
   const streamingSteps = usePulseStore((s) => s.streamingSteps);
+
+  const mateChatMessages = usePulseStore((s) => s.mateChatMessages);
+  const mateStreamingTokens = usePulseStore((s) => s.mateStreamingTokens);
+  const agentLanePage = usePulseStore((s) => s.agentLanePage);
+  const setAgentLanePage = usePulseStore((s) => s.setAgentLanePage);
 
   const agentStepsMap = useAgentSteps(streamingSteps, agents);
 
@@ -28,10 +32,18 @@ export function TeamCollaborationView() {
   }
 
   return (
-    <div className="flex flex-col border border-zinc-800/50 rounded-2xl bg-zinc-900/40 overflow-hidden">
+    <div className="flex flex-col h-full border border-zinc-800/50 rounded-2xl bg-zinc-900/40 overflow-hidden">
       <TeamStatusBar agents={agents} collapsed={false} onToggle={handleToggle} />
-      <AgentLaneGrid agents={agents} agentStepsMap={agentStepsMap} />
-      <TeamCommunicationBar communications={communications} />
+      <AgentLaneGrid
+        agents={agents}
+        agentStepsMap={agentStepsMap}
+        page={agentLanePage}
+        onPageChange={setAgentLanePage}
+        teamId={teamId}
+        mateChatMessages={mateChatMessages}
+        mateStreamingTokens={mateStreamingTokens}
+        communications={communications}
+      />
       <TeamInterventionInput teamId={teamId} agents={agents} />
     </div>
   );

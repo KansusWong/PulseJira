@@ -8,7 +8,6 @@ import { PlanPanel } from "@/components/chat/PlanPanel";
 import { AgentTeamPanel } from "@/components/chat/AgentTeamPanel";
 import { ClarificationForm } from "@/components/chat/ClarificationForm";
 import { DMDecisionPanel } from "@/components/chat/DMDecisionPanel";
-import { ToolApprovalPanel } from "@/components/chat/ToolApprovalPanel";
 import { ArchitectResumePanel } from "@/components/chat/ArchitectResumePanel";
 import { SolutionPreviewPanel } from "@/components/chat/SolutionPreviewPanel";
 import { SkillStudioPanel } from "@/components/studio/SkillStudioPanel";
@@ -39,7 +38,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const teamPanelVisible = usePulseStore((s) => s.teamPanel.visible);
   const clarificationVisible = usePulseStore((s) => s.clarificationPanel.visible);
   const dmPanelVisible = usePulseStore((s) => s.dmPanel.visible);
-  const toolApprovalVisible = usePulseStore((s) => s.toolApprovalPanel.visible);
   const architectPanelVisible = usePulseStore((s) => s.architectPanel.visible);
   const solutionPanelVisible = usePulseStore((s) => s.solutionPanel.visible);
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
@@ -101,8 +99,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? <PlanPanel />
     : dmPanelVisible
     ? <DMDecisionPanel />
-    : toolApprovalVisible
-    ? <ToolApprovalPanel />
     : architectPanelVisible
     ? <ArchitectResumePanel />
     : solutionPanelVisible
@@ -115,7 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <DashboardShell
       sidebarOpen={sidebarOpen}
       onToggleSidebar={toggleSidebar}
-      rightPanelOpen={!teamCollaborationActive && (clarificationVisible || planPanelVisible || dmPanelVisible || toolApprovalVisible || architectPanelVisible || solutionPanelVisible || teamPanelVisible)}
+      rightPanelOpen={!teamCollaborationActive && (clarificationVisible || planPanelVisible || dmPanelVisible || architectPanelVisible || solutionPanelVisible || teamPanelVisible)}
       sidebar={
         <Sidebar
           onToggleSidebar={toggleSidebar}

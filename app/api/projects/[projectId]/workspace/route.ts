@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import path from 'path';
-import fs from 'fs';
+import { pathExists } from '@/lib/utils/fs-helpers';
 import { supabase, assertSupabase } from '@/lib/db/client';
 import { errorResponse } from '@/lib/utils/api-error';
 
@@ -31,7 +31,7 @@ export async function GET(
     const dirName = (project.name || `project-${projectId}`)
       .replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_');
     const localPath = path.join(process.cwd(), 'projects', dirName);
-    const exists = fs.existsSync(localPath);
+    const exists = pathExists(localPath);
 
     return NextResponse.json({
       success: true,

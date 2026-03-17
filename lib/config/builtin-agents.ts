@@ -7,10 +7,11 @@
  * Old agent registrations are commented out for reference.
  */
 import { registerAgent } from './agent-registry';
-import { REBUILD_SYSTEM_PROMPT } from '@/agents/rebuild/prompts/system';
 
 // ==========================================================================
 // RebuilD — single autonomous software engineering agent
+// System prompt lives in agents/rebuild/prompts/system.md (single source of truth).
+// It is loaded at runtime by loadPromptFile('rebuild') — not statically imported.
 // ==========================================================================
 
 registerAgent({
@@ -19,7 +20,7 @@ registerAgent({
   role: '通用 AI 助手，深度思考/规划/执行/反思',
   runMode: 'react',
   defaultMaxLoops: 30,
-  defaultPrompt: REBUILD_SYSTEM_PROMPT,
+  defaultPrompt: '',  // loaded from .md file at runtime
   tools: [
     { name: 'read', description: '读取文件' },
     { name: 'write', description: '写入文件' },

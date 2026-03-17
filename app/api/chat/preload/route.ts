@@ -13,15 +13,12 @@ import { loadAgentConfig } from '@/lib/config/agent-config';
 import { GLOBAL_TOOL_NAMES } from '@/agents/rebuild';
 import { REBUILD_SYSTEM_PROMPT_V1 } from '@/agents/rebuild/prompts/system';
 import { buildSkillPromptForAgent } from '@/lib/skills/agent-skill-runtime';
-import { initializeSkillRegistry, getAllSkills } from '@/lib/skills/skill-registry';
+import { initializeSkillRegistry, getCoreSkills } from '@/lib/skills/skill-registry';
 import { embedAllSkills } from '@/lib/services/skill-embedder';
 import { isToolRegistered, getToolsCached } from '@/lib/tools/index';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-/** Non-core skills — skip during preload to reduce startup overhead. */
-const NON_CORE_SKILLS = ['daily-report', 'shared-blackboard', 'daily-signal'];
 
 export async function POST() {
   const t0 = Date.now();
@@ -38,21 +35,13 @@ export async function POST() {
     // ── Step 2: Skill prompt (core skills only) ────────────────────────
     const t1 = Date.now();
     await initializeSkillRegistry();
-    buildSkillPromptForAgent('rebuild', { exclude: NON_CORE_SKILLS });
 
-    // Embed only core skills — deduplicate by skill.id
-    const excludeSet = new Set(NON_CORE_SKILLS.map((s) => s.toLowerCase()));
-    const seen = new Set<string>();
-    const coreSkills = getAllSkills().filter((s) => {
-      if (excludeSet.has(s.id.toLowerCase())) return false;
-      if (seen.has(s.id)) return false;
-      seen.add(s.id);
-      return true;
-    });
+    // Only preload skills marked with core_skill: true in SKILL.md
+    const coreSkills = getCoreSkills();
+    buildSkillPromptForAgent('rebuild');
     await embedAllSkills(coreSkills);
     console.log(
-      `[preload] 2/3 Skill prompt built — ${coreSkills.length} core skills embedded, ` +
-        `${NON_CORE_SKILLS.length} non-core skipped (${NON_CORE_SKILLS.join(', ')}) in ${Date.now() - t1}ms`,
+      `[preload] 2/3 Skill prompt built — ${coreSkills.length} core skills embedded (core_skill flag) in ${Date.now() - t1}ms`,
     );
 
     // ── Step 3: Tool definitions ───────────────────────────────────────

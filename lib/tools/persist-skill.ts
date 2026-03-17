@@ -123,6 +123,7 @@ ${definition.instructions}
       tools: [],
       tags: definition.tags,
       instructions: definition.instructions,
+      coreSkill: false,
       source: 'local',
       localPath: skillDir,
       resourceConfig,

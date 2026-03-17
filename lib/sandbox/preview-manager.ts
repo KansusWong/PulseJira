@@ -13,6 +13,7 @@ import net from 'net';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
+import { pathExists } from '@/lib/utils/fs-helpers';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -448,7 +449,7 @@ class PreviewManager {
         const segment = e.name.startsWith('(') && e.name.endsWith(')') ? '' : `/${e.name}`;
         const childDir = path.join(dir, e.name);
         // Check if this dir has a page.tsx
-        if (fs.existsSync(path.join(childDir, 'page.tsx')) || fs.existsSync(path.join(childDir, 'page.jsx'))) {
+        if (pathExists(path.join(childDir, 'page.tsx')) || pathExists(path.join(childDir, 'page.jsx'))) {
           return routePrefix + segment;
         }
         const deeper = walk(childDir, routePrefix + segment);
@@ -491,7 +492,7 @@ class PreviewManager {
     // Recurse into the surviving dynamic dir
     if (dynamicDirs.length >= 1) {
       const surviving = dynamicDirs[0];
-      if (fs.existsSync(surviving)) this.fixRouteSlugConflicts(surviving);
+      if (pathExists(surviving)) this.fixRouteSlugConflicts(surviving);
     }
   }
 
@@ -502,11 +503,11 @@ class PreviewManager {
       const srcPath = path.join(src, e.name);
       const destPath = path.join(dest, e.name);
       if (e.isDirectory()) {
-        if (!fs.existsSync(destPath)) fs.mkdirSync(destPath, { recursive: true });
+        fs.mkdirSync(destPath, { recursive: true });
         this.mergeDirInto(srcPath, destPath);
       } else {
         // Only copy if destination doesn't already have this file
-        if (!fs.existsSync(destPath)) {
+        if (!pathExists(destPath)) {
           fs.copyFileSync(srcPath, destPath);
         }
       }
@@ -515,7 +516,7 @@ class PreviewManager {
 
   private runInstall(cwd: string, forceInstall: boolean, onProgress?: (msg: string) => void): Promise<void> {
     return new Promise((resolve, reject) => {
-      const hasNodeModules = fs.existsSync(path.join(cwd, 'node_modules'));
+      const hasNodeModules = pathExists(path.join(cwd, 'node_modules'));
       if (hasNodeModules && !forceInstall) {
         onProgress?.('node_modules exists, skipping install');
         resolve();

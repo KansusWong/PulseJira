@@ -11,7 +11,16 @@ import type { SkillDefinition } from './types';
 import { loadLocalSkills } from './skill-loader';
 import { embedSkill } from '../services/skill-embedder';
 
-const registry = new Map<string, SkillDefinition>();
+// Use globalThis to persist across requests in serverless/edge environments
+const REGISTRY_KEY = Symbol.for('skill-registry:map');
+const INIT_KEY = Symbol.for('skill-registry:initPromise');
+
+const _g = globalThis as unknown as {
+  [REGISTRY_KEY]?: Map<string, SkillDefinition>;
+  [INIT_KEY]?: Promise<void>;
+};
+
+const registry = (_g[REGISTRY_KEY] ??= new Map<string, SkillDefinition>());
 
 // ---------------------------------------------------------------------------
 // Core registry API
@@ -38,6 +47,16 @@ export function getAllSkills(): SkillDefinition[] {
   return Array.from(registry.values());
 }
 
+export function getCoreSkills(): SkillDefinition[] {
+  const seen = new Set<string>();
+  return getAllSkills().filter((s) => {
+    if (!s.coreSkill) return false;
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+}
+
 export function getSkillsByTag(tag: string): SkillDefinition[] {
   return getAllSkills().filter((s) => s.tags.includes(tag));
 }
@@ -56,7 +75,7 @@ export function searchSkills(query: string): SkillDefinition[] {
 // Initialization
 // ---------------------------------------------------------------------------
 
-let initPromise: Promise<void> | null = null;
+// Reuse cached init promise across requests via globalThis
 
 function getSkillBaseDirs(): string[] {
   const projectSkills = path.join(process.cwd(), 'skills');
@@ -77,9 +96,9 @@ function getSkillBaseDirs(): string[] {
  * Individual skills added via `registerSkill()` are still embedded on-the-fly.
  */
 export function initializeSkillRegistry(): Promise<void> {
-  if (initPromise) return initPromise;
+  if (_g[INIT_KEY]) return _g[INIT_KEY];
 
-  initPromise = (async () => {
+  _g[INIT_KEY] = (async () => {
     const locals: SkillDefinition[] = [];
     const loadedByDir: string[] = [];
     for (const baseDir of getSkillBaseDirs()) {
@@ -108,7 +127,7 @@ export function initializeSkillRegistry(): Promise<void> {
     }
   })();
 
-  return initPromise;
+  return _g[INIT_KEY];
 }
 
 // ---------------------------------------------------------------------------

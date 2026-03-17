@@ -42,7 +42,64 @@ export interface AgentRegistryEntry {
 }
 
 // ---------------------------------------------------------------------------
-// JSON file helpers (with TTL cache)
+// Prompt file helpers — single source of truth for system prompts
+// Agents with agents/{id}/prompts/system.md use that file directly.
+// Both frontend edits and backend edits go through the same .md file.
+// ---------------------------------------------------------------------------
+
+const AGENTS_DIR = path.join(process.cwd(), 'agents');
+
+/** Cached prompt content + timestamp per agent. TTL = 10 seconds. */
+const _promptCache = new Map<string, { content: string; loadedAt: number }>();
+const PROMPT_TTL_MS = 10_000;
+
+function promptFilePath(agentId: string): string {
+  return path.join(AGENTS_DIR, agentId, 'prompts', 'system.md');
+}
+
+/**
+ * Check whether an agent has a prompt .md file.
+ */
+export function hasPromptFile(agentId: string): boolean {
+  return fs.existsSync(promptFilePath(agentId));
+}
+
+/**
+ * Load the system prompt from the .md file (with cache).
+ * Returns empty string if file doesn't exist.
+ */
+export function loadPromptFile(agentId: string): string {
+  const cached = _promptCache.get(agentId);
+  if (cached && Date.now() - cached.loadedAt < PROMPT_TTL_MS) {
+    return cached.content;
+  }
+
+  const filePath = promptFilePath(agentId);
+  try {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      _promptCache.set(agentId, { content, loadedAt: Date.now() });
+      return content;
+    }
+  } catch (e) {
+    console.warn(`[agent-config] Failed to read prompt file for ${agentId}:`, e);
+  }
+  return '';
+}
+
+/**
+ * Save the system prompt to the .md file and invalidate cache.
+ */
+export function savePromptFile(agentId: string, content: string): void {
+  const filePath = promptFilePath(agentId);
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf-8');
+  _promptCache.delete(agentId);
+}
+
+// ---------------------------------------------------------------------------
+// JSON file helpers (with TTL cache) — for non-prompt overrides (model, maxLoops, soul)
 // ---------------------------------------------------------------------------
 
 /** Cached config data + timestamp. TTL = 30 seconds. */
@@ -87,8 +144,7 @@ function isEmptyOverride(override: AgentOverride): boolean {
   return (
     override.model === undefined &&
     override.maxLoops === undefined &&
-    override.soul === undefined &&
-    override.systemPrompt === undefined
+    override.soul === undefined
   );
 }
 
@@ -148,6 +204,15 @@ export function getAgentRegistry(): AgentRegistryEntry[] {
     const defaultModel = meta.id === 'critic' ? criticModel : (meta.defaultModel || DEFAULT_MODEL);
     const mergedSkills = mergeAgentSkills(meta.skills, getAgentSkillOverrides(meta.id));
 
+    // If the agent has a prompt .md file, use that as the single source of truth.
+    // Otherwise fall back to the registered defaultPrompt.
+    const promptFromFile = hasPromptFile(meta.id) ? loadPromptFile(meta.id) : '';
+    const systemPrompt = promptFromFile || meta.defaultPrompt || '';
+
+    // Strip systemPrompt from override — it now lives in the .md file
+    const rawOverride = loadAgentConfig(meta.id);
+    const { systemPrompt: _discarded, ...cleanOverride } = rawOverride;
+
     return {
       id: meta.id,
       displayName: meta.displayName,
@@ -157,9 +222,9 @@ export function getAgentRegistry(): AgentRegistryEntry[] {
         model: defaultModel,
         maxLoops: meta.defaultMaxLoops,
         soul,
-        systemPrompt: meta.defaultPrompt || '',
+        systemPrompt,
       },
-      override: loadAgentConfig(meta.id),
+      override: cleanOverride,
       tools: meta.tools,
       skills: mergedSkills,
       isAIGenerated: meta.isAIGenerated,

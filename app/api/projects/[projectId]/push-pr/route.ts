@@ -12,7 +12,7 @@
 
 import { NextResponse } from 'next/server';
 import path from 'path';
-import fs from 'fs';
+import { pathExists } from '@/lib/utils/fs-helpers';
 import { GitWorkspace } from '@/lib/sandbox/git-workspace';
 import { createPullRequest } from '@/connectors/external/github';
 import { supabase, assertSupabase } from '@/lib/db/client';
@@ -70,7 +70,7 @@ export async function POST(
     .replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_');
   const localPath = path.join(process.cwd(), 'projects', dirName);
 
-  if (!fs.existsSync(localPath)) {
+  if (!pathExists(localPath)) {
     return NextResponse.json(
       { success: false, error: `Workspace not found at ${localPath}` },
       { status: 404 }
