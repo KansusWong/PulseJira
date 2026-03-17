@@ -11,6 +11,8 @@
  * with its built-in complexity judgment and tool set (plan_mode, todo, task, etc.).
  */
 
+import fs from 'fs';
+import path from 'path';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { generateJSON } from '@/lib/core/llm';
 import { getPreferences } from '@/lib/services/preferences-store';
@@ -19,12 +21,14 @@ import { createProject, getProject, updateProject } from '@/projects/project-ser
 import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
 import { compactionUpgradeService } from '@/lib/services/compaction-upgrade';
+import { mateMessageQueue } from '@/lib/services/mate-message-queue';
 import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
 import { workspaceManager } from '@/lib/sandbox/workspace-manager';
 import type { Workspace } from '@/lib/sandbox/types';
 import { getEnvironmentContext } from '@/lib/utils/environment';
 import { createRebuilDAgent, BLOCKED_SUBORDINATE_TOOLS } from '@/agents/rebuild';
 import { loadAgentConfig } from '@/lib/config/agent-config';
+import { estimateTokens } from '@/lib/core/token-budget';
 import { loadSoul } from '@/agents/utils';
 import { CreateWorkspaceTool } from '@/lib/tools/create-workspace';
 import type {
@@ -33,7 +37,45 @@ import type {
   ComplexityAssessment,
   ChatEvent,
   StructuredAgentStep,
+  AttachmentMeta,
 } from '@/lib/core/types';
+
+// ---------------------------------------------------------------------------
+// History token budget — fill as many recent messages as the budget allows
+// ---------------------------------------------------------------------------
+
+const HISTORY_TOKEN_BUDGET = parseInt(process.env.HISTORY_TOKEN_BUDGET || '80000', 10);
+
+/**
+ * Build conversation history string from messages, fitting within a token budget.
+ * Works backwards from the most recent message so the latest context is always kept.
+ */
+function buildHistoryContext(messages: ChatMessage[], tokenBudget: number = HISTORY_TOKEN_BUDGET): string {
+  if (!messages.length) return '';
+
+  const formatted: string[] = [];
+  let usedTokens = 0;
+  let includedCount = 0;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    const line = `[${msg.role}]: ${msg.content}`;
+    const lineTokens = estimateTokens(line);
+
+    if (usedTokens + lineTokens > tokenBudget) break;
+
+    formatted.unshift(line);
+    usedTokens += lineTokens;
+    includedCount++;
+  }
+
+  // Let the LLM know earlier messages were omitted
+  if (includedCount < messages.length) {
+    formatted.unshift(`[system]: (${messages.length - includedCount} earlier messages omitted due to context budget)`);
+  }
+
+  return formatted.join('\n\n');
+}
 
 // ---------------------------------------------------------------------------
 // Agent instance cache — reuse per conversation (TTL 5 min, max 20 entries)
@@ -87,6 +129,7 @@ interface ChatContext {
   messages: ChatMessage[];
   userMessage: string;
   assessment: ComplexityAssessment | null;
+  attachments?: AttachmentMeta[];
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +254,15 @@ export class ChatEngine {
       }
     }
 
+    // Last resort: if result is a non-null object (e.g. parsed JSON that
+    // didn't match known shapes), stringify it so the user sees *something*
+    // rather than a generic error.
+    if (result && typeof result === 'object') {
+      try {
+        return JSON.stringify(result, null, 2);
+      } catch { /* fall through */ }
+    }
+
     return 'Sorry, I was unable to generate a response. Please try again.';
   }
 
@@ -225,12 +277,14 @@ export class ChatEngine {
   async *handleMessage(
     conversationId: string,
     message: string,
+    attachments?: AttachmentMeta[],
   ): AsyncGenerator<ChatEvent> {
     // 1. Load or create conversation
     const conversation = await this.getOrCreateConversation(conversationId);
 
-    // 2. Save user message
-    await this.saveMessage(conversation.id, 'user', message);
+    // 2. Save user message (with attachment metadata if present)
+    const msgMeta = attachments?.length ? { attachments } : undefined;
+    await this.saveMessage(conversation.id, 'user', message, msgMeta);
 
     // 3. Load conversation history
     const history = await this.getMessages(conversation.id);
@@ -248,6 +302,7 @@ export class ChatEngine {
       messages: history,
       userMessage: message,
       assessment: null,
+      attachments,
     };
 
     yield* this.handleUnified(context);
@@ -422,10 +477,25 @@ export class ChatEngine {
       }
 
       // --- 4. Build input with conversation history ---
-      const historyContext = context.messages
-        .slice(-10)
-        .map(m => `[${m.role}]: ${m.content}`)
-        .join('\n\n');
+
+      // Copy attached files into workspace if available
+      if (context.attachments?.length && workspace?.localPath) {
+        const uploadsDir = path.join(workspace.localPath, 'uploads');
+        fs.mkdirSync(uploadsDir, { recursive: true });
+        for (const att of context.attachments) {
+          try {
+            const srcPath: string = att.absolutePath;
+            const destPath = path.join(uploadsDir, path.basename(srcPath));
+            fs.copyFileSync(srcPath, destPath);
+            att.relativePath = `uploads/${path.basename(srcPath)}`;
+          } catch { /* skip copy errors (e.g. ENOENT) */ }
+        }
+      }
+
+      // Build attachment context for agent
+      const attachmentContext = ChatEngine.buildAttachmentContext(context.attachments, workspace?.localPath);
+
+      const historyContext = buildHistoryContext(context.messages);
 
       // Channel-based logger
       const channelLogger = async (msg: string) => {
@@ -467,10 +537,17 @@ export class ChatEngine {
       const onStepStart = (stepNumber: number) => {
         channel.push({ type: 'step_start', data: { step: stepNumber } });
       };
+      const onContextUsage = (usage: { estimated: number; max: number; ratio: number }) => {
+        channel.push({ type: 'context_usage', data: usage });
+      };
 
       // --- 6. Run agent in background (streaming mode) ---
+      const envContext = `[Environment]\n${ChatEngine.getEnvironmentContext()}`;
+      const userInput = attachmentContext
+        ? `${envContext}\n\n${historyContext}\n\n${attachmentContext}\n\n[user]: ${context.userMessage}`
+        : `${envContext}\n\n${historyContext}\n\n[user]: ${context.userMessage}`;
       const agentPromise = agent.runStreaming(
-        `${historyContext}\n\n[user]: ${context.userMessage}`,
+        userInput,
         {
           projectId: projectId || undefined,
           logger: channelLogger,
@@ -482,6 +559,7 @@ export class ChatEngine {
           onToolCallStart,
           onToolCallEnd,
           onStepStart,
+          onContextUsage,
           workspacePath: workspace?.localPath,
         },
       );
@@ -583,6 +661,37 @@ export class ChatEngine {
       channel.close();
       yield { type: 'error', data: { message: error.message } };
     }
+  }
+
+  // =========================================================================
+  // Attachment context builder
+  // =========================================================================
+
+  private static buildAttachmentContext(
+    attachments: AttachmentMeta[] | undefined,
+    workspacePath?: string,
+  ): string {
+    if (!attachments?.length) return '';
+
+    const formatSize = (bytes: number) => {
+      if (bytes < 1024) return `${bytes}B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+    };
+
+    const lines = attachments.map(att => {
+      const sizeStr = formatSize(att.size);
+      if (att.type === 'image') {
+        const imgPath = workspacePath
+          ? att.relativePath
+          : att.absolutePath;
+        return `- Image: "${att.name}" (${sizeStr}) — 使用 analyze_image 工具, path: "${imgPath}"`;
+      }
+      const docPath = workspacePath ? att.relativePath : att.absolutePath;
+      return `- Document: "${att.name}" (${sizeStr}) — 使用 read_document 工具, path: "${docPath}"`;
+    });
+
+    return `[Attached Files — 用户上传了以下文件供你分析]\n${lines.join('\n')}`;
   }
 
   // =========================================================================
@@ -888,12 +997,32 @@ ${teammate.task}
           data: { agent_name: teammate.name, task: teammate.task },
         });
 
+        // Per-mate streaming callbacks
+        const onToken = (token: string) => {
+          channel.push({ type: 'mate_token' as any, data: { agent: teammate.name, content: token } });
+        };
+        const onMateToolCallStart = (params: { toolName: string; toolCallId: string; args: string }) => {
+          const toolLabel = ChatEngine.TOOL_LABELS[params.toolName] || params.toolName;
+          channel.push({ type: 'tool_call_start', data: { ...params, toolLabel, agent: teammate.name } });
+        };
+        const onMateToolCallEnd = (params: { toolName: string; toolCallId: string; result: string; success: boolean }) => {
+          const toolLabel = ChatEngine.TOOL_LABELS[params.toolName] || params.toolName;
+          channel.push({ type: 'tool_call_end', data: { ...params, toolLabel, agent: teammate.name } });
+        };
+        const onUserMessageCheck = async () => {
+          return mateMessageQueue.dequeue(teamId, teammate.name);
+        };
+
         const startTime = Date.now();
         try {
-          const result = await teammateAgent.run(teammate.task, {
+          const result = await teammateAgent.runStreaming(teammate.task, {
             projectId: projectId!,
             logger: channelLogger,
             workspacePath: workspace?.localPath,
+            onToken,
+            onToolCallStart: onMateToolCallStart,
+            onToolCallEnd: onMateToolCallEnd,
+            onUserMessageCheck,
           });
 
           const durationMs = Date.now() - startTime;
@@ -913,6 +1042,9 @@ ${teammate.task}
       });
 
       const results = await Promise.all(agentPromises);
+
+      // Clean up per-mate message queues
+      mateMessageQueue.clear(teamId);
 
       // 9. Synthesize final report
       const finalSummary = results.map(r =>
