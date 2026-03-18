@@ -40,7 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [locale]);
 
   const [assets, setAssets] = useState<AssetsData | null>(null);
-  const sidebarOpen = usePulseStore((s) => s.sidebarOpen);
+  const isSidebarCollapsed = usePulseStore((s) => s.isSidebarCollapsed);
   const toggleSidebar = usePulseStore((s) => s.toggleSidebar);
   const conversations = usePulseStore((s) => s.conversations);
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
@@ -123,7 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <DashboardShell
-      sidebarOpen={sidebarOpen}
+      sidebarOpen={!isSidebarCollapsed}
       onToggleSidebar={toggleSidebar}
       rightPanelOpen={!teamCollaborationActive && (clarificationVisible || planPanelVisible || dmPanelVisible || architectPanelVisible || solutionPanelVisible || teamPanelVisible)}
       sidebar={
