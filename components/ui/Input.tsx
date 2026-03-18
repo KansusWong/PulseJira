@@ -10,11 +10,13 @@ export function Input({ className, icon, ...props }: InputProps) {
   return (
     <div className="relative">
       {icon && (
-        <div className="absolute left-3 top-3 text-zinc-600">{icon}</div>
+        <div className="absolute left-3 top-3 text-[var(--text-muted)]">{icon}</div>
       )}
       <input
         className={clsx(
-          "w-full bg-black border border-border rounded-lg py-3 text-sm focus:outline-none focus:border-blue-500 transition-colors placeholder:text-zinc-800",
+          "w-full bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg py-3 text-sm text-[var(--text-primary)] transition-colors",
+          "placeholder:text-[var(--text-muted)]",
+          "focus:border-[var(--border-accent)] focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none",
           icon ? "pl-10 pr-4" : "px-4",
           className
         )}
@@ -30,7 +32,9 @@ export function TextArea({ className, ...props }: TextAreaProps) {
   return (
     <textarea
       className={clsx(
-        "w-full bg-black border border-border rounded-lg p-4 text-sm focus:outline-none focus:border-blue-500 transition-colors placeholder:text-zinc-800 resize-none",
+        "w-full bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg p-4 text-sm text-[var(--text-primary)] transition-colors resize-none",
+        "placeholder:text-[var(--text-muted)]",
+        "focus:border-[var(--border-accent)] focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none",
         className
       )}
       {...props}

@@ -3,21 +3,22 @@
 import clsx from "clsx";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'icon';
   size?: 'sm' | 'md' | 'lg';
 }
 
 const variantStyles: Record<string, string> = {
-  primary: "bg-white text-black hover:bg-zinc-200",
-  secondary: "bg-zinc-900 text-zinc-300 border border-zinc-800 hover:bg-zinc-800",
-  danger: "bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-900/30",
-  ghost: "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-300",
+  primary: "bg-[var(--accent)] text-black hover:bg-[var(--accent-hover)]",
+  secondary: "bg-[var(--bg-glass)] border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
+  ghost: "border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:border-[var(--border-default)]",
+  danger: "bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20",
+  icon: "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
 };
 
 const sizeStyles: Record<string, string> = {
-  sm: "px-3 py-1.5 text-xs",
-  md: "px-4 py-2.5 text-sm",
-  lg: "px-6 py-3 text-sm",
+  sm: "py-[7px] px-[10px] text-xs",
+  md: "py-[9px] px-[14px] text-sm",
+  lg: "py-[11px] px-[18px] text-sm",
 };
 
 export function Button({
@@ -31,6 +32,7 @@ export function Button({
     <button
       className={clsx(
         "font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center",
+        "focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none",
         variantStyles[variant],
         sizeStyles[size],
         className

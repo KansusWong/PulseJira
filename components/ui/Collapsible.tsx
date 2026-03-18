@@ -16,19 +16,19 @@ export function Collapsible({ title, children, defaultOpen = false, icon, classN
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className={clsx("border border-border rounded-lg overflow-hidden", className)}>
+    <div className={clsx("border border-[var(--border-subtle)] rounded-lg overflow-hidden", className)}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between p-3 hover:bg-zinc-900/50 transition-colors text-sm"
+        className="w-full flex items-center justify-between p-3 hover:bg-[var(--bg-hover)] transition-colors text-sm"
       >
         <div className="flex items-center gap-2">
           {icon}
-          <span className="font-medium text-zinc-300">{title}</span>
+          <span className="font-medium text-[var(--text-secondary)]">{title}</span>
         </div>
-        <ChevronDown className={clsx("w-4 h-4 text-zinc-500 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={clsx("w-4 h-4 text-[var(--text-muted)] transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="border-t border-border p-3">
+        <div className="border-t border-[var(--border-subtle)] p-3">
           {children}
         </div>
       )}
