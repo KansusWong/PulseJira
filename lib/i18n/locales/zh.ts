@@ -63,6 +63,7 @@ const zh: TranslationDict = {
   'sidebar.noPpts': '暂无 PPT',
   'sidebar.noFiles': '暂无文件',
   'sidebar.signals': '信号',
+  'sidebar.searchChats': '搜索对话...',
   'sidebar.graph': '知识图谱',
   'sidebar.settings': '设置',
 
@@ -78,6 +79,7 @@ const zh: TranslationDict = {
   'sidebar.settings.interestedTopics': '感兴趣话题',
   'sidebar.settings.llmPool': 'LLM 账户池',
   'sidebar.settings.agentManagement': '智能体管理',
+  'sidebar.settings.mateAgents': 'Mate 智能体',
   'sidebar.settings.usage': '用量',
   'sidebar.settings.webhooks': 'Webhook 通知',
 
@@ -855,6 +857,24 @@ const zh: TranslationDict = {
   'mermaid.error': '流程图渲染失败',
   'mermaid.loading': '流程图渲染中…',
   'mermaid.exported': 'SVG 已下载',
+
+  // ── Mate 智能体 ──
+  'mate.title': 'Mate 智能体',
+  'mate.description': '从 mates/*/MATE.md 加载的智能体人设，用于团队协作模式。',
+  'mate.count': '{count} 个 Mate 已注册',
+  'mate.refresh': '刷新',
+  'mate.refreshing': '扫描中...',
+  'mate.loadFailed': '加载 Mate 注册表失败',
+  'mate.noMates': '未找到 Mate 定义。创建 mates/{name}/MATE.md 文件来注册。',
+  'mate.domains': '领域',
+  'mate.noDomains': '无领域标签',
+  'mate.toolsDeny': '禁用工具',
+  'mate.toolsAllow': '允许工具',
+  'mate.noToolRestrictions': '无工具限制',
+  'mate.canLead': '可领导',
+  'mate.model': '模型',
+  'mate.source': '来源',
+  'mate.status': '状态',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': '正在等待编译完成... ({current}/{max})',

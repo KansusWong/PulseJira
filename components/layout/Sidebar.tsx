@@ -1,36 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
-  PanelLeftClose,
   Plus,
   Search,
-  Radio,
   Settings,
-  ChevronDown,
-  ChevronRight,
-  Target,
-  Bot,
-  Trash2,
-  BarChart3,
-  Wrench,
   Layers,
-  MessageSquare,
-  Settings2,
-  Bell,
-  Sparkles,
-  Presentation,
-  FileText,
-  Download,
+  Trash2,
+  MoreHorizontal,
+  ChevronsLeft,
+  Pencil,
 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
-import { LanguageSwitcher } from "@/components/settings/LanguageSwitcher";
 import { usePulseStore } from "@/store/usePulseStore.new";
 
 // ---------------------------------------------------------------------------
-// Asset types
+// Legacy type exports (kept for backward compat — layout.tsx imports AssetsData)
 // ---------------------------------------------------------------------------
 
 export interface SkillAsset {
@@ -39,7 +26,7 @@ export interface SkillAsset {
   displayName?: string;
   description: string;
   coreSkill?: boolean;
-  source?: 'project' | 'codex' | 'registry';
+  source?: "project" | "codex" | "registry";
   created_at: string | null;
 }
 
@@ -64,8 +51,8 @@ export interface AssetsData {
 
 interface SidebarProps {
   onToggleSidebar: () => void;
-  assets?: AssetsData | null;
-  onSelectAsset?: (type: 'skill' | 'ppt' | 'file', id: string) => void;
+  /** @deprecated assets prop is no longer used — sidebar reads from store */
+  assets?: unknown;
   conversations?: Array<{ id: string; title: string | null; updated_at: string; status: string }>;
   activeConversationId?: string | null;
   onSelectConversation?: (id: string | null) => void;
@@ -73,34 +60,121 @@ interface SidebarProps {
   onNewChat?: () => void;
 }
 
-type SettingsSectionKey = "initial" | "advanced" | "rebuild";
-
 // ---------------------------------------------------------------------------
-// AssetItem
+// Time-based conversation grouping
 // ---------------------------------------------------------------------------
 
-function AssetItem({
-  name,
-  subtitle,
-  icon: Icon,
-  onClick,
+interface ConversationGroup {
+  label: string;
+  conversations: Array<{ id: string; title: string | null; updated_at: string; status: string }>;
+}
+
+function groupConversationsByTime(
+  conversations: Array<{ id: string; title: string | null; updated_at: string; status: string }>,
+  t: (key: string) => string,
+): ConversationGroup[] {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+
+  const today: typeof conversations = [];
+  const yesterday: typeof conversations = [];
+  const earlier: typeof conversations = [];
+
+  for (const conv of conversations) {
+    const d = new Date(conv.updated_at);
+    if (d >= todayStart) {
+      today.push(conv);
+    } else if (d >= yesterdayStart) {
+      yesterday.push(conv);
+    } else {
+      earlier.push(conv);
+    }
+  }
+
+  const groups: ConversationGroup[] = [];
+  if (today.length > 0) groups.push({ label: t("time.today"), conversations: today });
+  if (yesterday.length > 0) groups.push({ label: t("time.yesterday"), conversations: yesterday });
+  if (earlier.length > 0) groups.push({ label: t("time.earlier"), conversations: earlier });
+  return groups;
+}
+
+// ---------------------------------------------------------------------------
+// Format relative time (e.g. "2m", "3h", "5d")
+// ---------------------------------------------------------------------------
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
+
+// ---------------------------------------------------------------------------
+// Context menu for conversation items
+// ---------------------------------------------------------------------------
+
+function ConversationContextMenu({
+  conversationId,
+  onRename,
+  onDelete,
+  onClose,
+  anchorRef,
 }: {
-  name: string;
-  subtitle?: string;
-  icon: React.ComponentType<{ className?: string }>;
-  onClick: () => void;
+  conversationId: string;
+  onRename: (id: string) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        anchorRef.current &&
+        !anchorRef.current.contains(e.target as Node)
+      ) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onClose, anchorRef]);
+
   return (
-    <button
-      onClick={onClick}
-      className="w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+    <div
+      ref={menuRef}
+      className="absolute right-0 top-full mt-1 z-50 min-w-[120px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-lg py-1"
     >
-      <Icon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-500" />
-      <span className="truncate flex-1">{name}</span>
-      {subtitle && (
-        <span className="text-[10px] text-zinc-600 flex-shrink-0">{subtitle}</span>
-      )}
-    </button>
+      <button
+        onClick={() => {
+          onRename(conversationId);
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+      >
+        <Pencil className="w-3 h-3" />
+        {t("common.rename")}
+      </button>
+      <button
+        onClick={() => {
+          onDelete(conversationId);
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+      >
+        <Trash2 className="w-3 h-3" />
+        {t("common.delete")}
+      </button>
+    </div>
   );
 }
 
@@ -110,8 +184,6 @@ function AssetItem({
 
 export function Sidebar({
   onToggleSidebar,
-  assets,
-  onSelectAsset,
   conversations = [],
   activeConversationId,
   onSelectConversation,
@@ -120,600 +192,332 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { t } = useTranslation();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [conversationsFolderOpen, setConversationsFolderOpen] = useState(false);
-  const [skillsFolderOpen, setSkillsFolderOpen] = useState(false);
-  const [coreGroupOpen, setCoreGroupOpen] = useState(false);
-  const [normalGroupOpen, setNormalGroupOpen] = useState(false);
-  const [pptsFolderOpen, setPptsFolderOpen] = useState(false);
-  const [filesFolderOpen, setFilesFolderOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(pathname === "/settings");
-  const [openSettingsSection, setOpenSettingsSection] = useState<SettingsSectionKey | null>(null);
 
-  const currentTab = searchParams.get("tab");
-  const isSettingsActive = pathname === "/settings";
-  const activeSettingsTab = !currentTab
-    ? "setup"
-    : currentTab === "preferences"
-    ? "advanced-topics"
-    : currentTab;
-  const activeSettingsSection: SettingsSectionKey =
-    activeSettingsTab === "setup"
-      ? "initial"
-      : activeSettingsTab === "advanced-platforms" ||
-        activeSettingsTab === "advanced-topics" ||
-        activeSettingsTab === "webhooks" ||
-        activeSettingsTab === "advanced"
-      ? "advanced"
-      : "rebuild";
+  const isSidebarCollapsed = usePulseStore((s) => s.isSidebarCollapsed);
+  const expanded = !isSidebarCollapsed;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contextMenuId, setContextMenuId] = useState<string | null>(null);
+  const contextMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
+
+  // Rename state
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const updateConversation = usePulseStore((s) => s.updateConversation);
 
   useEffect(() => {
-    if (!isSettingsActive) return;
-    setSettingsOpen(true);
-    setOpenSettingsSection(activeSettingsSection);
-  }, [isSettingsActive, activeSettingsSection]);
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
 
-  const openStudioTab = usePulseStore((s) => s.openStudioTab);
+  // Filter conversations by search query
+  const filteredConversations = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter(
+      (c) => c.title && c.title.toLowerCase().includes(q),
+    );
+  }, [conversations, searchQuery]);
 
-  // Filter assets by search query
-  const q = searchQuery.toLowerCase();
-  const filteredSkills = q
-    ? (assets?.skills || []).filter((s) => {
-        const label = (s.displayName || s.name).toLowerCase();
-        return label.includes(q) || s.description.toLowerCase().includes(q);
-      })
-    : assets?.skills || [];
-  const filteredPpts = q
-    ? (assets?.ppts || []).filter((f) => f.name.toLowerCase().includes(q))
-    : assets?.ppts || [];
-  const filteredFiles = q
-    ? (assets?.files || []).filter((f) => f.name.toLowerCase().includes(q))
-    : assets?.files || [];
+  // Group conversations by time
+  const groups = useMemo(
+    () => groupConversationsByTime(filteredConversations, t),
+    [filteredConversations, t],
+  );
 
-  // Split skills into core (coreSkill flag) and normal
-  const coreSkills = filteredSkills.filter((s) => s.coreSkill);
-  const normalSkills = filteredSkills.filter((s) => !s.coreSkill);
-
-  const handleSkillClick = (skill: SkillAsset) => {
-    openStudioTab(skill.id, skill.displayName || skill.name);
+  const handleNewChat = () => {
+    onSelectConversation?.(null);
+    onNewChat?.();
+    router.push("/");
   };
 
-  const handleFileDownload = (type: 'ppt' | 'file', id: string) => {
-    onSelectAsset?.(type, id);
+  const handleSelectConversation = (id: string) => {
+    onSelectConversation?.(id);
+    router.push("/");
   };
 
-  return (
-    <div className="flex flex-col h-full bg-zinc-950">
-      {/* Top: Toggle */}
-      <div className="flex items-center px-3 pt-3 pb-1">
+  const handleStartRename = (id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    setRenamingId(id);
+    setRenameValue(conv?.title || "");
+  };
+
+  const handleCommitRename = () => {
+    if (renamingId && renameValue.trim()) {
+      updateConversation(renamingId, { title: renameValue.trim() });
+      // Also persist to server
+      fetch(`/api/conversations/${renamingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: renameValue.trim() }),
+      }).catch(() => {});
+    }
+    setRenamingId(null);
+    setRenameValue("");
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleCommitRename();
+    } else if (e.key === "Escape") {
+      setRenamingId(null);
+      setRenameValue("");
+    }
+  };
+
+  // ---- COLLAPSED STATE ----
+  if (!expanded) {
+    return (
+      <div
+        className="flex flex-col h-full bg-[var(--bg-surface)] items-center py-2 gap-1"
+        aria-expanded="false"
+      >
+        {/* Logo: amber square — click to expand */}
         <button
           onClick={onToggleSidebar}
-          className="p-2 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
-          title={t('sidebar.closeSidebar')}
+          className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0 hover:bg-amber-400 transition-colors"
+          title={t("sidebar.openSidebar")}
         >
-          <PanelLeftClose className="w-5 h-5" />
+          <span className="text-black font-bold text-sm">R</span>
+        </button>
+
+        {/* New Chat: 34px square "+" button */}
+        <button
+          onClick={handleNewChat}
+          className="w-[34px] h-[34px] rounded-lg border border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-ghost)] transition-colors flex-shrink-0 mt-2"
+          title={t("sidebar.newChat")}
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+
+        {/* Conversation first-letter avatars */}
+        <div className="flex-1 overflow-y-auto mt-2 w-full flex flex-col items-center gap-0.5 scrollbar-thin">
+          {conversations.slice(0, 30).map((conv) => {
+            const firstChar = (conv.title || "?")[0].toUpperCase();
+            const isActive = activeConversationId === conv.id;
+            return (
+              <button
+                key={conv.id}
+                onClick={() => handleSelectConversation(conv.id)}
+                className={clsx(
+                  "w-[34px] h-[34px] rounded-lg flex items-center justify-center text-xs font-medium transition-colors relative flex-shrink-0",
+                  isActive
+                    ? "bg-[var(--accent-ghost)] text-[var(--text-primary)] border-l-2 border-[var(--accent)]"
+                    : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
+                )}
+                title={conv.title || t("sidebar.newConversation")}
+              >
+                {firstChar}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Bottom nav: icon-only */}
+        <div className="flex flex-col items-center gap-1 mt-auto pt-2 border-t border-[var(--border-subtle)] w-full">
+          <button
+            onClick={() => router.push("/graph")}
+            className={clsx(
+              "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors",
+              pathname === "/graph"
+                ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
+            )}
+            title={t("sidebar.graph")}
+          >
+            <Layers className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => router.push("/settings")}
+            className={clsx(
+              "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors",
+              pathname === "/settings"
+                ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
+            )}
+            title={t("sidebar.settings")}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- EXPANDED STATE (220px) ----
+  return (
+    <div
+      className="flex flex-col h-full bg-[var(--bg-surface)]"
+      aria-expanded="true"
+    >
+      {/* Logo bar */}
+      <div className="flex items-center justify-between px-3 pt-3 pb-1">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-amber-500 flex items-center justify-center flex-shrink-0">
+            <span className="text-black font-bold text-xs">R</span>
+          </div>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">
+            RebuilD
+          </span>
+        </div>
+        <button
+          onClick={onToggleSidebar}
+          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+          title={t("sidebar.closeSidebar")}
+        >
+          <ChevronsLeft className="w-4 h-4" />
         </button>
       </div>
 
-      {/* New Chat Button */}
-      <div className="px-3 pb-2">
+      {/* New Chat button */}
+      <div className="px-3 py-2">
         <button
-          onClick={() => {
-            onSelectConversation?.(null);
-            onNewChat?.();
-            router.push("/");
-          }}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-zinc-200 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+          onClick={handleNewChat}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent-ghost)] transition-colors"
         >
           <Plus className="w-4 h-4 flex-shrink-0" />
-          <span>{t('sidebar.newChat')}</span>
+          <span>{t("sidebar.newChat")}</span>
         </button>
       </div>
 
-      {/* Conversations Folder */}
-      <div className="px-2 mb-1">
-        <button
-          onClick={() => setConversationsFolderOpen(!conversationsFolderOpen)}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-        >
-          <ChevronRight
-            className={clsx(
-              "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-              conversationsFolderOpen && "rotate-90"
-            )}
+      {/* Search bar */}
+      <div className="px-3 pb-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("sidebar.searchChats")}
+            className="w-full bg-[var(--bg-hover)] border border-[var(--border-subtle)] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
           />
-          <MessageSquare className="w-4 h-4 flex-shrink-0" />
-          <span className="font-medium">{t('sidebar.conversations')}</span>
-          <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-            {conversations.length}
-          </span>
-        </button>
+        </div>
+      </div>
 
-        {conversationsFolderOpen && conversations.length > 0 && (
-          <div className="mt-1 space-y-0.5 pl-2">
-            {conversations.slice(0, 50).map((conv) => (
-              <div key={conv.id} className="group/conv relative">
-                <button
-                  onClick={() => {
-                    onSelectConversation?.(conv.id);
-                    router.push("/");
-                  }}
-                  className={clsx(
-                    "w-full text-left px-3 py-2 flex items-center gap-2.5 text-sm rounded-lg transition-colors",
-                    activeConversationId === conv.id
-                      ? "bg-zinc-800 text-zinc-100"
-                      : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
-                  )}
-                >
-                  <span className="truncate flex-1">{conv.title || t('sidebar.newConversation')}</span>
-                </button>
-                {onDeleteConversation && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteConversation(conv.id);
-                    }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover/conv:opacity-100 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                    title={t('common.delete')}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            ))}
+      {/* Conversation list with time groups */}
+      <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-thin">
+        {groups.length === 0 && (
+          <div className="px-3 py-6 text-center">
+            <p className="text-xs text-[var(--text-muted)]">
+              {searchQuery ? t("sidebar.noMatches") : t("sidebar.newConversation")}
+            </p>
           </div>
         )}
-      </div>
 
-      {/* Assets area */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* Search (filters assets) */}
-        <div className="px-3 py-1.5">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('common.search')}
-              className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-2 pb-2">
-          {/* Skills Folder */}
-          <div className="mb-1">
-            <button
-              onClick={() => setSkillsFolderOpen(!skillsFolderOpen)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+        {groups.map((group) => (
+          <div key={group.label} className="mb-2">
+            {/* Group header */}
+            <div
+              className="px-2 pt-3 pb-1 text-[9px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none"
+              style={{ fontSize: "var(--text-label, 9px)" }}
             >
-              <ChevronRight
-                className={clsx(
-                  "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-                  skillsFolderOpen && "rotate-90"
-                )}
-              />
-              <Sparkles className="w-4 h-4 flex-shrink-0" />
-              <span className="font-medium">{t('sidebar.skills')}</span>
-              <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-                {filteredSkills.length}
-              </span>
-            </button>
+              {group.label}
+            </div>
 
-            {skillsFolderOpen && (
-              <div className="pb-1">
-                {filteredSkills.length === 0 ? (
-                  <div className="px-3 py-4 text-center">
-                    <p className="text-xs text-zinc-600">
-                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noSkills')}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {/* Core Skills group */}
-                    {coreSkills.length > 0 && (
-                      <div>
-                        <button
-                          onClick={() => setCoreGroupOpen(!coreGroupOpen)}
-                          className="w-full flex items-center gap-1.5 px-4 py-1 text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-400 transition-colors"
-                        >
-                          <ChevronRight
-                            className={clsx(
-                              "w-2.5 h-2.5 transition-transform duration-150 flex-shrink-0",
-                              coreGroupOpen && "rotate-90"
-                            )}
-                          />
-                          <span>{t('sidebar.coreSkills')}</span>
-                          <span className="ml-auto font-mono">{coreSkills.length}</span>
-                        </button>
-                        {coreGroupOpen && (
-                          <div className="space-y-0.5">
-                            {coreSkills.map((skill) => (
-                              <AssetItem
-                                key={skill.id}
-                                name={skill.displayName || skill.id}
-                                icon={Sparkles}
-                                onClick={() => handleSkillClick(skill)}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
+            {/* Conversation items */}
+            <div className="space-y-0.5">
+              {group.conversations.map((conv) => {
+                const isActive = activeConversationId === conv.id;
+                const isRenaming = renamingId === conv.id;
+
+                return (
+                  <div
+                    key={conv.id}
+                    className={clsx(
+                      "group/conv relative flex items-center rounded-lg transition-colors",
+                      isActive
+                        ? "border-l-2 border-[var(--accent)] bg-[var(--accent-ghost)]"
+                        : "border-l-2 border-transparent hover:bg-[var(--bg-hover)]",
+                    )}
+                  >
+                    {isRenaming ? (
+                      <input
+                        ref={renameInputRef}
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={handleCommitRename}
+                        onKeyDown={handleRenameKeyDown}
+                        className="flex-1 px-2 py-1.5 text-xs bg-transparent text-[var(--text-primary)] outline-none border border-[var(--accent)] rounded"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => handleSelectConversation(conv.id)}
+                        className="flex-1 text-left px-2 py-1.5 min-w-0"
+                      >
+                        <div className="truncate text-xs text-[var(--text-primary)]">
+                          {conv.title || t("sidebar.newConversation")}
+                        </div>
+                        <div className="text-[9.5px] text-[var(--text-muted)] mt-0.5">
+                          {relativeTime(conv.updated_at)}
+                        </div>
+                      </button>
                     )}
 
-                    {/* Normal Skills group */}
-                    {normalSkills.length > 0 && (
-                      <div>
+                    {/* Context menu dots — visible on hover */}
+                    {!isRenaming && (
+                      <div className="relative flex-shrink-0 pr-1">
                         <button
-                          onClick={() => setNormalGroupOpen(!normalGroupOpen)}
-                          className="w-full flex items-center gap-1.5 px-4 py-1 text-[10px] uppercase tracking-wider text-zinc-600 hover:text-zinc-400 transition-colors"
+                          ref={contextMenuId === conv.id ? contextMenuAnchorRef : undefined}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setContextMenuId(
+                              contextMenuId === conv.id ? null : conv.id,
+                            );
+                          }}
+                          className="p-1 rounded opacity-0 group-hover/conv:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all"
                         >
-                          <ChevronRight
-                            className={clsx(
-                              "w-2.5 h-2.5 transition-transform duration-150 flex-shrink-0",
-                              normalGroupOpen && "rotate-90"
-                            )}
-                          />
-                          <span>{t('sidebar.normalSkills')}</span>
-                          <span className="ml-auto font-mono">{normalSkills.length}</span>
+                          <MoreHorizontal className="w-3.5 h-3.5" />
                         </button>
-                        {normalGroupOpen && (
-                          <div className="space-y-0.5">
-                            {normalSkills.map((skill) => (
-                              <AssetItem
-                                key={skill.id}
-                                name={skill.displayName || skill.id}
-                                icon={Sparkles}
-                                onClick={() => handleSkillClick(skill)}
-                              />
-                            ))}
-                          </div>
+
+                        {contextMenuId === conv.id && (
+                          <ConversationContextMenu
+                            conversationId={conv.id}
+                            onRename={handleStartRename}
+                            onDelete={(id) => onDeleteConversation?.(id)}
+                            onClose={() => setContextMenuId(null)}
+                            anchorRef={contextMenuAnchorRef}
+                          />
                         )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
-
-          {/* PPT Folder */}
-          <div className="mb-1">
-            <button
-              onClick={() => setPptsFolderOpen(!pptsFolderOpen)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-            >
-              <ChevronRight
-                className={clsx(
-                  "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-                  pptsFolderOpen && "rotate-90"
-                )}
-              />
-              <Presentation className="w-4 h-4 flex-shrink-0" />
-              <span className="font-medium">{t('sidebar.ppts')}</span>
-              <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-                {filteredPpts.length}
-              </span>
-            </button>
-
-            {pptsFolderOpen && (
-              <div className="pb-1">
-                {filteredPpts.length === 0 ? (
-                  <div className="px-3 py-4 text-center">
-                    <p className="text-xs text-zinc-600">
-                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noPpts')}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-0.5">
-                    {filteredPpts.map((ppt) => (
-                      <AssetItem
-                        key={ppt.id}
-                        name={ppt.name}
-                        icon={Download}
-                        onClick={() => handleFileDownload('ppt', ppt.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Files Folder */}
-          <div className="mb-1">
-            <button
-              onClick={() => setFilesFolderOpen(!filesFolderOpen)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-            >
-              <ChevronRight
-                className={clsx(
-                  "w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0",
-                  filesFolderOpen && "rotate-90"
-                )}
-              />
-              <FileText className="w-4 h-4 flex-shrink-0" />
-              <span className="font-medium">{t('sidebar.files')}</span>
-              <span className="ml-auto text-[10px] text-zinc-600 font-mono">
-                {filteredFiles.length}
-              </span>
-            </button>
-
-            {filesFolderOpen && (
-              <div className="pb-1">
-                {filteredFiles.length === 0 ? (
-                  <div className="px-3 py-4 text-center">
-                    <p className="text-xs text-zinc-600">
-                      {searchQuery ? t('sidebar.noMatches') : t('sidebar.noFiles')}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-0.5">
-                    {filteredFiles.map((file) => (
-                      <AssetItem
-                        key={file.id}
-                        name={file.name}
-                        subtitle={file.type}
-                        icon={FileText}
-                        onClick={() => handleFileDownload('file', file.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Signals nav */}
-      <div className="px-2 mb-1">
-        <button
-          onClick={() => router.push("/signals")}
-          className={clsx(
-            "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors rounded-lg",
-            pathname === "/signals"
-              ? "bg-zinc-800 text-zinc-100"
-              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
-          )}
-        >
-          <Radio className="w-4 h-4 flex-shrink-0" />
-          <span className="font-medium">{t('sidebar.signals')}</span>
-        </button>
-      </div>
-
-      {/* Graph nav */}
-      <div className="px-2 mb-1">
+      {/* Bottom nav: Knowledge Graph + Settings */}
+      <div className="border-t border-[var(--border-subtle)] px-2 py-2 space-y-0.5">
         <button
           onClick={() => router.push("/graph")}
           className={clsx(
-            "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors rounded-lg",
+            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
             pathname === "/graph"
-              ? "bg-zinc-800 text-zinc-100"
-              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+              ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
           )}
         >
           <Layers className="w-4 h-4 flex-shrink-0" />
-          <span className="font-medium">{t('sidebar.graph')}</span>
+          <span>{t("sidebar.graph")}</span>
         </button>
-      </div>
-
-      {/* Bottom: Settings Accordion */}
-      <div className="border-t border-zinc-800/50">
         <button
-          onClick={() => setSettingsOpen(!settingsOpen)}
+          onClick={() => router.push("/settings")}
           className={clsx(
-            "w-full flex items-center gap-3 px-5 py-3 text-sm transition-colors",
-            isSettingsActive
-              ? "text-zinc-200"
-              : "text-zinc-400 hover:text-zinc-200"
+            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+            pathname === "/settings"
+              ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
           )}
         >
           <Settings className="w-4 h-4 flex-shrink-0" />
-          <span>{t('sidebar.settings')}</span>
-          <ChevronDown
-            className={clsx(
-              "w-3.5 h-3.5 ml-auto transition-transform duration-200",
-              settingsOpen && "rotate-180"
-            )}
-          />
+          <span>{t("sidebar.settings")}</span>
         </button>
-
-        <div
-          className={clsx(
-            "overflow-hidden transition-all duration-300 ease-out",
-            settingsOpen ? "max-h-[560px] opacity-100" : "max-h-0 opacity-0"
-          )}
-        >
-          <div className="px-2 pb-3 space-y-1.5">
-            <div className="rounded-lg border border-zinc-800/60 overflow-hidden">
-              <button
-                onClick={() => setOpenSettingsSection((prev) => (prev === "initial" ? null : "initial"))}
-                className={clsx(
-                  "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
-                  openSettingsSection === "initial" || (isSettingsActive && activeSettingsSection === "initial")
-                    ? "text-zinc-200 bg-zinc-900/60"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
-                )}
-              >
-                <span className="text-[10px] uppercase tracking-wider">{t('sidebar.settings.initialConfig')}</span>
-                <ChevronRight
-                  className={clsx(
-                    "w-3.5 h-3.5 ml-auto transition-transform duration-200",
-                    openSettingsSection === "initial" && "rotate-90"
-                  )}
-                />
-              </button>
-              <div
-                className={clsx(
-                  "overflow-hidden transition-all duration-200",
-                  openSettingsSection === "initial" ? "max-h-24 opacity-100 pb-1" : "max-h-0 opacity-0"
-                )}
-              >
-                <button
-                  onClick={() => router.push("/settings?tab=setup")}
-                  className={clsx(
-                    "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                    isSettingsActive && activeSettingsTab === "setup"
-                      ? "bg-zinc-800/90 text-zinc-200"
-                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                  )}
-                >
-                  <Wrench className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>{t('sidebar.settings.initSetup')}</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-800/60 overflow-hidden">
-              <button
-                onClick={() => setOpenSettingsSection((prev) => (prev === "advanced" ? null : "advanced"))}
-                className={clsx(
-                  "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
-                  openSettingsSection === "advanced" || (isSettingsActive && activeSettingsSection === "advanced")
-                    ? "text-zinc-200 bg-zinc-900/60"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
-                )}
-              >
-                <span className="text-[10px] uppercase tracking-wider">{t('sidebar.settings.advancedConfig')}</span>
-                <ChevronRight
-                  className={clsx(
-                    "w-3.5 h-3.5 ml-auto transition-transform duration-200",
-                    openSettingsSection === "advanced" && "rotate-90"
-                  )}
-                />
-              </button>
-              <div
-                className={clsx(
-                  "overflow-hidden transition-all duration-200",
-                  openSettingsSection === "advanced" ? "max-h-56 opacity-100 pb-1" : "max-h-0 opacity-0"
-                )}
-              >
-                <div className="space-y-0.5">
-                  <button
-                    onClick={() => router.push("/settings?tab=advanced-platforms")}
-                    className={clsx(
-                      "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                      isSettingsActive && activeSettingsTab === "advanced-platforms"
-                        ? "bg-zinc-800/90 text-zinc-200"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                    )}
-                  >
-                    <Radio className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{t('sidebar.settings.signalPlatforms')}</span>
-                  </button>
-                  <button
-                    onClick={() => router.push("/settings?tab=advanced-topics")}
-                    className={clsx(
-                      "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                      isSettingsActive && activeSettingsTab === "advanced-topics"
-                        ? "bg-zinc-800/90 text-zinc-200"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                    )}
-                  >
-                    <Target className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{t('sidebar.settings.interestedTopics')}</span>
-                  </button>
-                  <button
-                    onClick={() => router.push("/settings?tab=webhooks")}
-                    className={clsx(
-                      "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                      isSettingsActive && activeSettingsTab === "webhooks"
-                        ? "bg-zinc-800/90 text-zinc-200"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                    )}
-                  >
-                    <Bell className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{t('sidebar.settings.webhooks')}</span>
-                  </button>
-                  <button
-                    onClick={() => router.push("/settings?tab=advanced")}
-                    className={clsx(
-                      "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                      isSettingsActive && activeSettingsTab === "advanced"
-                        ? "bg-zinc-800/90 text-zinc-200"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                    )}
-                  >
-                    <Settings2 className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{t('sidebar.settings.advancedSettings')}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-zinc-800/60 overflow-hidden">
-              <button
-                onClick={() => setOpenSettingsSection((prev) => (prev === "rebuild" ? null : "rebuild"))}
-                className={clsx(
-                  "w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
-                  openSettingsSection === "rebuild" || (isSettingsActive && activeSettingsSection === "rebuild")
-                    ? "text-zinc-200 bg-zinc-900/60"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
-                )}
-              >
-                <span className="text-[10px] uppercase tracking-wider">RebuilD</span>
-                <ChevronRight
-                  className={clsx(
-                    "w-3.5 h-3.5 ml-auto transition-transform duration-200",
-                    openSettingsSection === "rebuild" && "rotate-90"
-                  )}
-                />
-              </button>
-              <div
-                className={clsx(
-                  "overflow-hidden transition-all duration-200",
-                  openSettingsSection === "rebuild" ? "max-h-[180px] opacity-100 pb-1" : "max-h-0 opacity-0"
-                )}
-              >
-                <div className="space-y-0.5">
-                  <button
-                    onClick={() => router.push("/settings?tab=llm-pool")}
-                    className={clsx(
-                      "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                      isSettingsActive && activeSettingsTab === "llm-pool"
-                        ? "bg-zinc-800/90 text-zinc-200"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                    )}
-                  >
-                    <Layers className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{t('sidebar.settings.llmPool')}</span>
-                  </button>
-                  <button
-                    onClick={() => router.push("/settings?tab=agents")}
-                    className={clsx(
-                      "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                      isSettingsActive && activeSettingsTab === "agents"
-                        ? "bg-zinc-800/90 text-zinc-200"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                    )}
-                  >
-                    <Bot className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{t('sidebar.settings.agentManagement')}</span>
-                  </button>
-                  <button
-                    onClick={() => router.push("/settings?tab=usage")}
-                    className={clsx(
-                      "w-full flex items-center gap-3 pl-8 pr-3 py-2 text-[13px] rounded-lg transition-all duration-200",
-                      isSettingsActive && activeSettingsTab === "usage"
-                        ? "bg-zinc-800/90 text-zinc-200"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/40"
-                    )}
-                  >
-                    <BarChart3 className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{t('sidebar.settings.usage')}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Language Switcher */}
-            <LanguageSwitcher />
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -63,6 +63,7 @@ const en: TranslationDict = {
   'sidebar.noPpts': 'No presentations yet',
   'sidebar.noFiles': 'No files yet',
   'sidebar.signals': 'Signals',
+  'sidebar.searchChats': 'Search chats...',
   'sidebar.graph': 'Knowledge Graph',
   'sidebar.settings': 'Settings',
 
@@ -78,6 +79,7 @@ const en: TranslationDict = {
   'sidebar.settings.interestedTopics': 'Interested Topics',
   'sidebar.settings.llmPool': 'LLM Pool',
   'sidebar.settings.agentManagement': 'Agent Management',
+  'sidebar.settings.mateAgents': 'Mate Agents',
   'sidebar.settings.usage': 'Usage',
   'sidebar.settings.webhooks': 'Webhooks',
 
@@ -855,6 +857,24 @@ const en: TranslationDict = {
   'mermaid.error': 'Failed to render diagram',
   'mermaid.loading': 'Rendering diagram…',
   'mermaid.exported': 'SVG downloaded',
+
+  // ── Mate Agents ──
+  'mate.title': 'Mate Agents',
+  'mate.description': 'Agent personas loaded from mates/*/MATE.md. Used in Team Mode missions.',
+  'mate.count': '{count} mates registered',
+  'mate.refresh': 'Refresh',
+  'mate.refreshing': 'Scanning...',
+  'mate.loadFailed': 'Failed to load mate registry',
+  'mate.noMates': 'No mate definitions found. Create mates/{name}/MATE.md files to register.',
+  'mate.domains': 'Domains',
+  'mate.noDomains': 'No domains',
+  'mate.toolsDeny': 'Tools denied',
+  'mate.toolsAllow': 'Tools allowed',
+  'mate.noToolRestrictions': 'No tool restrictions',
+  'mate.canLead': 'Can Lead',
+  'mate.model': 'Model',
+  'mate.source': 'Source',
+  'mate.status': 'Status',
 
   // ── Global error page ──
   'error.waitingCompileGlobal': 'Waiting for compilation... ({current}/{max})',
