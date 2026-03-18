@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Bot, Loader2, Plus, X } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
+import { toast } from "@/components/ui/Toast";
 import { AgentConfigCard } from "@/components/settings/AgentConfigCard";
+import { MateAgentsCard } from "@/components/settings/MateAgentsCard";
 import { UserPreferencesCard } from "@/components/settings/UserPreferencesCard";
 import { AdvancedSettingsCard } from "@/components/settings/AdvancedSettingsCard";
 import { WebhookConfigCard } from "@/components/settings/WebhookConfigCard";
+import { SetupCard } from "@/components/settings/SetupCard";
+import { LLMPoolCard } from "@/components/settings/LLMPoolCard";
+import { LanguageSwitcher } from "@/components/settings/LanguageSwitcher";
+import { SkillRow } from "@/components/settings/SkillRow";
+import { SkillUploadArea } from "@/components/settings/SkillUploadArea";
 
-// Lazy-load recharts-heavy component — only loaded when "usage" tab is active (#16)
+// Lazy-load recharts-heavy component — only loaded when "usage" tab is active
 const UsageSnapshotCard = dynamic(
   () => import("@/components/settings/UsageSnapshotCard").then((m) => m.UsageSnapshotCard),
   {
@@ -23,15 +29,57 @@ const UsageSnapshotCard = dynamic(
     ),
   },
 );
-import { SetupCard } from "@/components/settings/SetupCard";
-import { LLMPoolCard } from "@/components/settings/LLMPoolCard";
-import type { AgentEntry } from "@/components/settings/AgentConfigCard";
+const SqlExportSection = dynamic(
+  () => import("@/components/settings/SqlExportSection").then((m) => m.SqlExportSection),
+  { ssr: false },
+);
+
+type SettingsTab = "agent" | "llm-pool" | "skills" | "preferences" | "advanced";
+
+function normalizeTab(rawTab: string | null): SettingsTab {
+  if (!rawTab) return "agent";
+  if (rawTab === "agent" || rawTab === "llm-pool" || rawTab === "skills" || rawTab === "preferences" || rawTab === "advanced") {
+    return rawTab;
+  }
+  // Legacy tab mapping
+  if (rawTab === "setup" || rawTab === "advanced-topics" || rawTab === "advanced-platforms") return "preferences";
+  if (rawTab === "agents" || rawTab === "mates") return "agent";
+  if (rawTab === "usage" || rawTab === "webhooks") return "advanced";
+  return "agent";
+}
+
+interface SkillItem {
+  id: string;
+  description: string;
+  source: "project" | "codex" | "registry";
+  bound: boolean;
+  enabled: boolean;
+}
 
 interface AgentOverride {
   model?: string;
   maxLoops?: number;
   soul?: string;
   systemPrompt?: string;
+}
+
+interface AgentEntry {
+  id: string;
+  displayName: string;
+  role: string;
+  runMode: "react" | "single-shot";
+  isAIGenerated?: boolean;
+  createdBy?: string;
+  projectId?: string;
+  defaults: {
+    model: string;
+    maxLoops: number;
+    soul: string;
+    systemPrompt: string;
+  };
+  override: AgentOverride;
+  skills: Array<{ name: string; description: string }>;
+  tools: Array<{ name: string; description: string }>;
 }
 
 interface AddSkillPayload {
@@ -42,383 +90,442 @@ interface AddSkillPayload {
   installedSkillIdHint?: string;
 }
 
-interface NewAgentDraft {
-  displayName: string;
-  role: string;
-  model: string;
-  maxLoops: number;
-  systemPrompt: string;
-  soul: string;
-}
-
-type SettingsTab =
-  | "setup"
-  | "advanced-platforms"
-  | "advanced-topics"
-  | "llm-pool"
-  | "agents"
-  | "usage"
-  | "advanced"
-  | "webhooks";
-
-function normalizeTab(rawTab: string | null): SettingsTab {
-  if (!rawTab) return "setup";
-  if (rawTab === "preferences") return "advanced-topics";
-  if (rawTab === "setup" || rawTab === "advanced-platforms" || rawTab === "advanced-topics" || rawTab === "llm-pool" || rawTab === "agents" || rawTab === "usage" || rawTab === "advanced" || rawTab === "webhooks") {
-    return rawTab;
-  }
-  return "setup";
-}
-
 export default function SettingsPage() {
   const { t } = useTranslation();
   const searchParams = useSearchParams();
-  const tab = normalizeTab(searchParams.get("tab"));
+  const router = useRouter();
+  const activeTab = normalizeTab(searchParams.get("tab"));
 
+  const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(false);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("rebuild");
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Agent state
   const [agents, setAgents] = useState<AgentEntry[]>([]);
   const [overrides, setOverrides] = useState<Record<string, AgentOverride>>({});
-  const [loading, setLoading] = useState(false);
-  const [contentReady, setContentReady] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [creatingAgent, setCreatingAgent] = useState(false);
-  const [newAgent, setNewAgent] = useState<NewAgentDraft>({
-    displayName: "",
-    role: "",
-    model: "",
-    maxLoops: 10,
-    systemPrompt: "",
-    soul: "",
-  });
+  const [loadingAgents, setLoadingAgents] = useState(false);
 
-  useEffect(() => {
-    setContentReady(false);
-    const raf = requestAnimationFrame(() => setContentReady(true));
-    return () => cancelAnimationFrame(raf);
-  }, [tab]);
-
-  const fetchAgents = useCallback(() => {
-    setLoading(true);
-    fetch("/api/settings/agents")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && json.data) {
-          setAgents(json.data);
-          const initial: Record<string, AgentOverride> = {};
-          for (const agent of json.data as AgentEntry[]) {
-            initial[agent.id] = { ...agent.override };
-          }
-          setOverrides(initial);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (tab !== "agents") return;
-    fetchAgents();
-  }, [tab, fetchAgents]);
-
-  const handleCreateAgent = useCallback(async () => {
-    const displayName = newAgent.displayName.trim();
-    if (!displayName) {
-      setCreateError(t('agent.nameRequiredError'));
-      return;
-    }
-
-    setCreateError(null);
-    setCreatingAgent(true);
+  // Fetch agents for the agent tab
+  const fetchAgents = useCallback(async () => {
+    setLoadingAgents(true);
     try {
-      const res = await fetch("/api/settings/agents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          displayName,
-          role: newAgent.role.trim(),
-          model: newAgent.model.trim(),
-          maxLoops: newAgent.maxLoops,
-          systemPrompt: newAgent.systemPrompt.trim(),
-          soul: newAgent.soul.trim(),
-        }),
-      });
+      const res = await fetch("/api/settings/agents");
       const json = await res.json();
-      if (!json.success) {
-        setCreateError(json.error || t('agent.createAgentFailed'));
-        return;
+      if (json.success && json.data) {
+        setAgents(json.data);
+        const initial: Record<string, AgentOverride> = {};
+        for (const agent of json.data as AgentEntry[]) {
+          initial[agent.id] = { ...agent.override };
+        }
+        setOverrides(initial);
       }
-      setCreateModalOpen(false);
-      setNewAgent({
-        displayName: "",
-        role: "",
-        model: "",
-        maxLoops: 10,
-        systemPrompt: "",
-        soul: "",
-      });
-      fetchAgents();
-    } catch {
-      setCreateError(t('agent.createAgentFailed'));
+    } catch (err) {
+      toast(t("settings.agentLoadFailed") || "Failed to load agents", "error");
     } finally {
-      setCreatingAgent(false);
+      setLoadingAgents(false);
     }
-  }, [newAgent, fetchAgents]);
+  }, [t]);
 
-  const handleChange = useCallback((agentId: string, patch: Partial<AgentOverride>) => {
+  useEffect(() => {
+    if (activeTab === "agent") {
+      fetchAgents();
+    }
+  }, [activeTab, fetchAgents]);
+
+  // Fetch skills for the skills tab
+  const fetchSkills = useCallback(async () => {
+    setLoadingSkills(true);
+    try {
+      const res = await fetch(`/api/settings/skills?agentId=${selectedAgentId}`);
+      const json = await res.json();
+      if (json.success && json.data?.skills) {
+        setSkills(json.data.skills);
+      }
+    } catch (err) {
+      toast(t("settings.skillLoadFailed") || "Failed to load skills", "error");
+    } finally {
+      setLoadingSkills(false);
+    }
+  }, [selectedAgentId, t]);
+
+  useEffect(() => {
+    if (activeTab === "skills") {
+      fetchSkills();
+    }
+  }, [activeTab, fetchSkills]);
+
+  // Auto-save helper with debounce
+  const handleAutoSave = useCallback(
+    async (saveFn: () => Promise<boolean>, successMessage?: string) => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          const success = await saveFn();
+          if (success) {
+            toast(successMessage || t("common.saved") || "Saved", "info");
+          } else {
+            toast(t("common.saveFailed") || "Failed to save — Retry", "error");
+          }
+        } catch (err) {
+          toast(t("common.saveFailed") || "Failed to save — Retry", "error");
+        }
+      }, 500);
+    },
+    [t],
+  );
+
+  // Skill toggle handler
+  const handleSkillToggle = useCallback(
+    async (skillId: string, enabled: boolean) => {
+      try {
+        const res = await fetch("/api/settings/skills", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId: selectedAgentId, skillId, enabled }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          toast(t("settings.skillToggled") || "Saved", "info");
+          fetchSkills();
+        } else {
+          toast(json.error || (t("common.saveFailed") || "Failed to save"), "error");
+        }
+      } catch (err) {
+        toast(t("common.saveFailed") || "Failed to save — Retry", "error");
+      }
+    },
+    [selectedAgentId, fetchSkills, t],
+  );
+
+  // Skill remove handler
+  const handleSkillRemove = useCallback(
+    async (skillId: string) => {
+      try {
+        const res = await fetch("/api/settings/skills", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId: selectedAgentId, skillId }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          toast(t("settings.skillRemoved") || "Removed", "info");
+          fetchSkills();
+        } else {
+          toast(json.error || (t("common.deleteFailed") || "Failed to remove"), "error");
+        }
+      } catch (err) {
+        toast(t("common.deleteFailed") || "Failed to remove — Retry", "error");
+      }
+    },
+    [selectedAgentId, fetchSkills, t],
+  );
+
+  // Skill uploaded handler
+  const handleSkillUploaded = useCallback(
+    (skillId: string) => {
+      toast(t("settings.skillUploaded") || "Skill uploaded", "success");
+      fetchSkills();
+    },
+    [fetchSkills, t],
+  );
+
+  // Tab change handler
+  const handleTabChange = useCallback(
+    (tab: SettingsTab) => {
+      router.push(`/settings?tab=${tab}`);
+    },
+    [router],
+  );
+
+  // Agent handlers
+  const handleAgentChange = useCallback((agentId: string, patch: Partial<AgentOverride>) => {
     setOverrides((prev) => ({
       ...prev,
       [agentId]: { ...prev[agentId], ...patch },
     }));
   }, []);
 
-  const handleSave = useCallback(async (agentId: string): Promise<boolean> => {
-    const agent = agents.find((a) => a.id === agentId);
-    if (!agent) return false;
+  const handleAgentSave = useCallback(
+    async (agentId: string): Promise<boolean> => {
+      const agent = agents.find((a) => a.id === agentId);
+      if (!agent) return false;
 
-    const ov = overrides[agentId] || {};
-    const cleaned: AgentOverride = {};
-    if (ov.model !== undefined && ov.model !== agent.defaults.model) cleaned.model = ov.model;
-    if (ov.maxLoops !== undefined && ov.maxLoops !== agent.defaults.maxLoops) cleaned.maxLoops = ov.maxLoops;
-    if (ov.soul !== undefined && ov.soul !== agent.defaults.soul) cleaned.soul = ov.soul;
-    if (ov.systemPrompt !== undefined && ov.systemPrompt !== agent.defaults.systemPrompt) cleaned.systemPrompt = ov.systemPrompt;
+      const ov = overrides[agentId] || {};
+      const cleaned: AgentOverride = {};
+      if (ov.model !== undefined && ov.model !== agent.defaults.model) cleaned.model = ov.model;
+      if (ov.maxLoops !== undefined && ov.maxLoops !== agent.defaults.maxLoops)
+        cleaned.maxLoops = ov.maxLoops;
+      if (ov.soul !== undefined && ov.soul !== agent.defaults.soul) cleaned.soul = ov.soul;
+      if (ov.systemPrompt !== undefined && ov.systemPrompt !== agent.defaults.systemPrompt)
+        cleaned.systemPrompt = ov.systemPrompt;
 
-    try {
-      const res = await fetch("/api/settings/agents", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, override: cleaned }),
-      });
-      const json = await res.json();
-      return json.success === true;
-    } catch {
-      return false;
-    }
-  }, [agents, overrides]);
+      try {
+        const res = await fetch("/api/settings/agents", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId, override: cleaned }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          toast(t("common.saved") || "Saved", "info");
+          return true;
+        } else {
+          toast(json.error || (t("common.saveFailed") || "Failed to save"), "error");
+          return false;
+        }
+      } catch (err) {
+        toast(t("common.saveFailed") || "Failed to save — Retry", "error");
+        return false;
+      }
+    },
+    [agents, overrides, t],
+  );
 
-  const handleDeleteAgent = useCallback(async (agentId: string): Promise<boolean> => {
-    try {
-      const res = await fetch("/api/settings/agents", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId }),
-      });
-      const json = await res.json();
-      if (json.success) {
+  const handleAddSkill = useCallback(
+    async (
+      agentId: string,
+      payload: AddSkillPayload,
+    ): Promise<{ success: boolean; error?: string; message?: string }> => {
+      try {
+        const res = await fetch("/api/settings/agents/skills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId, ...payload }),
+        });
+        const json = await res.json();
+        if (!json.success) {
+          return { success: false, error: json.error || t("agent.addSkillFailed") };
+        }
         fetchAgents();
-        return true;
+        const data = json.data || {};
+        const bound = Array.isArray(data.boundSkills) ? data.boundSkills : [];
+        return {
+          success: true,
+          message:
+            bound.length > 0
+              ? t("settings.skillBound", { list: bound.join(", ") })
+              : t("settings.addSuccess"),
+        };
+      } catch (err) {
+        return { success: false, error: t("agent.addSkillFailed") };
       }
-      return false;
-    } catch {
-      return false;
-    }
-  }, [fetchAgents]);
+    },
+    [fetchAgents, t],
+  );
 
-  const handleAddSkill = useCallback(async (
-    agentId: string,
-    payload: AddSkillPayload,
-  ): Promise<{ success: boolean; error?: string; message?: string }> => {
-    try {
-      const res = await fetch("/api/settings/agents/skills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, ...payload }),
-      });
-      const json = await res.json();
-      if (!json.success) {
-        return { success: false, error: json.error || t('agent.addSkillFailed') };
+  const handleDeleteAgent = useCallback(
+    async (agentId: string): Promise<boolean> => {
+      try {
+        const res = await fetch("/api/settings/agents", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          toast(t("common.deleted") || "Deleted", "info");
+          fetchAgents();
+          return true;
+        }
+        return false;
+      } catch (err) {
+        toast(t("common.deleteFailed") || "Failed to delete", "error");
+        return false;
       }
-      fetchAgents();
-      const data = json.data || {};
-      const bound = Array.isArray(data.boundSkills) ? data.boundSkills : [];
-      return {
-        success: true,
-        message: bound.length > 0 ? t('settings.skillBound', { list: bound.join(", ") }) : t('settings.addSuccess'),
-      };
-    } catch {
-      return { success: false, error: t('agent.addSkillFailed') };
-    }
-  }, [fetchAgents]);
+    },
+    [fetchAgents, t],
+  );
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="py-8 px-6 w-full">
-        <div
-          className={clsx(
-            "transition-opacity duration-300 ease-out",
-            contentReady ? "opacity-100" : "opacity-0"
-          )}
-        >
-          {/* Setup Tab */}
-          {tab === "setup" && <SetupCard />}
+      <div className="py-8 px-6 w-full max-w-[720px] mx-auto">
+        {/* Page header */}
+        <div className="mb-8">
+          <h1 className="text-[20px] font-semibold text-[var(--text-primary)] mb-1">
+            {t("settings.title") || "Settings"}
+          </h1>
+          <p className="text-[12.5px] text-[var(--text-muted)]">
+            {t("settings.subtitle") || "Configure your workspace, agents, and integrations"}
+          </p>
+        </div>
 
-          {/* Advanced Config Tabs */}
-          {tab === "advanced-topics" && <UserPreferencesCard view="topics" />}
-          {tab === "advanced-platforms" && <UserPreferencesCard view="platforms" />}
+        {/* Tab navigation */}
+        <div className="flex items-center gap-6 border-b border-[var(--border-subtle)] mb-6">
+          <button
+            onClick={() => handleTabChange("agent")}
+            className={clsx(
+              "pb-3 text-sm font-medium transition-colors relative",
+              activeTab === "agent"
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+            )}
+          >
+            {t("settings.tabs.agent") || "Agent"}
+            {activeTab === "agent" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
+            )}
+          </button>
+          <button
+            onClick={() => handleTabChange("llm-pool")}
+            className={clsx(
+              "pb-3 text-sm font-medium transition-colors relative",
+              activeTab === "llm-pool"
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+            )}
+          >
+            {t("settings.tabs.llmPool") || "LLM Pool"}
+            {activeTab === "llm-pool" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
+            )}
+          </button>
+          <button
+            onClick={() => handleTabChange("skills")}
+            className={clsx(
+              "pb-3 text-sm font-medium transition-colors relative",
+              activeTab === "skills"
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+            )}
+          >
+            {t("settings.tabs.skills") || "Skills"}
+            {activeTab === "skills" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
+            )}
+          </button>
+          <button
+            onClick={() => handleTabChange("preferences")}
+            className={clsx(
+              "pb-3 text-sm font-medium transition-colors relative",
+              activeTab === "preferences"
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+            )}
+          >
+            {t("settings.tabs.preferences") || "Preferences"}
+            {activeTab === "preferences" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
+            )}
+          </button>
+          <button
+            onClick={() => handleTabChange("advanced")}
+            className={clsx(
+              "pb-3 text-sm font-medium transition-colors relative",
+              activeTab === "advanced"
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+            )}
+          >
+            {t("settings.tabs.advanced") || "Advanced"}
+            {activeTab === "advanced" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
+            )}
+          </button>
+        </div>
 
-          {/* Usage Tab */}
-          {tab === "usage" && <UsageSnapshotCard />}
+        {/* Tab content */}
+        {activeTab === "agent" && (
+          <div className="flex flex-col gap-4">
+            {loadingAgents ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-6 h-6 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
+              </div>
+            ) : agents.length === 0 ? (
+              <div className="text-center py-20 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
+                {t("agent.noAgents") || "No agents available"}
+              </div>
+            ) : (
+              <div
+                className="grid gap-4"
+                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
+              >
+                {agents.map((agent) => (
+                  <AgentConfigCard
+                    key={agent.id}
+                    agent={agent}
+                    localOverride={overrides[agent.id] || {}}
+                    onChange={handleAgentChange}
+                    onSave={handleAgentSave}
+                    onAddSkill={handleAddSkill}
+                    onDelete={agent.isAIGenerated || agent.createdBy === 'subagent' ? handleDeleteAgent : undefined}
+                  />
+                ))}
+              </div>
+            )}
+            <MateAgentsCard />
+          </div>
+        )}
 
-          {/* LLM Pool Tab */}
-          {tab === "llm-pool" && <LLMPoolCard />}
+        {activeTab === "llm-pool" && (
+          <div className="flex flex-col gap-4">
+            <LLMPoolCard />
+          </div>
+        )}
 
-          {/* Advanced Settings Tab */}
-          {tab === "advanced" && <AdvancedSettingsCard />}
-
-          {/* Webhooks Tab */}
-          {tab === "webhooks" && <WebhookConfigCard />}
-
-          {/* Agents Tab */}
-          {tab === "agents" && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <Bot className="w-6 h-6 text-purple-400" />
-                  <div>
-                    <h2 className="text-lg font-bold text-zinc-100">{t('agent.title')}</h2>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {t('agent.description')}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-500 font-mono bg-zinc-800/60 px-3 py-1.5 rounded-full">
-                    {t('agent.running', { count: agents.length })}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setCreateError(null);
-                      setCreateModalOpen(true);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    {t('agent.createAgent')}
-                  </button>
-                </div>
+        {activeTab === "skills" && (
+          <div className="flex flex-col gap-4">
+            <div className="space-y-4">
+              {/* Skills header */}
+              <div>
+                <h2 className="text-base font-semibold text-[var(--text-primary)] mb-1">
+                  {t("settings.skillsTitle") || "Skills"}
+                </h2>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {t("settings.skillsDescription") || "Manage skills for your agents"}
+                </p>
               </div>
 
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+              {/* Skill upload area */}
+              <SkillUploadArea onUploaded={handleSkillUploaded} />
+
+              {/* Skills list */}
+              {loadingSkills ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-6 h-6 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
                 </div>
-              ) : agents.length === 0 ? (
-                <div className="text-center py-20 text-zinc-600 text-sm">
-                  {t('agent.noAgents')}
+              ) : skills.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
+                  {t("settings.noSkills") || "No skills available"}
                 </div>
               ) : (
-                <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-                  {agents.map((agent) => (
-                    <AgentConfigCard
-                      key={agent.id}
-                      agent={agent}
-                      localOverride={overrides[agent.id] || {}}
-                      onChange={handleChange}
-                      onSave={handleSave}
-                      onAddSkill={handleAddSkill}
-                      onDelete={agent.isAIGenerated ? handleDeleteAgent : undefined}
+                <div className="space-y-2">
+                  {skills.map((skill) => (
+                    <SkillRow
+                      key={skill.id}
+                      name={skill.id}
+                      description={skill.description}
+                      enabled={skill.enabled}
+                      onToggle={(enabled) => handleSkillToggle(skill.id, enabled)}
+                      onRemove={() => handleSkillRemove(skill.id)}
                     />
                   ))}
                 </div>
               )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {createModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !creatingAgent) {
-              setCreateModalOpen(false);
-            }
-          }}
-        >
-          <div className="w-full max-w-2xl rounded-2xl border border-zinc-700/60 bg-zinc-900 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-              <h3 className="text-sm font-semibold text-zinc-200">{t('agent.createAgentTitle')}</h3>
-              <button
-                onClick={() => !creatingAgent && setCreateModalOpen(false)}
-                className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  value={newAgent.displayName}
-                  onChange={(e) => setNewAgent((prev) => ({ ...prev, displayName: e.target.value }))}
-                  placeholder={t('agent.agentNameRequired')}
-                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
-                />
-                <input
-                  value={newAgent.role}
-                  onChange={(e) => setNewAgent((prev) => ({ ...prev, role: e.target.value }))}
-                  placeholder={t('agent.roleOptional')}
-                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
-                />
-                <input
-                  value={newAgent.model}
-                  onChange={(e) => setNewAgent((prev) => ({ ...prev, model: e.target.value }))}
-                  placeholder={t('agent.modelOptional')}
-                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
-                />
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={newAgent.maxLoops}
-                  onChange={(e) =>
-                    setNewAgent((prev) => ({
-                      ...prev,
-                      maxLoops: Math.min(50, Math.max(1, Number(e.target.value || 10))),
-                    }))
-                  }
-                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              <textarea
-                value={newAgent.systemPrompt}
-                onChange={(e) => setNewAgent((prev) => ({ ...prev, systemPrompt: e.target.value }))}
-                rows={4}
-                placeholder={t('agent.systemPromptOptional')}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 resize-y"
-              />
-
-              <textarea
-                value={newAgent.soul}
-                onChange={(e) => setNewAgent((prev) => ({ ...prev, soul: e.target.value }))}
-                rows={3}
-                placeholder={t('agent.soulOptional')}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 resize-y"
-              />
-
-              {createError && <p className="text-xs text-red-400">{createError}</p>}
-
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setCreateModalOpen(false)}
-                  disabled={creatingAgent}
-                  className="px-3 py-2 text-xs rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors disabled:opacity-40"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  onClick={handleCreateAgent}
-                  disabled={creatingAgent || !newAgent.displayName.trim()}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {creatingAgent ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  {creatingAgent ? t('common.creating') : t('agent.createAgent')}
-                </button>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {activeTab === "preferences" && (
+          <div className="flex flex-col gap-4">
+            <UserPreferencesCard view="topics" />
+            <SetupCard />
+            <LanguageSwitcher />
+          </div>
+        )}
+
+        {activeTab === "advanced" && (
+          <div className="flex flex-col gap-4">
+            <AdvancedSettingsCard />
+            <WebhookConfigCard />
+            <UsageSnapshotCard />
+            <SqlExportSection />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
