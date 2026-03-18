@@ -526,6 +526,59 @@ export interface CodeSolutionProposal {
 }
 
 // ---------------------------------------------------------------------------
+// Mate / Mission types (P0 — MateRegistry unification)
+// ---------------------------------------------------------------------------
+
+/** Persistent mate (agent persona) definition. */
+export interface MateDefinition {
+  id: string;
+  name: string;
+  display_name?: string;
+  description: string;
+  domains: string[];
+  tools_allow: string[];
+  tools_deny: string[];
+  model: string;
+  system_prompt: string;
+  can_lead: boolean;
+  status: MateStatus;
+  source: 'file' | 'db' | 'dynamic';
+  file_path?: string;
+  metadata: Record<string, any>;
+}
+
+export type MateStatus = 'idle' | 'active' | 'hibernated' | 'retired';
+
+/** Mission lifecycle phases. */
+export type MissionStatus =
+  | 'inception'
+  | 'formation'
+  | 'planning'
+  | 'execution'
+  | 'review'
+  | 'delivery'
+  | 'archival'
+  | 'cancelled';
+
+/** Mission record. */
+export interface Mission {
+  id: string;
+  conversation_id: string | null;
+  project_id: string | null;
+  source_chat: string | null;
+  mission_name: string;
+  lead_mate: string | null;
+  team_mates: string[];
+  status: MissionStatus;
+  token_budget: number | null;
+  tokens_used: number;
+  config: Record<string, any>;
+  blackboard: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
 // Re-export ToolContext for convenience
 // ---------------------------------------------------------------------------
 

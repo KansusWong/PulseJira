@@ -1,29 +1,22 @@
 /**
- * SubagentRegistry — manages subagent definitions loaded from .md files.
+ * SubagentRegistry — DEPRECATED compatibility layer.
  *
- * Aligns with reference task.py's subagent registry system.
- * Supports keyword-based matching to auto-select subagents for tasks.
+ * All new code should use MateRegistry (lib/services/mate-registry.ts) instead.
+ * This file is retained solely for backward compatibility with existing callers:
+ *   - app/api/settings/agents/route.ts (uses parseFrontmatter)
+ *   - lib/tools/index.ts (re-exports SubagentRegistry)
+ *
+ * Internally delegates to MateRegistry for all matching operations.
+ *
+ * @deprecated Use MateRegistry from lib/services/mate-registry.ts instead.
  */
 
-import path from 'path';
-
-// eslint-disable-next-line no-eval
-const fs: any = eval('require')('fs');
+import { getMateRegistry, MateRegistry } from '../services/mate-registry';
+import type { MateDefinition } from '../core/types';
 
 // =====================================================================
-// Types
-// =====================================================================
-
-export interface SubagentDefinition {
-  name: string;
-  description: string;
-  tools: string[];
-  model: string;        // 'inherit' | specific model name
-  systemPrompt: string;
-}
-
-// =====================================================================
-// Frontmatter parser
+// Re-export parseFrontmatter for backward compatibility
+// (used by app/api/settings/agents/route.ts)
 // =====================================================================
 
 /**
@@ -58,65 +51,41 @@ export function parseFrontmatter(content: string): { meta: Record<string, string
 }
 
 // =====================================================================
-// Keyword matching algorithm — from task.py:274-333
+// Types — kept for compatibility
 // =====================================================================
 
-/** Special keyword pairs that get bonus scores. */
-const SPECIAL_MATCHES: Record<string, { match: string; bonus: number }[]> = {
-  review: [{ match: 'review', bonus: 3 }],
-  code: [{ match: 'code', bonus: 2 }],
-  research: [{ match: 'research', bonus: 3 }],
-  debug: [{ match: 'debug', bonus: 3 }],
-  test: [{ match: 'test', bonus: 2 }],
-  deploy: [{ match: 'deploy', bonus: 3 }],
-  refactor: [{ match: 'refactor', bonus: 3 }],
-  analyze: [{ match: 'analyze', bonus: 2 }, { match: 'analysis', bonus: 2 }],
-};
-
-/**
- * Score how well a task description matches a subagent's description.
- * Returns a score >= 0. Higher = better match.
- */
-function scoreMatch(taskDesc: string, agentDesc: string): number {
-  const taskWords = taskDesc.toLowerCase().split(/[\s,.\-_/]+/).filter(Boolean);
-  const agentWords = agentDesc.toLowerCase().split(/[\s,.\-_/]+/).filter(Boolean);
-
-  let score = 0;
-
-  // Basic word overlap scoring
-  for (const word of taskWords) {
-    if (word.length <= 3) continue; // Skip short words
-    if (agentWords.some(aw => aw.includes(word) || word.includes(aw))) {
-      score += 1;
-    }
-  }
-
-  // Special match bonuses
-  for (const [keyword, matches] of Object.entries(SPECIAL_MATCHES)) {
-    const taskHas = taskWords.some(w => w.includes(keyword));
-    if (taskHas) {
-      for (const { match, bonus } of matches) {
-        if (agentWords.some(w => w.includes(match))) {
-          score += bonus;
-        }
-      }
-    }
-  }
-
-  return score;
+/** @deprecated Use MateDefinition from lib/core/types.ts instead. */
+export interface SubagentDefinition {
+  name: string;
+  description: string;
+  tools: string[];
+  model: string;
+  systemPrompt: string;
 }
 
 // =====================================================================
-// SubagentRegistry
+// Adapter: MateDefinition → SubagentDefinition
 // =====================================================================
 
-// Process-level singleton cache
+function toSubagentDef(mate: MateDefinition): SubagentDefinition {
+  return {
+    name: mate.name,
+    description: mate.description,
+    tools: mate.tools_allow,
+    model: mate.model,
+    systemPrompt: mate.system_prompt,
+  };
+}
+
+// =====================================================================
+// SubagentRegistry (compatibility proxy)
+// =====================================================================
+
 let _singleton: SubagentRegistry | null = null;
 let _singletonDirs: string | null = null;
 
 /**
- * Get (or create) the process-level SubagentRegistry singleton.
- * Filesystem scan happens only once; call registry.refresh() to force rescan.
+ * @deprecated Use getMateRegistry() from lib/services/mate-registry.ts instead.
  */
 export function getSubagentRegistry(searchDirs: string[]): SubagentRegistry {
   const key = searchDirs.join('\0');
@@ -126,125 +95,28 @@ export function getSubagentRegistry(searchDirs: string[]): SubagentRegistry {
   return _singleton;
 }
 
+/** @deprecated Use MateRegistry from lib/services/mate-registry.ts instead. */
 export class SubagentRegistry {
-  private definitions: SubagentDefinition[] = [];
-  private searchDirs: string[];
+  private _mateRegistry: MateRegistry;
 
   constructor(searchDirs: string[]) {
-    this.searchDirs = searchDirs;
-    this.refresh();
+    this._mateRegistry = getMateRegistry(searchDirs);
   }
 
-  /** Scan search directories for .md subagent definitions. */
   refresh(): void {
-    this.definitions = [];
-
-    for (const dir of this.searchDirs) {
-      // Source 1: flat .md files in {dir}/.agents/ (legacy format)
-      this._scanFlatDir(path.join(dir, '.agents'));
-
-      // Source 2: nested subagents/{name}/agent.md (new format)
-      this._scanNestedDir(path.join(dir, 'subagents'));
-    }
-  }
-
-  /** Scan a flat directory for *.md subagent definitions. */
-  private _scanFlatDir(agentsDir: string): void {
-    let files: string[];
-    try {
-      files = fs.readdirSync(agentsDir);
-    } catch {
-      return; // Directory doesn't exist
-    }
-
-    for (const file of files) {
-      if (!file.endsWith('.md')) continue;
-
-      const filePath = path.join(agentsDir, file);
-      this._loadDefinition(filePath, path.basename(file, '.md'));
-    }
-  }
-
-  /** Scan nested directories: each subdirectory may contain an agent.md. */
-  private _scanNestedDir(subagentsDir: string): void {
-    let entries: string[];
-    try {
-      entries = fs.readdirSync(subagentsDir);
-    } catch {
-      return; // Directory doesn't exist
-    }
-
-    for (const entry of entries) {
-      const entryPath = path.join(subagentsDir, entry);
-      try {
-        if (!fs.statSync(entryPath).isDirectory()) continue;
-      } catch {
-        continue;
-      }
-
-      const agentMdPath = path.join(entryPath, 'agent.md');
-      try {
-        fs.accessSync(agentMdPath);
-      } catch {
-        continue; // No agent.md in this subdirectory
-      }
-
-      // Skip if already loaded (e.g. same name from .agents/)
-      if (this.definitions.some(d => d.name === entry)) continue;
-
-      this._loadDefinition(agentMdPath, entry);
-    }
-  }
-
-  /** Load a single .md file as a subagent definition. */
-  private _loadDefinition(filePath: string, fallbackName: string): void {
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const { meta, body } = parseFrontmatter(content);
-
-      if (!meta.name) {
-        meta.name = fallbackName;
-      }
-
-      this.definitions.push({
-        name: meta.name,
-        description: meta.description || '',
-        tools: (meta.tools || '').split(',').map(t => t.trim()).filter(Boolean),
-        model: meta.model || 'inherit',
-        systemPrompt: body,
-      });
-    } catch {
-      // Skip unreadable files
-    }
+    this._mateRegistry.refresh();
   }
 
   getAll(): SubagentDefinition[] {
-    return this.definitions;
+    return this._mateRegistry.getAll().map(toSubagentDef);
   }
 
   get(name: string): SubagentDefinition | undefined {
-    return this.definitions.find(d => d.name === name);
+    const mate = this._mateRegistry.get(name);
+    return mate ? toSubagentDef(mate) : undefined;
   }
 
-  /**
-   * Find the best matching subagent for a task description.
-   * Returns null if no match scores >= 2.
-   */
   matchByDescription(taskDesc: string): string | null {
-    if (this.definitions.length === 0) return null;
-
-    let bestName: string | null = null;
-    let bestScore = 0;
-
-    for (const def of this.definitions) {
-      const score = scoreMatch(taskDesc, def.description);
-      if (score > bestScore) {
-        bestScore = score;
-        bestName = def.name;
-      }
-    }
-
-    // Threshold: score must be >= 2 to count as a match
-    return bestScore >= 2 ? bestName : null;
+    return this._mateRegistry.matchByDescription(taskDesc);
   }
 }

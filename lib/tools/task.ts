@@ -7,33 +7,34 @@
  *   - object: single task with optional subagent
  *   - array: parallel batch of tasks
  *
- * Auto-matches subagents from the SubagentRegistry when available.
+ * Auto-matches mates from the MateRegistry (unified registration center).
+ * Backward-compatible: if MateRegistry finds nothing, falls back gracefully.
  */
 
 import { z } from 'zod';
 import { BaseTool } from '../core/base-tool';
 import { BaseAgent } from '../core/base-agent';
 import type { ToolContext } from '../core/tool-context';
+import type { MateDefinition } from '../core/types';
 import { getTools } from './tool-registry';
 import { selectDesc } from './tool-desc-version';
-import { getSubagentRegistry } from './subagent-registry';
-import type { SubagentDefinition, SubagentRegistry } from './subagent-registry';
+import { getMateRegistry } from '../services/mate-registry';
+import type { MateRegistry } from '../services/mate-registry';
 
 // ---------------------------------------------------------------------------
 // V1 / V2 descriptions
 // ---------------------------------------------------------------------------
 
-const TASK_DESC_V1 = `Create independent sub-agents to handle delegated tasks.
+const TASK_DESC_V1 = `Create independent sub-agents (mates) to handle delegated tasks.
 Supports three input formats:
   - String: single task description (e.g., tasks: "review auth.ts")
-  - Object: {task: "...", subagent: "code-reviewer"} for explicit subagent
+  - Object: {task: "...", subagent: "code-reviewer"} for explicit mate
   - Array: [{task: "...", subagent: "..."}, ...] for parallel execution
 Sub-agents have their own context window and cannot see your conversation.
-If a .agents/ directory exists with subagent definitions, the best-matching
-subagent is selected automatically based on keyword scoring.
+The best-matching mate is selected automatically via domain and keyword scoring.
 Max 5 concurrent sub-agents. Sub-agents cannot spawn further sub-agents.`;
 
-const TASK_DESC_V2 = 'Delegate tasks to sub-agents. Supports string, object, or array input. Auto-matches subagents.';
+const TASK_DESC_V2 = 'Delegate tasks to sub-agents (mates). Supports string, object, or array input. Auto-matches via MateRegistry.';
 
 // ---------------------------------------------------------------------------
 // Schema — accepts flexible input formats
@@ -150,9 +151,9 @@ export class TaskTool extends BaseTool<Input, string> {
       return 'Error: No valid tasks provided.';
     }
 
-    // Get process-level subagent registry singleton
+    // Get process-level MateRegistry singleton (unified replacement for SubagentRegistry)
     const wsRoot = ctx?.workspacePath || '.';
-    const registry = getSubagentRegistry([wsRoot]);
+    const registry = getMateRegistry([wsRoot]);
 
     // Execute
     if (configs.length === 1) {
@@ -164,7 +165,7 @@ export class TaskTool extends BaseTool<Input, string> {
 
   private async _executeSingleTask(
     config: TaskConfig,
-    registry: SubagentRegistry,
+    registry: MateRegistry,
     ctx?: ToolContext,
     maxLoops = 10,
   ): Promise<string> {
@@ -172,31 +173,31 @@ export class TaskTool extends BaseTool<Input, string> {
       return `Error: Maximum concurrent sub-agents (${MAX_CONCURRENT}) reached. Wait for existing sub-agents to complete.`;
     }
 
-    // Resolve subagent
-    const subagentName = config.subagent || registry.matchByDescription(config.task) || null;
-    const subagentDef = subagentName ? registry.get(subagentName) : null;
+    // Resolve mate via MateRegistry (three-level matching)
+    const mateDef = registry.matchForTask(config.task, config.subagent || undefined);
+    const mateName = mateDef?.name ?? null;
 
     // Build tools
-    const tools = this._resolveTools(subagentDef);
+    const tools = this._resolveTools(mateDef);
 
     // Build system prompt
-    const systemPrompt = this._buildSystemPrompt(config, subagentDef);
+    const systemPrompt = this._buildSystemPrompt(config, mateDef);
 
     maxLoops = Math.min(Math.max(maxLoops, 1), 20);
 
     const agent = new BaseAgent({
-      name: `sub-agent-${config.task.replace(/\s+/g, '-').slice(0, 30)}`,
+      name: mateName ? `mate-${mateName}` : `sub-agent-${config.task.replace(/\s+/g, '-').slice(0, 30)}`,
       systemPrompt,
       tools,
       maxLoops,
-      model: this._resolveModel(subagentDef),
+      model: this._resolveModel(mateDef),
     });
 
     activeSubAgents++;
     const startTime = Date.now();
 
     if (ctx?.reportProgress) {
-      ctx.reportProgress(`Sub-agent started: ${config.task.slice(0, 50)}`);
+      ctx.reportProgress(`Mate started: ${mateName || 'default'} — ${config.task.slice(0, 50)}`);
     }
 
     try {
@@ -209,13 +210,13 @@ export class TaskTool extends BaseTool<Input, string> {
       const durationMs = Date.now() - startTime;
 
       if (ctx?.reportProgress) {
-        ctx.reportProgress(`Sub-agent completed: ${config.task.slice(0, 50)} (${(durationMs / 1000).toFixed(1)}s)`);
+        ctx.reportProgress(`Mate completed: ${mateName || 'default'} — ${config.task.slice(0, 50)} (${(durationMs / 1000).toFixed(1)}s)`);
       }
 
-      return this._formatResult(config, subagentName, result, durationMs);
+      return this._formatResult(config, mateName, result, durationMs);
     } catch (e: any) {
       const durationMs = Date.now() - startTime;
-      return `\u3010Task Failed\u3011 (subagent: ${subagentName || 'default'})\nTask: ${config.task.slice(0, 80)}\nDuration: ${(durationMs / 1000).toFixed(1)}s\n\nError: ${e.message}`;
+      return `\u3010Task Failed\u3011 (mate: ${mateName || 'default'})\nTask: ${config.task.slice(0, 80)}\nDuration: ${(durationMs / 1000).toFixed(1)}s\n\nError: ${e.message}`;
     } finally {
       activeSubAgents--;
     }
@@ -223,7 +224,7 @@ export class TaskTool extends BaseTool<Input, string> {
 
   private async _executeParallelTasks(
     configs: TaskConfig[],
-    registry: SubagentRegistry,
+    registry: MateRegistry,
     ctx?: ToolContext,
     maxLoops = 10,
   ): Promise<string> {
@@ -234,13 +235,20 @@ export class TaskTool extends BaseTool<Input, string> {
     return results.join('\n\n---\n\n');
   }
 
-  private _resolveTools(subagentDef?: SubagentDefinition | null): any[] {
+  private _resolveTools(mateDef?: MateDefinition | null): any[] {
     let toolNames: string[];
 
-    if (subagentDef && subagentDef.tools.length > 0) {
-      toolNames = subagentDef.tools.filter(t => !BLOCKED_SUB_TOOLS.has(t));
+    if (mateDef && mateDef.tools_allow.length > 0) {
+      // Use mate's allowed tools, minus blocked ones
+      toolNames = mateDef.tools_allow.filter(t => !BLOCKED_SUB_TOOLS.has(t));
     } else {
       toolNames = DEFAULT_SUB_TOOLS;
+    }
+
+    // Apply deny list if present
+    if (mateDef && mateDef.tools_deny.length > 0) {
+      const denySet = new Set(mateDef.tools_deny);
+      toolNames = toolNames.filter(t => !denySet.has(t));
     }
 
     const tools: any[] = [];
@@ -255,9 +263,9 @@ export class TaskTool extends BaseTool<Input, string> {
     return tools;
   }
 
-  private _buildSystemPrompt(config: TaskConfig, subagentDef?: SubagentDefinition | null): string {
-    if (subagentDef?.systemPrompt) {
-      return subagentDef.systemPrompt;
+  private _buildSystemPrompt(config: TaskConfig, mateDef?: MateDefinition | null): string {
+    if (mateDef?.system_prompt) {
+      return mateDef.system_prompt;
     }
 
     return `You are a focused sub-agent tasked with: ${config.task}
@@ -268,16 +276,16 @@ Be thorough but concise.
 If you cannot complete the task, explain what you found and what remains to be done.`;
   }
 
-  private _resolveModel(subagentDef?: SubagentDefinition | null): string {
-    if (subagentDef && subagentDef.model !== 'inherit') {
-      return subagentDef.model;
+  private _resolveModel(mateDef?: MateDefinition | null): string {
+    if (mateDef && mateDef.model !== 'inherit') {
+      return mateDef.model;
     }
     return process.env.LLM_MODEL_NAME ?? 'glm-5';
   }
 
   private _formatResult(
     config: TaskConfig,
-    subagentName: string | null,
+    mateName: string | null,
     result: unknown,
     durationMs: number,
   ): string {
@@ -285,7 +293,7 @@ If you cannot complete the task, explain what you found and what remains to be d
       ? result
       : JSON.stringify(result, null, 2);
 
-    const header = `\u3010Task Completed\u3011 (subagent: ${subagentName || 'default'})\nTask: ${config.task.slice(0, 80)}\nDuration: ${(durationMs / 1000).toFixed(1)}s`;
+    const header = `\u3010Task Completed\u3011 (mate: ${mateName || 'default'})\nTask: ${config.task.slice(0, 80)}\nDuration: ${(durationMs / 1000).toFixed(1)}s`;
 
     // Truncate large results
     const MAX_RESULT = 10000;

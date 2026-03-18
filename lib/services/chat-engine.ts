@@ -22,6 +22,8 @@ import { EventChannel } from '@/lib/utils/event-channel';
 import { toolApprovalService } from '@/lib/services/tool-approval';
 import { compactionUpgradeService } from '@/lib/services/compaction-upgrade';
 import { mateMessageQueue } from '@/lib/services/mate-message-queue';
+import { MissionEngine } from '@/lib/services/mission-engine';
+import { shouldEscalate, createMissionDraft, type EscalationContext } from '@/lib/services/dispatcher';
 import { recordToolApprovalEvent } from '@/lib/services/tool-approval-audit';
 import { workspaceManager } from '@/lib/sandbox/workspace-manager';
 import type { Workspace } from '@/lib/sandbox/types';
@@ -878,8 +880,11 @@ export class ChatEngine {
   /**
    * Handle team initialization after compaction upgrade approval.
    * Called by the frontend auto-bridge mechanism.
-   * Creates a team from the state summary, spawns teammate agents,
-   * and streams their execution progress.
+   *
+   * Delegates to MissionEngine for DAG-driven execution with:
+   *   - Task dependency management (no more flat Promise.all)
+   *   - Mate-to-mate handoff messages
+   *   - 7-phase lifecycle (inception → archival)
    */
   async *handleTeamInit(
     conversationId: string,
@@ -897,7 +902,7 @@ export class ChatEngine {
         const projectName = await generateProjectName(stateSummary, { isLight: false });
         const project = await createProject({
           name: projectName,
-          description: `Team upgrade from conversation ${conversationId}`,
+          description: `Mission from conversation ${conversationId}`,
         });
         await updateProject(project.id, { status: 'active' });
         projectId = project.id;
@@ -905,159 +910,32 @@ export class ChatEngine {
         channel.push({ type: 'project_created', data: { project_id: projectId, name: projectName, is_light: false } });
       }
 
-      // 3. Create team record
-      const teamId = crypto.randomUUID();
-      if (supabaseConfigured) {
-        await supabase.from('agent_teams').insert({
-          id: teamId,
-          conversation_id: conversationId,
-          project_id: projectId,
-          team_name: 'Upgrade Team',
-          lead_agent: 'rebuild',
-          status: 'forming',
-          config: { source: 'compaction_upgrade', state_summary: stateSummary.slice(0, 5000) },
-        });
-      }
-
-      // 4. Extract teammate definitions from state summary
-      const teammates = await this.extractTeammatesFromSummary(stateSummary);
-
-      // 5. Create workspace
-      const dirName = `team-${teamId.slice(0, 8)}`;
-      let workspace: Workspace | undefined;
-      try {
-        workspace = await workspaceManager.createLocal({
-          projectId: projectId!,
-          localDir: dirName,
-        });
-      } catch (err: any) {
-        console.error('[ChatEngine] Team workspace creation failed:', err.message);
-      }
-
-      // 6. Emit team roster
-      channel.push({
-        type: 'team_update',
-        data: {
-          team_id: teamId,
-          agents: teammates.map(t => ({
-            name: t.name,
-            role: t.role,
-            status: 'pending',
-            task: t.task,
-          })),
-        },
+      // 3. Create and run MissionEngine (replaces flat Promise.all team execution)
+      const engine = new MissionEngine({
+        conversationId,
+        projectId: projectId!,
+        title: conversation.title || stateSummary.slice(0, 60),
+        description: stateSummary,
+        stateSummary,
+        channel: 'web',
+        searchDirs: [process.cwd()],
+        pushEvent: (event) => channel.push(event),
       });
 
-      // 7. Channel logger
-      const channelLogger = async (msg: string) => {
-        const step = this.transformAgentLog(msg);
-        if (step) {
-          channel.push({ type: 'agent_log', data: { message: step.message, step } });
-        }
-      };
+      const reportContent = await engine.run();
 
-      // 8. Launch teammate agents in parallel
-      const agentPromises = teammates.map(async (teammate) => {
-        const configOverride = loadAgentConfig('rebuild');
-        const soulContent = configOverride.soul ?? loadSoul('rebuild');
-
-        const teammateAgent = createRebuilDAgent({
-          workspace: workspace?.localPath,
-          maxLoops: 15,
-          model: configOverride.model,
-          excludeTools: BLOCKED_SUBORDINATE_TOOLS,
-          systemPrompt: `You are ${teammate.name}, a specialized teammate in a software engineering team.
-
-## Your Role
-${teammate.role}
-
-## Context (from lead agent's handoff)
-${stateSummary}
-
-## Your Specific Task
-${teammate.task}
-
-## Important
-- You have your own independent context window
-- Focus on your assigned task
-- Report your results clearly`,
-          soulPrompt: soulContent || undefined,
-        });
-
-        channel.push({
-          type: 'sub_agent_start',
-          data: { agent_name: teammate.name, task: teammate.task },
-        });
-
-        // Per-mate streaming callbacks
-        const onToken = (token: string) => {
-          channel.push({ type: 'mate_token' as any, data: { agent: teammate.name, content: token } });
-        };
-        const onMateToolCallStart = (params: { toolName: string; toolCallId: string; args: string }) => {
-          const toolLabel = ChatEngine.TOOL_LABELS[params.toolName] || params.toolName;
-          channel.push({ type: 'tool_call_start', data: { ...params, toolLabel, agent: teammate.name } });
-        };
-        const onMateToolCallEnd = (params: { toolName: string; toolCallId: string; result: string; success: boolean }) => {
-          const toolLabel = ChatEngine.TOOL_LABELS[params.toolName] || params.toolName;
-          channel.push({ type: 'tool_call_end', data: { ...params, toolLabel, agent: teammate.name } });
-        };
-        const onUserMessageCheck = async () => {
-          return mateMessageQueue.dequeue(teamId, teammate.name);
-        };
-
-        const startTime = Date.now();
-        try {
-          const result = await teammateAgent.runStreaming(teammate.task, {
-            projectId: projectId!,
-            logger: channelLogger,
-            workspacePath: workspace?.localPath,
-            onToken,
-            onToolCallStart: onMateToolCallStart,
-            onToolCallEnd: onMateToolCallEnd,
-            onUserMessageCheck,
-          });
-
-          const durationMs = Date.now() - startTime;
-          channel.push({
-            type: 'sub_agent_complete',
-            data: { agent_name: teammate.name, status: 'success', duration_ms: durationMs },
-          });
-
-          return { name: teammate.name, result: ChatEngine.extractResponse(result), success: true };
-        } catch (err: any) {
-          channel.push({
-            type: 'sub_agent_complete',
-            data: { agent_name: teammate.name, status: 'failed', error: err.message },
-          });
-          return { name: teammate.name, result: err.message, success: false };
-        }
-      });
-
-      const results = await Promise.all(agentPromises);
-
-      // Clean up per-mate message queues
-      mateMessageQueue.clear(teamId);
-
-      // 9. Synthesize final report
-      const finalSummary = results.map(r =>
-        `### ${r.name}\n**Status**: ${r.success ? '✅ Completed' : '❌ Failed'}\n\n${typeof r.result === 'string' ? r.result.slice(0, 1000) : JSON.stringify(r.result).slice(0, 1000)}`,
-      ).join('\n\n---\n\n');
-
-      const reportContent = `## Team Execution Complete\n\n${finalSummary}`;
+      // 4. Save final report
       await this.saveMessage(conversationId, 'assistant', reportContent).catch((err) =>
-        console.error('[ChatEngine] Save team report failed:', err));
+        console.error('[ChatEngine] Save mission report failed:', err));
 
       channel.push({
         type: 'message',
-        data: { role: 'assistant', content: reportContent, metadata: { teamId } },
+        data: {
+          role: 'assistant',
+          content: reportContent,
+          metadata: { missionId: engine.getMissionId() },
+        },
       });
-
-      // 10. Update team status
-      if (supabaseConfigured) {
-        await supabase.from('agent_teams')
-          .update({ status: 'idle' })
-          .eq('id', teamId);
-      }
 
       channel.close();
     } catch (error: any) {
@@ -1070,40 +948,6 @@ ${teammate.task}
     }
 
     yield { type: 'done', data: { conversation_id: conversationId } };
-  }
-
-  /**
-   * Extract teammate definitions from a state summary using LLM.
-   */
-  private async extractTeammatesFromSummary(
-    stateSummary: string,
-  ): Promise<Array<{ name: string; role: string; task: string }>> {
-    try {
-      const result = await generateJSON(
-        `You are analyzing a state summary from a software engineering session.
-Extract the distinct work streams / subagent tasks mentioned.
-For each, create a teammate definition.
-
-Respond with JSON: { "teammates": [{ "name": "...", "role": "...", "task": "..." }] }
-
-Rules:
-- Names should be descriptive slugs (e.g., "frontend-dev", "api-designer")
-- Role is a one-line description of their specialty
-- Task is a self-contained description of what they need to do
-- Maximum 5 teammates
-- If no clear subagents are mentioned, create 2-3 based on the remaining work described`,
-        stateSummary.slice(0, 5000),
-        { agentName: 'team-planner' },
-      );
-      return result?.teammates || [];
-    } catch {
-      // Fallback: single general-purpose teammate
-      return [{
-        name: 'general-engineer',
-        role: 'Full-stack software engineer',
-        task: `Continue the work described in the state summary:\n${stateSummary.slice(0, 1000)}`,
-      }];
-    }
   }
 
   // =========================================================================
