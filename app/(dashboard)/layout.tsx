@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { usePathname, useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { PlanPanel } from "@/components/chat/PlanPanel";
@@ -21,6 +22,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { t, locale } = useTranslation();
 
   useEffect(() => { setHasMounted(true); }, []);
+
+  const { data: session, status: authStatus } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (authStatus === 'unauthenticated') {
+      router.push('/login');
+    } else if (authStatus === 'authenticated' && !(session?.user as any)?.currentOrgId) {
+      router.push('/no-organization');
+    }
+  }, [authStatus, session, router]);
 
   // Sync <html lang> attribute with locale
   useEffect(() => {
@@ -83,13 +95,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     [removeConversation],
   );
 
-  if (!hasMounted) {
+  if (!hasMounted || authStatus === 'loading') {
     return (
       <div className="flex h-screen w-screen bg-background text-foreground items-center justify-center">
         <div className="animate-pulse text-zinc-600">{t('dashboard.loading')}</div>
       </div>
     );
   }
+
+  if (authStatus === 'unauthenticated') return null; // will redirect
 
   const rightPanel = teamCollaborationActive
     ? undefined  // Team info is shown inline in the main area

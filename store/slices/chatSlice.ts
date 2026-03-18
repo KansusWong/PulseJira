@@ -143,6 +143,8 @@ export interface ChatSlice {
 
   // Thinking mode toggle (user-facing model selector)
   thinkingMode: boolean;
+  /** Selected fast model ID (e.g. 'glm-4-flash', 'claude-3-7-sonnet-latest'). Empty = env default. */
+  selectedFastModel: string;
 
   // Studio panel state (global, not per-conversation)
   studioPanel: {
@@ -150,6 +152,10 @@ export interface ChatSlice {
     tabs: Array<{ skillId: string; displayName: string }>;
     activeTabId: string | null;
   };
+
+  // Org context
+  currentOrgId: string | null;
+  currentOrgName: string | null;
 
   // Actions
   setConversations: (conversations: Conversation[]) => void;
@@ -196,6 +202,7 @@ export interface ChatSlice {
   rejectSolution: () => void;
 
   addStreamingStep: (step: StructuredAgentStep) => void;
+  completeStreamingStep: (stepNumber: number, patch: { model?: string; durationMs?: number }) => void;
   clearStreamingSteps: () => void;
   setTeamCollaborationActive: (active: boolean) => void;
   setTeamCollaborationCollapsed: (collapsed: boolean) => void;
@@ -222,6 +229,7 @@ export interface ChatSlice {
   clearQuestionnaireData: () => void;
 
   setThinkingMode: (enabled: boolean) => void;
+  setSelectedFastModel: (modelId: string) => void;
 
   // Studio panel actions
   openStudioTab: (skillId: string, displayName: string) => void;
@@ -229,6 +237,8 @@ export interface ChatSlice {
   setActiveStudioTab: (skillId: string) => void;
   hideStudioPanel: () => void;
   renameStudioTab: (skillId: string, newName: string) => void;
+
+  setCurrentOrg: (orgId: string, orgName: string) => void;
 
   /** Reset all right-side panels to their idle/hidden state. */
   resetAllPanels: () => void;
@@ -330,12 +340,16 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   questionnaireData: null,
 
   thinkingMode: false,
+  selectedFastModel: 'claude-3-7-sonnet-latest',
 
   studioPanel: {
     visible: false,
     tabs: [],
     activeTabId: null,
   },
+
+  currentOrgId: null,
+  currentOrgName: null,
 
   setConversations: (conversations) => set({ conversations }),
 
@@ -651,6 +665,19 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       streamingSteps: [...state.streamingSteps, step],
     })),
 
+  completeStreamingStep: (stepNumber, patch) =>
+    set((state) => {
+      // Find the last thinking step matching this stepNumber and patch it
+      const steps = [...state.streamingSteps];
+      for (let i = steps.length - 1; i >= 0; i--) {
+        if (steps[i].kind === 'thinking' && steps[i].stepNumber === stepNumber) {
+          steps[i] = { ...steps[i], ...patch };
+          break;
+        }
+      }
+      return { streamingSteps: steps };
+    }),
+
   clearStreamingSteps: () =>
     set({ streamingSteps: [] }),
 
@@ -759,6 +786,7 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   clearQuestionnaireData: () => set({ questionnaireData: null }),
 
   setThinkingMode: (enabled) => set({ thinkingMode: enabled }),
+  setSelectedFastModel: (modelId) => set({ selectedFastModel: modelId }),
 
   openStudioTab: (skillId, displayName) =>
     set((state) => {
@@ -809,6 +837,8 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         ),
       },
     })),
+
+  setCurrentOrg: (orgId, orgName) => set({ currentOrgId: orgId, currentOrgName: orgName }),
 
   resetAllPanels: () =>
     set((state) => {

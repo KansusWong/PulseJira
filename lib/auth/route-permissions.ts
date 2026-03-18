@@ -32,8 +32,8 @@ const ROUTE_PERMISSIONS: RoutePermission[] = [
   // ── Cron (uses CRON_SECRET, handled separately in middleware) ──────
   { pattern: "/api/cron/**", method: "*", permission: "public" },
 
-  // ── Auth management (admin only) ──────────────────────────────────
-  { pattern: "/api/auth/**", method: "*", permission: "admin" },
+  // ── Auth routes (public — NextAuth handles its own auth) ────────────
+  { pattern: "/api/auth/**", method: "*", permission: "public" },
 
   // ── Settings mutations (admin only) ────────────────────────────────
   { pattern: "/api/settings/env", method: "PUT", permission: "admin" },
@@ -95,6 +95,21 @@ const ROUTE_PERMISSIONS: RoutePermission[] = [
   { pattern: "/api/teams/*/tasks", method: "POST", permission: "developer" },
   { pattern: "/api/teams/*/mailbox", method: "POST", permission: "developer" },
   { pattern: "/api/teams/*/intervene", method: "POST", permission: "developer" },
+
+  // ── Org management (admin only) ────────────────────────────────────
+  { pattern: "/api/org", method: "POST", permission: "admin" },
+  { pattern: "/api/org/members", method: "*", permission: "admin" },
+  { pattern: "/api/org/invitations", method: "POST", permission: "admin" },
+  { pattern: "/api/org/invitations/accept", method: "POST", permission: "viewer" },
+
+  // ── Asset marketplace ──────────────────────────────────────────────
+  { pattern: "/api/org/assets", method: "GET", permission: "viewer" },
+  { pattern: "/api/org/assets/*/publish", method: "POST", permission: "admin" },
+  { pattern: "/api/org/assets/*/deprecate", method: "POST", permission: "admin" },
+  { pattern: "/api/org/assets/*", method: "GET", permission: "viewer" },
+
+  // ── Platform admin ─────────────────────────────────────────────────
+  { pattern: "/api/admin/**", method: "*", permission: "admin" },
 
   // ── Developer: settings read-write for preferences ────────────────
   { pattern: "/api/settings/preferences", method: "PUT", permission: "developer" },
