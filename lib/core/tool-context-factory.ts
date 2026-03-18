@@ -72,6 +72,7 @@ export function createToolContext(params: CreateToolContextParams): ToolContextI
     // --- Identity ---
     agentName,
     projectId: agentContext.projectId,
+    orgId: agentContext.orgId,
     traceId,
     sessionId,
     workspacePath: resolvedWorkspace,

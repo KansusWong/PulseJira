@@ -4,6 +4,8 @@ export interface AgentContext {
   signalId?: string;
   traceId?: string;
   projectId?: string;
+  /** Organization ID — used for org-scoped vault search and asset governance. */
+  orgId?: string;
   /** Workspace root path — used by ToolContext for file I/O scoping. */
   workspacePath?: string;
   logger?: (message: string) => Promise<void> | void;

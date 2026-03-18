@@ -18,6 +18,7 @@ import type { ToolContext } from '../core/tool-context';
 import { selectDesc } from './tool-desc-version';
 import { vaultStore } from '../services/vault-store';
 import type { VaultArtifactEntry } from '../services/vault-store';
+import { supabase, supabaseConfigured } from '../db/client';
 
 // eslint-disable-next-line no-eval
 const fs: any = eval('require')('fs');
@@ -353,7 +354,7 @@ export class VaultTool extends BaseTool<Input, string> {
       case 'summary':
         return this._summary(wsRoot, input, ctx);
       case 'search':
-        return this._search(wsRoot, input);
+        return this._search(wsRoot, input, ctx);
       case 'graph':
         return this._graph(wsRoot, input);
       case 'list':
@@ -553,14 +554,15 @@ export class VaultTool extends BaseTool<Input, string> {
 
     // --- Fire-and-forget: Supabase backup ---
     const pid = this.getProjectId(ctx);
+    const oid = ctx?.orgId;
     if (pid) {
       for (const artifact of addedArtifacts) {
-        vaultStore.persist(pid, artifact);
+        vaultStore.persist(pid, artifact, oid);
       }
       // Also persist reuse_count updates
       for (const reusedId of reusedArtifactIds) {
         const updated = manifest.knowledge_base.find(e => e.artifact_id === reusedId);
-        if (updated) vaultStore.persist(pid, updated);
+        if (updated) vaultStore.persist(pid, updated, oid);
       }
     }
 
@@ -582,7 +584,7 @@ export class VaultTool extends BaseTool<Input, string> {
   // =========================================================================
   // search (semantic-enhanced)
   // =========================================================================
-  private async _search(wsRoot: string, input: Input): Promise<string> {
+  private async _search(wsRoot: string, input: Input, ctx?: ToolContext): Promise<string> {
     if (!input.query) return 'Error: query is required for search command.';
     if (!isVaultInitialized(wsRoot)) return 'Vault 未初始化。请先执行 vault(command="init")。';
 
@@ -638,11 +640,60 @@ export class VaultTool extends BaseTool<Input, string> {
 
     if (results.length === 0) return `未找到与 "${input.query}" 相关的制品。`;
 
+    // --- Org-level search fallback: if orgId is available and we have few local results ---
+    const localResultIds = new Set(results.map(r => r.entry.artifact_id));
+    let orgResults: Array<{ entry: ArtifactEntry; score: number }> = [];
+
+    if (ctx?.orgId && supabaseConfigured && results.length < (input.limit || 20)) {
+      try {
+        const { data: orgData } = await supabase
+          .from('vault_artifacts')
+          .select('*')
+          .eq('org_id', ctx.orgId)
+          .eq('status', 'published')
+          .textSearch('name', input.query!, { type: 'websearch' })
+          .limit(10);
+
+        if (orgData && orgData.length > 0) {
+          for (const row of orgData) {
+            // Deduplicate: skip if already in local results
+            if (localResultIds.has(row.id)) continue;
+            const entry: ArtifactEntry = {
+              artifact_id: row.id,
+              type: row.artifact_type,
+              path: row.path,
+              name: row.name,
+              description: row.description,
+              created_by_epic: row.created_by_epic || '',
+              created_by_agent: row.created_by_agent || '',
+              created_at: row.created_at,
+              reuse_count: row.reuse_count || 0,
+              tags: row.tags || [],
+              depends_on: row.depends_on || [],
+              version: row.version || 1,
+            };
+            orgResults.push({ entry, score: 0 });
+          }
+        }
+      } catch {
+        // Silently skip org search on failure
+      }
+    }
+
     const searchMode = hasSemantic ? 'keyword+semantic+reuse' : 'keyword+reuse';
     const lines = results.map(({ entry, score }) => {
       const tags = entry.tags.length > 0 ? ` [${entry.tags.join(', ')}]` : '';
       return `[${entry.artifact_id}] ${entry.type} | ${entry.name} (score: ${score.toFixed(2)}, reuse: ${entry.reuse_count})${tags}\n  ${entry.description}\n  path: ${entry.path}`;
     });
+
+    // Append org-level results if any
+    if (orgResults.length > 0) {
+      const orgLines = orgResults.map(({ entry }) => {
+        const tags = entry.tags.length > 0 ? ` [${entry.tags.join(', ')}]` : '';
+        return `[${entry.artifact_id}] ${entry.type} | ${entry.name} (org-published, reuse: ${entry.reuse_count})${tags}\n  ${entry.description}\n  path: ${entry.path}`;
+      });
+      return `找到 ${results.length} 个本地制品 (${searchMode}) + ${orgResults.length} 个组织共享制品:\n\n${lines.join('\n\n')}${lines.length > 0 ? '\n\n' : ''}--- 组织共享 ---\n\n${orgLines.join('\n\n')}`;
+    }
 
     return `找到 ${results.length} 个相关制品 (${searchMode}):\n\n${lines.join('\n\n')}`;
   }
@@ -853,7 +904,7 @@ export class VaultTool extends BaseTool<Input, string> {
 
     // Fire-and-forget: Supabase backup
     const pid = this.getProjectId(ctx);
-    if (pid) vaultStore.persist(pid, newArtifact);
+    if (pid) vaultStore.persist(pid, newArtifact, ctx?.orgId);
 
     // Fire-and-forget: generate embedding for new version
     this._updateEmbeddings(wsRoot, [newArtifact]).catch(() => {});

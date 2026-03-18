@@ -21,6 +21,7 @@ export interface ToolContext {
   // --- Identity ---
   readonly agentName: string;
   readonly projectId?: string;
+  readonly orgId?: string;
   readonly traceId: string;
   readonly sessionId: string;
   readonly workspacePath?: string;

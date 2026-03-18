@@ -35,6 +35,7 @@ export interface VaultArtifactEntry {
 interface VaultArtifactRow {
   id: string;
   project_id: string | null;
+  org_id: string | null;
   artifact_type: string;
   path: string;
   name: string;
@@ -66,10 +67,11 @@ function rowToEntry(row: VaultArtifactRow): VaultArtifactEntry {
   };
 }
 
-function entryToRow(entry: VaultArtifactEntry, projectId?: string): Partial<VaultArtifactRow> {
+function entryToRow(entry: VaultArtifactEntry, projectId?: string, orgId?: string): Partial<VaultArtifactRow> {
   return {
     id: entry.artifact_id,
     project_id: projectId || null,
+    org_id: orgId || null,
     artifact_type: entry.type,
     path: entry.path,
     name: entry.name,
@@ -140,7 +142,7 @@ class VaultStore {
   /**
    * Update the in-memory cache and fire-and-forget persist to DB.
    */
-  persist(projectId: string | undefined, entry: VaultArtifactEntry): void {
+  persist(projectId: string | undefined, entry: VaultArtifactEntry, orgId?: string): void {
     const key = this.cacheKey(projectId);
     const entries = this.cache.get(key) || [];
     const idx = entries.findIndex(e => e.artifact_id === entry.artifact_id);
@@ -155,7 +157,7 @@ class VaultStore {
     if (supabaseConfigured && projectId) {
       supabase
         .from('vault_artifacts')
-        .upsert(entryToRow(entry, projectId))
+        .upsert(entryToRow(entry, projectId, orgId))
         .then(({ error }) => {
           if (error) console.error('[vault-store] persist failed:', error.message);
         });
