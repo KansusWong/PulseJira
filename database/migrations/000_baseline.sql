@@ -1,9 +1,9 @@
 -- ============================================================================
--- BASELINE SCHEMA — consolidated from migrations 001–061 + P0 multi-tenant
+-- BASELINE SCHEMA — consolidated from migrations 001–045 + P0 multi-tenant + MateRegistry
 --
--- Generated: 2026-03-13 | Updated: 2026-03-17 (consolidated P0 multi-tenant)
+-- Generated: 2026-03-13 | Updated: 2026-03-18 (merged MateRegistry + multi-tenant org_id)
 -- This file captures the final state of all tables, indexes, constraints,
--- and RPC functions. It replaces migrations 001 through 061 for fresh
+-- and RPC functions. It replaces ALL individual migration files for fresh
 -- Supabase deployments.
 --
 -- PREREQUISITES (tables created outside the migration system):
@@ -1051,6 +1051,9 @@ CREATE TABLE IF NOT EXISTS vault_artifacts (
   tags              text[] DEFAULT '{}',
   depends_on        text[] DEFAULT '{}',
   version           integer NOT NULL DEFAULT 1,
+  -- MateRegistry extensions
+  created_by_mate   text,                -- mate name that created the artifact
+  mission_id        uuid,                -- FK added in deferred FK section
   -- P0 multi-tenant extensions
   org_id            uuid NOT NULL,       -- FK added in multi-tenant section
   visibility        text DEFAULT 'org' CHECK (visibility IN ('private','org','public')),
@@ -1076,6 +1079,8 @@ CREATE INDEX IF NOT EXISTS vault_artifacts_embedding_idx ON vault_artifacts
   USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
 CREATE INDEX IF NOT EXISTS vault_artifacts_org_status_idx ON vault_artifacts(org_id, status);
 CREATE INDEX IF NOT EXISTS vault_artifacts_org_type_idx ON vault_artifacts(org_id, artifact_type);
+CREATE INDEX IF NOT EXISTS idx_vault_artifacts_mate ON vault_artifacts(created_by_mate) WHERE created_by_mate IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_vault_artifacts_mission ON vault_artifacts(mission_id) WHERE mission_id IS NOT NULL;
 
 -- ############################################################################
 -- SECTION 19: Multi-Tenant Identity & Auth
@@ -1196,7 +1201,88 @@ CREATE TABLE IF NOT EXISTS org_quotas (
 );
 
 -- ############################################################################
--- SECTION 21: Multi-Tenant Foreign Keys (deferred, depends on organizations + users)
+-- SECTION 20.5: MateRegistry (Unified Agent Registration)
+-- ############################################################################
+
+-- ----------------------------------------------------------------------------
+-- 20.5.1  mate_definitions — persistent mate (agent persona) registration
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mate_definitions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        UUID,                -- NULL = platform-global mate; FK added in deferred section
+  name          TEXT NOT NULL,
+  display_name  TEXT,
+  description   TEXT NOT NULL DEFAULT '',
+  domains       TEXT[] NOT NULL DEFAULT '{}',
+  tools_allow   TEXT[] NOT NULL DEFAULT '{}',
+  tools_deny    TEXT[] NOT NULL DEFAULT '{}',
+  model         TEXT NOT NULL DEFAULT 'inherit',
+  system_prompt TEXT NOT NULL DEFAULT '',
+  can_lead      BOOLEAN NOT NULL DEFAULT false,
+  status        TEXT CHECK (status IN ('idle','active','hibernated','retired')) NOT NULL DEFAULT 'idle',
+  source        TEXT CHECK (source IN ('file','db','dynamic')) NOT NULL DEFAULT 'file',
+  file_path     TEXT,
+  metadata      JSONB NOT NULL DEFAULT '{}',
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  updated_at    TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(org_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mate_definitions_name     ON mate_definitions(name);
+CREATE INDEX IF NOT EXISTS idx_mate_definitions_status   ON mate_definitions(status);
+CREATE INDEX IF NOT EXISTS idx_mate_definitions_domains  ON mate_definitions USING GIN(domains);
+CREATE INDEX IF NOT EXISTS idx_mate_definitions_can_lead ON mate_definitions(can_lead) WHERE can_lead = true;
+CREATE INDEX IF NOT EXISTS idx_mate_definitions_org      ON mate_definitions(org_id);
+
+-- ----------------------------------------------------------------------------
+-- 20.5.2  missions — multi-mate collaborative project lifecycle
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS missions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL,     -- FK added in deferred section
+  conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+  project_id      UUID REFERENCES projects(id) ON DELETE SET NULL,
+  source_chat     UUID REFERENCES conversations(id) ON DELETE SET NULL,
+  mission_name    TEXT NOT NULL,
+  lead_mate       TEXT,              -- references mate_definitions(name) logically
+  team_mates      TEXT[] NOT NULL DEFAULT '{}',
+  status          TEXT CHECK (status IN (
+    'inception','formation','planning','execution',
+    'review','delivery','archival','cancelled'
+  )) NOT NULL DEFAULT 'inception',
+  token_budget    INTEGER,
+  tokens_used     INTEGER NOT NULL DEFAULT 0,
+  config          JSONB NOT NULL DEFAULT '{}',
+  blackboard      JSONB NOT NULL DEFAULT '{}',
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_missions_status       ON missions(status);
+CREATE INDEX IF NOT EXISTS idx_missions_conversation ON missions(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_missions_project      ON missions(project_id);
+CREATE INDEX IF NOT EXISTS idx_missions_lead_mate    ON missions(lead_mate);
+CREATE INDEX IF NOT EXISTS idx_missions_org          ON missions(org_id);
+
+-- ----------------------------------------------------------------------------
+-- 20.5.3  mate_working_memory — mission-scoped short-term memory
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mate_working_memory (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  mate_id    UUID NOT NULL REFERENCES mate_definitions(id) ON DELETE CASCADE,
+  mission_id UUID NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+  key        TEXT NOT NULL,
+  value      JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (mate_id, mission_id, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mate_working_memory_mate    ON mate_working_memory(mate_id);
+CREATE INDEX IF NOT EXISTS idx_mate_working_memory_mission ON mate_working_memory(mission_id);
+
+-- ############################################################################
+-- SECTION 21: Deferred Foreign Keys (depends on all tables above)
 -- ############################################################################
 
 -- projects
@@ -1291,6 +1377,30 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vault_artifacts_project_id_fkey') THEN
     ALTER TABLE vault_artifacts ADD CONSTRAINT vault_artifacts_project_id_fkey
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- vault_artifacts → missions
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'vault_artifacts_mission_id_fkey') THEN
+    ALTER TABLE vault_artifacts ADD CONSTRAINT vault_artifacts_mission_id_fkey
+      FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- mate_definitions → organizations
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'mate_definitions_org_id_fkey') THEN
+    ALTER TABLE mate_definitions ADD CONSTRAINT mate_definitions_org_id_fkey
+      FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- missions → organizations
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'missions_org_id_fkey') THEN
+    ALTER TABLE missions ADD CONSTRAINT missions_org_id_fkey
+      FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
   END IF;
 END $$;
 

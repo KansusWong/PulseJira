@@ -1,2 +1,0 @@
-ALTER TABLE projects ADD COLUMN IF NOT EXISTS agent_logs JSONB;
-ALTER TABLE projects ADD COLUMN IF NOT EXISTS pipeline_checkpoint JSONB;
