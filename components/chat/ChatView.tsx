@@ -663,7 +663,7 @@ export function ChatView() {
   const teamFullscreen = teamCollaborationActive && isStreaming;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[var(--bg-base)]">
       {/* Messages area — shrinks when team is fullscreen */}
       <div ref={scrollContainerRef} className={`${teamFullscreen ? 'flex-shrink-0 max-h-[15vh]' : 'flex-1'} overflow-y-auto`}>
         {messages.length === 0 ? (
@@ -671,7 +671,7 @@ export function ChatView() {
         ) : (
           <>
             {/* Messages — constrained width for readability */}
-            <div className="max-w-3xl mx-auto px-4 pt-6 space-y-4">
+            <div className="max-w-[680px] mx-auto px-4 pt-6 space-y-4">
               {messages.map((msg) => (
                 <MessageBubble key={msg.id} message={msg} />
               ))}
@@ -679,7 +679,7 @@ export function ChatView() {
 
             {/* Post-team content — constrained width */}
             {!teamFullscreen && (
-              <div className="max-w-3xl mx-auto px-4 pb-6 space-y-4">
+              <div className="max-w-[680px] mx-auto px-4 pb-6 space-y-4">
                 {/* Inline streaming bubble — text + tool calls interleaved */}
                 {isStreaming && streamingSections.length > 0 && (
                   <StreamingBubble sections={streamingSections} />
@@ -688,7 +688,7 @@ export function ChatView() {
                 {/* Thinking indicator — only before first token arrives */}
                 {isStreaming && streamingSections.length === 0 && (
                   <div className="mr-auto max-w-[85%] px-1 py-1">
-                    <div className="flex items-center gap-2 text-sm text-zinc-500">
+                    <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       <span>{t('streaming.thinking')}</span>
                     </div>
@@ -732,7 +732,7 @@ export function ChatView() {
       )}
 
       {/* Input */}
-      <div className="border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
+      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
         <ChatInput onSubmit={handleSend} onStop={handleStop} streaming={isStreaming} thinkingMode={thinkingMode} onThinkingModeChange={setThinkingMode} selectedFastModel={selectedFastModel} onFastModelChange={setSelectedFastModel} conversationId={activeConversationId ?? undefined} />
       </div>
     </div>
@@ -744,13 +744,13 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-4">
-      <div className="flex flex-col items-center max-w-md text-center">
-        <div className="w-12 h-12 rounded-2xl bg-zinc-800/50 flex items-center justify-center mb-4">
-          <Sparkles className="w-6 h-6 text-zinc-500" />
+      <div className="flex flex-col items-center max-w-[680px] text-center">
+        {/* RebuilD logo - 64px amber square */}
+        <div className="w-16 h-16 rounded-2xl bg-[var(--accent)] flex items-center justify-center mb-4">
+          <Sparkles className="w-8 h-8 text-black" />
         </div>
-        <h1 className="text-2xl font-bold text-zinc-100 mb-2">RebuilD</h1>
-        <p className="text-sm text-zinc-500 mb-8">
-          {t('chat.emptyDescription')}
+        <p className="text-sm text-[var(--text-muted)] mb-8">
+          {t('chat.emptyDescription') || 'Start a new conversation'}
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
@@ -763,10 +763,10 @@ function EmptyState({ onSend }: { onSend: (text: string) => void }) {
             <button
               key={item.label}
               onClick={() => onSend(item.example)}
-              className="text-left px-4 py-3 rounded-xl border border-zinc-800/60 bg-zinc-900/30 hover:bg-zinc-800/40 hover:border-zinc-700/60 transition-all group cursor-pointer"
+              className="text-left px-4 py-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] hover:border-[var(--border-focus)] transition-all group cursor-pointer"
             >
-              <div className="text-xs font-medium text-zinc-500 mb-1">{item.label}</div>
-              <div className="text-xs text-zinc-600 group-hover:text-zinc-400 transition-colors line-clamp-2">
+              <div className="text-xs font-medium text-[var(--text-secondary)] mb-1">{item.label}</div>
+              <div className="text-xs text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors line-clamp-2">
                 {item.example}
               </div>
             </button>

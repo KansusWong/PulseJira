@@ -39,9 +39,13 @@ export function StreamingStepIndicator({ steps }: Props) {
 
   const allItems = buildDisplayItems(steps);
 
-  // Hide completed thinking steps — only keep the last one (active indicator)
+  // Keep completed thinking steps (they now show model + duration).
+  // Only hide thinking steps that have no useful info AND aren't the last item.
   const filtered = allItems.filter(
-    (item, idx) => item.type !== "thinking" || idx === allItems.length - 1,
+    (item, idx) =>
+      item.type !== "thinking" ||
+      idx === allItems.length - 1 ||
+      !!item.step.durationMs,
   );
 
   const hiddenCount = Math.max(0, filtered.length - MAX_VISIBLE_ITEMS);
@@ -51,25 +55,25 @@ export function StreamingStepIndicator({ steps }: Props) {
 
   return (
     <div className="mr-auto max-w-[85%]">
-      <div className="rounded-2xl px-4 py-3 bg-zinc-900/60 border border-zinc-800/50">
+      <div className="rounded-2xl px-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
         {hiddenCount > 0 && (
-          <div className="text-[10px] text-zinc-600 mb-2">
+          <div className="text-[10px] text-[var(--text-muted)] mb-2">
             +{hiddenCount} earlier steps
           </div>
         )}
         <div className="space-y-3">
           {groups.map((group, gi) => {
             const ui = getAgentUI(group.agent);
-            const badgeClass = ui?.badgeClass || "bg-zinc-500/20 text-zinc-400";
+            const badgeClass = ui?.badgeClass || "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]";
             const label = ui?.label || group.agent;
-            const borderColor = ui?.borderColor || "border-zinc-500";
+            const borderColor = ui?.borderColor || "border-[var(--border-default)]";
 
             return (
               <div key={gi} className={`border-l-2 ${borderColor} pl-3`}>
-                {/* Agent badge */}
+                {/* Agent badge - amber square pulse during streaming */}
                 <div className="mb-1.5">
                   <span
-                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${badgeClass}`}
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${badgeClass} ${gi === groups.length - 1 ? 'animate-[pulse_1.5s_ease-in-out_infinite]' : ''}`}
                   >
                     {label}
                   </span>
@@ -84,19 +88,33 @@ export function StreamingStepIndicator({ steps }: Props) {
 
                     // --- Thinking (only shown as active/last) ---
                     if (item.type === "thinking") {
+                      const stepCompleted = !!item.step.durationMs;
+                      const modelTag = item.step.model;
+                      const displayDuration = stepCompleted ? item.step.durationMs! : durationMs;
                       return (
                         <div
                           key={item.step.id}
-                          className="flex items-start gap-2 text-xs text-zinc-400"
+                          className="flex items-start gap-2 text-xs text-[var(--text-secondary)]"
                         >
-                          <Bullet color="bg-blue-400" pulse />
-                          <span className="flex-1">{t('streaming.thinking')}</span>
-                          {durationMs !== null && (
-                            <span className="shrink-0 text-[10px] text-zinc-500 tabular-nums">
-                              {formatDuration(durationMs)}
+                          <Bullet color={stepCompleted ? "bg-[var(--text-disabled)]" : "bg-[var(--accent)]"} pulse={!stepCompleted} />
+                          <span className="flex-1 flex items-center gap-1.5 text-[12px] text-[var(--accent)]">
+                            {stepCompleted ? `Step ${item.step.stepNumber || ''}` : t('streaming.thinking')}
+                            {modelTag && (
+                              <span className="text-[10px] px-1 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] font-mono">
+                                {modelTag}
+                              </span>
+                            )}
+                          </span>
+                          {displayDuration !== null && displayDuration !== undefined && (
+                            <span className={`shrink-0 text-[10px] tabular-nums ${
+                              stepCompleted && displayDuration > 10000 ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'
+                            }`}>
+                              {formatDuration(displayDuration)}
                             </span>
                           )}
-                          <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                          {!stepCompleted && (
+                            <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-[var(--text-muted)] animate-spin" />
+                          )}
                         </div>
                       );
                     }
@@ -106,14 +124,14 @@ export function StreamingStepIndicator({ steps }: Props) {
                       return (
                         <div
                           key={item.step.id}
-                          className="flex items-start gap-2 text-xs text-zinc-300"
+                          className="flex items-start gap-2 text-xs text-[var(--text-primary)]"
                         >
-                          <Bullet color="bg-zinc-500" />
+                          <Bullet color="bg-[var(--text-disabled)]" />
                           <span className="flex-1 min-w-0 line-clamp-2">
                             {item.step.message}
                           </span>
                           {isLast && (
-                            <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                            <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-[var(--text-muted)] animate-spin" />
                           )}
                         </div>
                       );
@@ -124,7 +142,7 @@ export function StreamingStepIndicator({ steps }: Props) {
                       const hasResult = !!item.resultStep;
                       const success = item.resultStep?.success !== false;
                       const bulletColor = !hasResult
-                        ? "bg-blue-400"
+                        ? "bg-[var(--accent)]"
                         : success
                           ? "bg-emerald-500"
                           : "bg-red-500";
@@ -139,25 +157,25 @@ export function StreamingStepIndicator({ steps }: Props) {
                       return (
                         <div key={item.callStep.id} className="space-y-0.5">
                           {/* Tool call line */}
-                          <div className="flex items-start gap-2 text-xs text-zinc-300">
+                          <div className="flex items-start gap-2 text-xs text-[var(--text-primary)]">
                             <Bullet color={bulletColor} pulse={!hasResult && isLast} />
                             <span className="flex-1 min-w-0 font-mono text-[11px] truncate">
                               {displayName}
                             </span>
                             {durationMs !== null && (
-                              <span className="shrink-0 text-[10px] text-zinc-600 tabular-nums">
+                              <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">
                                 {formatDuration(durationMs)}
                               </span>
                             )}
                             {isLast && !hasResult && (
-                              <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                              <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-[var(--text-muted)] animate-spin" />
                             )}
                           </div>
                           {/* Result sub-line */}
                           {hasResult && (
                             <div
                               className={`ml-4 text-[10px] ${
-                                success ? "text-zinc-500" : "text-red-400/70"
+                                success ? "text-[var(--text-muted)]" : "text-red-400/70"
                               } break-words`}
                             >
                               └{" "}

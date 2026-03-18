@@ -44,7 +44,7 @@ function StreamingSectionView({
       <div className="relative">
         <MarkdownRenderer content={section.content} isStreaming />
         {isLast && (
-          <span className="inline-block w-0.5 h-4 bg-[var(--text-muted)] animate-pulse ml-0.5 align-text-bottom absolute bottom-1" />
+          <span className="inline-block w-[2px] h-4 bg-[var(--accent)] animate-[blink_1s_step-end_infinite] ml-0.5 align-text-bottom absolute bottom-1" />
         )}
       </div>
     );

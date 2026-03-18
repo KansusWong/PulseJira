@@ -7,6 +7,8 @@
   --bg-base: #050505;
   --bg-surface: #0a0a0b;
   --bg-elevated: #141415;
+  --bg-secondary: #0f0f10;
+  --bg-tertiary: #1a1a1b;
   --bg-glass: rgba(255,255,255,0.04);
   --bg-hover: rgba(255,255,255,0.06);
 
@@ -21,10 +23,12 @@
   --text-primary: #f4f4f5;
   --text-secondary: #a1a1aa;
   --text-muted: #52525b;
+  --text-disabled: #3f3f46;
 
   /* ── Borders ───────────────────────────────────────────── */
   --border-subtle: rgba(255,255,255,0.06);
   --border-default: rgba(255,255,255,0.10);
+  --border-focus: rgba(255,255,255,0.20);
   --border-accent: rgba(245,158,11,0.25);
 
   /* ── Spacing ───────────────────────────────────────────── */
@@ -170,6 +174,10 @@ body {
   50% { opacity: 0.5; }
 }
 @keyframes ds-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }

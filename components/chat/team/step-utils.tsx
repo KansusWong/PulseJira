@@ -115,7 +115,7 @@ export function getItemDuration(
 export function Bullet({ color, pulse }: { color: string; pulse?: boolean }) {
   return (
     <span
-      className={`mt-[5px] w-[7px] h-[7px] rounded-full shrink-0 ${color} ${pulse ? "animate-pulse" : ""}`}
+      className={`mt-[5px] w-[6px] h-[6px] rounded-full shrink-0 ${color} ${pulse ? "animate-[pulse_1.5s_ease-in-out_infinite]" : ""}`}
     />
   );
 }
