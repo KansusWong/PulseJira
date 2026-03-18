@@ -20,7 +20,7 @@ import { Blackboard } from '../blackboard/blackboard';
 import { getMateRegistry } from './mate-registry';
 import { mateMessageQueue } from './mate-message-queue';
 import { TaskDAG, type TaskNode } from './task-dag';
-import { wakeMate, hibernateMate, type AwakenedMate } from './mate-lifecycle';
+import { wakeMate, hibernateMate, type AwakenedMate, type HibernateOptions } from './mate-lifecycle';
 import { workspaceManager } from '../sandbox/workspace-manager';
 
 // ---------------------------------------------------------------------------
@@ -365,7 +365,7 @@ Rules:
       // 2. Launch mates for ready tasks
       for (const task of readyTasks) {
         if (this.running.has(task.id)) continue;
-        this.launchMateForTask(task);
+        await this.launchMateForTask(task);
       }
 
       // 3. If nothing is running and nothing is ready, we're stuck
@@ -388,7 +388,7 @@ Rules:
   /**
    * Launch a mate agent for a specific task.
    */
-  private launchMateForTask(task: TaskNode): void {
+  private async launchMateForTask(task: TaskNode): Promise<void> {
     const mateDef = this.teamMates.find(m => m.name === task.assignee);
     if (!mateDef) {
       this.dag!.markFailed(task.id, `No mate found for assignee "${task.assignee}"`);
@@ -397,8 +397,8 @@ Rules:
 
     this.dag!.markRunning(task.id);
 
-    // Wake the mate
-    const awakened = wakeMate({
+    // Wake the mate (async — vault query)
+    const awakened = await wakeMate({
       mateDef,
       missionId: this.missionId,
       missionContext: this.config.description,
@@ -525,9 +525,12 @@ Rules:
       });
     }
 
-    // Hibernate the mate
+    // Hibernate the mate (with vault persistence)
     if (runningEntry) {
-      hibernateMate(runningEntry.awakened);
+      hibernateMate(runningEntry.awakened, {
+        result: completed.result,
+        projectId: this.config.projectId,
+      });
     }
 
     // Push progress update

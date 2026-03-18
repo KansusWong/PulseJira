@@ -3,13 +3,14 @@
  *
  * wake():
  *   1. Load MateDefinition (MATE.md persona)
- *   2. Build system prompt with mission context
- *   3. Create BaseAgent with workspace-scoped tools
- *   4. Restore working memory if resuming
+ *   2. Query vault for historical experience (Phase 3)
+ *   3. Build system prompt with mission context + vault insights
+ *   4. Create BaseAgent with workspace-scoped tools
+ *   5. Restore working memory if resuming
  *
  * hibernate():
- *   1. Extract key findings from working memory
- *   2. Clean up working memory drafts
+ *   1. Extract key findings from agent result
+ *   2. Persist key findings to vault_artifacts (Phase 3)
  *   3. Release BaseAgent instance
  *   4. Update mate status → hibernated
  */
@@ -20,6 +21,7 @@ import type { BaseTool } from '../core/base-tool';
 import type { MateDefinition } from '../core/types';
 import { Blackboard } from '../blackboard/blackboard';
 import { getTools, getToolsCached, isToolRegistered } from '../tools/tool-registry';
+import { vaultStore } from './vault-store';
 
 // Workspace-scoped tool imports (same pattern as createRebuilDAgent)
 import { FileReadTool } from '../tools/fs-read';
@@ -62,6 +64,15 @@ export interface AwakenedMate {
   agent: BaseAgent;
   mateDef: MateDefinition;
   missionId: string;
+  /** Vault insights injected at wake time (for reference during hibernate). */
+  vaultInsights?: string;
+}
+
+export interface HibernateOptions {
+  /** Agent's final result text (used to extract key findings). */
+  result?: string;
+  /** Project ID for vault persistence. */
+  projectId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,16 +104,19 @@ const MATE_GLOBAL_TOOLS = [
 // ---------------------------------------------------------------------------
 
 /**
- * Wake a mate agent: build system prompt, assemble tools, create BaseAgent.
+ * Wake a mate agent: query vault for experience, build system prompt, assemble tools, create BaseAgent.
  */
-export function wakeMate(options: WakeOptions): AwakenedMate {
+export async function wakeMate(options: WakeOptions): Promise<AwakenedMate> {
   const { mateDef, missionId, missionContext, taskDescription, blackboard, workspace } = options;
 
   // --- Assemble tools ---
   const tools = buildMateTools(mateDef, blackboard, workspace, options.projectId);
 
-  // --- Build system prompt ---
-  const systemPrompt = buildMateSystemPrompt(mateDef, missionContext, taskDescription);
+  // --- Query vault for historical experience ---
+  const vaultInsights = await queryVaultExperience(mateDef, options.projectId);
+
+  // --- Build system prompt (with vault insights) ---
+  const systemPrompt = buildMateSystemPrompt(mateDef, missionContext, taskDescription, vaultInsights);
 
   // --- Resolve model ---
   const model = options.model
@@ -118,20 +132,25 @@ export function wakeMate(options: WakeOptions): AwakenedMate {
     model,
   });
 
-  return { agent, mateDef, missionId };
+  return { agent, mateDef, missionId, vaultInsights };
 }
 
 // ---------------------------------------------------------------------------
-// Hibernate (lightweight — no DB writes yet, that's Phase 2.5)
+// Hibernate — persist key findings to vault, then release agent
 // ---------------------------------------------------------------------------
 
 /**
- * Hibernate a mate: release agent, mark status.
- * In the future this will also persist key findings to vault.
+ * Hibernate a mate: persist key findings to vault, release agent.
+ * Fire-and-forget — callers don't need to await this.
  */
-export function hibernateMate(_mate: AwakenedMate): void {
+export function hibernateMate(mate: AwakenedMate, opts?: HibernateOptions): void {
+  // Persist key findings to vault (fire-and-forget)
+  if (opts?.result && opts.projectId) {
+    persistToVault(mate, opts.result, opts.projectId).catch(err => {
+      console.warn(`[mate-lifecycle] Vault persist failed for ${mate.mateDef.name}:`, err.message);
+    });
+  }
   // BaseAgent has no explicit destroy — GC handles cleanup.
-  // Future: extract working memory → vault artifact.
 }
 
 // ---------------------------------------------------------------------------
@@ -202,11 +221,16 @@ function buildMateSystemPrompt(
   mateDef: MateDefinition,
   missionContext: string,
   taskDescription: string,
+  vaultInsights?: string,
 ): string {
   // If mate has a custom system prompt (from MATE.md body), use it as base
   const basePrompt = mateDef.system_prompt
     ? mateDef.system_prompt
     : `You are ${mateDef.display_name || mateDef.name}, a specialized team member.`;
+
+  const vaultSection = vaultInsights
+    ? `\n\n## 历史经验 (Vault)\n\n以下是从 Vault 中检索到的、与你当前任务相关的历史产出。可作为参考：\n\n${vaultInsights}`
+    : '';
 
   return `${basePrompt}
 
@@ -216,7 +240,7 @@ ${taskDescription}
 
 ## Mission 背景
 
-${missionContext}
+${missionContext}${vaultSection}
 
 ## 协作规范
 
@@ -226,4 +250,76 @@ ${missionContext}
 - 你也可能收到用户的直接反馈，格式为 [用户反馈]: ...
 - 专注完成分配给你的任务，完成后给出清晰的结果总结
 - 如果遇到阻塞（缺少信息、依赖未就绪），明确说明并等待`;
+}
+
+// ---------------------------------------------------------------------------
+// Vault integration — query historical experience + persist findings
+// ---------------------------------------------------------------------------
+
+/**
+ * Query vault for artifacts previously produced by this mate or related to its domains.
+ * Returns a formatted string for injection into the system prompt, or undefined.
+ */
+async function queryVaultExperience(mateDef: MateDefinition, projectId?: string): Promise<string | undefined> {
+  try {
+    const entries = await vaultStore.hydrate(projectId);
+    if (entries.length === 0) return undefined;
+
+    // Filter: artifacts created by this mate, or matching its domains
+    const domainSet = new Set(mateDef.domains.map(d => d.toLowerCase()));
+    const relevant = entries.filter(e => {
+      // Created by this mate
+      if (e.created_by_agent === mateDef.name) return true;
+      // Tag overlap with mate's domains
+      if (e.tags?.some(t => domainSet.has(t.toLowerCase()))) return true;
+      return false;
+    });
+
+    if (relevant.length === 0) return undefined;
+
+    // Take top 5 by reuse_count, then format
+    const top = relevant
+      .sort((a, b) => (b.reuse_count || 0) - (a.reuse_count || 0))
+      .slice(0, 5);
+
+    const lines = top.map(e =>
+      `- **${e.name}** (${e.type}): ${e.description?.slice(0, 150) || 'no description'} [reused ${e.reuse_count}x]`
+    );
+
+    return lines.join('\n');
+  } catch (err) {
+    console.warn('[mate-lifecycle] Vault query failed:', (err as Error).message);
+    return undefined;
+  }
+}
+
+/**
+ * Persist a mate's key findings to vault after task completion.
+ * Extracts a concise summary and stores as a vault artifact.
+ */
+async function persistToVault(
+  mate: AwakenedMate,
+  result: string,
+  projectId: string,
+): Promise<void> {
+  // Only persist non-trivial results (> 50 chars)
+  if (!result || result.length < 50) return;
+
+  const artifactId = crypto.randomUUID();
+  const summary = result.length > 500 ? result.slice(0, 500) + '...' : result;
+
+  vaultStore.persist(projectId, {
+    artifact_id: artifactId,
+    type: 'doc',
+    path: `missions/${mate.missionId}/${mate.mateDef.name}`,
+    name: `${mate.mateDef.name} 任务产出`,
+    description: summary,
+    created_by_epic: mate.missionId,
+    created_by_agent: mate.mateDef.name,
+    created_at: new Date().toISOString(),
+    reuse_count: 0,
+    tags: [...mate.mateDef.domains],
+    depends_on: [],
+    version: 1,
+  });
 }

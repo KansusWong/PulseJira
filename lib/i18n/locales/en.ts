@@ -63,7 +63,14 @@ const en: TranslationDict = {
   'sidebar.noPpts': 'No presentations yet',
   'sidebar.noFiles': 'No files yet',
   'sidebar.signals': 'Signals',
+  'sidebar.graph': 'Knowledge Graph',
   'sidebar.settings': 'Settings',
+
+  // ── Graph Page ──
+  'graph.title': 'Knowledge Graph',
+  'graph.refresh': 'Refresh',
+  'graph.retry': 'Retry',
+  'graph.empty': 'No vault data yet. Complete a mission to populate the graph.',
   'sidebar.settings.initialConfig': 'Initial Config',
   'sidebar.settings.initSetup': 'Initial Setup',
   'sidebar.settings.advancedConfig': 'Advanced Config',
@@ -115,6 +122,7 @@ const en: TranslationDict = {
   'chat.placeholder': 'Ask anything or describe what you need...',
   'chat.enterToSend': 'Enter to send, Shift+Enter for new line',
   'chat.modelFastDesc': 'Most efficient for everyday tasks',
+  'chat.modelSonnetDesc': 'Anthropic Claude 3.7, balanced performance',
   'chat.extendedThinking': 'Extended thinking',
   'chat.extendedThinkingDesc': 'Think longer for complex tasks',
   'chat.sendWillInterrupt': 'Sending will interrupt current generation',

@@ -63,7 +63,14 @@ const zh: TranslationDict = {
   'sidebar.noPpts': '暂无 PPT',
   'sidebar.noFiles': '暂无文件',
   'sidebar.signals': '信号',
+  'sidebar.graph': '知识图谱',
   'sidebar.settings': '设置',
+
+  // ── Graph Page ──
+  'graph.title': '知识图谱',
+  'graph.refresh': '刷新',
+  'graph.retry': '重试',
+  'graph.empty': '暂无 Vault 数据。完成一次 Mission 后图谱将自动填充。',
   'sidebar.settings.initialConfig': '初始配置',
   'sidebar.settings.initSetup': '初始化配置',
   'sidebar.settings.advancedConfig': '高级配置',
@@ -115,6 +122,7 @@ const zh: TranslationDict = {
   'chat.placeholder': '输入任何内容或描述你的需求...',
   'chat.enterToSend': '回车发送，Shift+回车换行',
   'chat.modelFastDesc': '高效处理日常任务',
+  'chat.modelSonnetDesc': 'Anthropic Claude 3.7，均衡性能',
   'chat.extendedThinking': '深度思考',
   'chat.extendedThinkingDesc': '深度思考复杂问题',
   'chat.sendWillInterrupt': '发送新消息将中断当前生成',
