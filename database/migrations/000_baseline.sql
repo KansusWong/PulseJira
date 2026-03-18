@@ -1335,6 +1335,7 @@ DO $$ BEGIN
     ALTER TABLE user_preferences DROP CONSTRAINT IF EXISTS user_preferences_user_id_key;
     ALTER TABLE user_preferences DROP CONSTRAINT IF EXISTS user_preferences_user_id_org_id_key;
     DELETE FROM user_preferences WHERE user_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+    ALTER TABLE user_preferences ALTER COLUMN user_id DROP DEFAULT;
     ALTER TABLE user_preferences ALTER COLUMN user_id TYPE UUID USING user_id::UUID;
   END IF;
 END $$;
