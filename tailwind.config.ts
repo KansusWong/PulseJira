@@ -7,6 +7,7 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      /* Design tokens: use bg-[var(--bg-surface)] syntax in components (matches plan convention) */
       colors: {
         /* Legacy aliases — keep existing Tailwind classes working */
         background: "var(--background)",
