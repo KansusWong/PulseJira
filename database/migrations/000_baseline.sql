@@ -1325,7 +1325,19 @@ ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS embedding       vector(256)
 ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS created_by_mate TEXT;
 ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS mission_id      UUID;
 
--- user_preferences (rebuild as per-user per-org with JSONB)
+-- user_preferences (migrate TEXT user_id → UUID for FK compatibility)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'user_preferences' AND column_name = 'user_id' AND data_type = 'text'
+  ) THEN
+    -- Drop old unique constraint and data that can't convert to UUID
+    ALTER TABLE user_preferences DROP CONSTRAINT IF EXISTS user_preferences_user_id_key;
+    ALTER TABLE user_preferences DROP CONSTRAINT IF EXISTS user_preferences_user_id_org_id_key;
+    DELETE FROM user_preferences WHERE user_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+    ALTER TABLE user_preferences ALTER COLUMN user_id TYPE UUID USING user_id::UUID;
+  END IF;
+END $$;
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS org_id       UUID;
 ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS preferences  JSONB DEFAULT '{}';
 
