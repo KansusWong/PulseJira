@@ -149,27 +149,27 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
 
   return (
     <div className="mr-auto max-w-lg w-full">
-      <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800/50 overflow-hidden">
+      <div className="rounded-2xl bg-[var(--bg-glass)] border border-[var(--border-subtle)] overflow-hidden">
         {/* ── Header ── */}
         <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          <p className="text-sm text-zinc-200 font-medium flex-1 mr-3">{currentQ.question}</p>
+          <p className="text-sm text-[var(--text-primary)] font-medium flex-1 mr-3">{currentQ.question}</p>
           <div className="flex items-center gap-1 shrink-0">
             {total > 1 && (
               <>
                 <button
                   onClick={goPrev}
                   disabled={currentPage === 0}
-                  className="p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-xs text-zinc-500 tabular-nums min-w-[3.5rem] text-center">
+                <span className="text-xs text-[var(--text-muted)] tabular-nums min-w-[3.5rem] text-center">
                   {t("questionnaire.of", { current: String(currentPage + 1), total: String(total) })}
                 </span>
                 <button
                   onClick={goNext}
                   disabled={currentPage === total - 1}
-                  className="p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -177,7 +177,7 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
             )}
             <button
               onClick={onDismiss}
-              className="p-1 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors cursor-pointer ml-1"
+              className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer ml-1"
             >
               <X className="w-4 h-4" />
             </button>
@@ -187,7 +187,7 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
         {/* ── multi-select hint ── */}
         {isMulti && (
           <div className="px-4 pb-1">
-            <span className="text-xs text-zinc-500">({t("questionnaire.multiSelect")})</span>
+            <span className="text-xs text-[var(--text-muted)]">({t("questionnaire.multiSelect")})</span>
           </div>
         )}
 
@@ -207,19 +207,19 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left cursor-pointer ${
                     selected
                       ? "border-blue-500/60 bg-blue-500/10"
-                      : "border-zinc-800/60 hover:bg-zinc-800/40 hover:border-zinc-700/60"
+                      : "border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] hover:border-[var(--border-accent)]"
                   }`}
                 >
                   <span
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm font-medium shrink-0 ${
                       selected
                         ? "bg-blue-500/20 text-blue-300"
-                        : "bg-zinc-800 text-zinc-400"
+                        : "bg-[var(--bg-elevated)] text-[var(--text-muted)]"
                     }`}
                   >
                     {index + 1}
                   </span>
-                  <span className={`text-sm ${selected ? "text-blue-200" : "text-zinc-200"}`}>
+                  <span className={`text-sm ${selected ? "text-blue-200" : "text-[var(--text-primary)]"}`}>
                     {option}
                   </span>
                 </button>
@@ -231,11 +231,11 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
             <div
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
                 customInputVisible
-                  ? "border-zinc-700/60 bg-zinc-800/30"
-                  : "border-zinc-800/60 hover:bg-zinc-800/40 hover:border-zinc-700/60"
+                  ? "border-[var(--border-accent)] bg-[var(--bg-elevated)]"
+                  : "border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] hover:border-[var(--border-accent)]"
               }`}
             >
-              <Pencil className="w-4 h-4 text-zinc-500 shrink-0" />
+              <Pencil className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
               {customInputVisible ? (
                 <input
                   autoFocus
@@ -249,12 +249,12 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
                       handleCustomSubmit();
                     }
                   }}
-                  className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
                 />
               ) : (
                 <button
                   onClick={() => setShowCustomInput((prev) => ({ ...prev, [currentQ.id]: true }))}
-                  className="flex-1 text-sm text-zinc-500 text-left cursor-pointer"
+                  className="flex-1 text-sm text-[var(--text-muted)] text-left cursor-pointer"
                 >
                   {t("questionnaire.somethingElse")}
                 </button>
@@ -283,7 +283,7 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
                   goNext();
                 }
               }}
-              className="w-full px-4 py-3 text-sm rounded-xl border border-zinc-800/60 bg-transparent text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 transition-colors"
+              className="w-full px-4 py-3 text-sm rounded-xl border border-[var(--border-subtle)] bg-transparent text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] transition-colors"
             />
           )}
         </div>
@@ -301,7 +301,7 @@ export function QuestionnaireInline({ data, onSubmit, onDismiss }: Questionnaire
           )}
           <button
             onClick={handleSkip}
-            className="px-3 py-1.5 text-sm rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+            className="px-3 py-1.5 text-sm rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
           >
             {t("questionnaire.skip")}
           </button>

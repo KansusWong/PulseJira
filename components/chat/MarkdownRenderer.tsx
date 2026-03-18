@@ -47,8 +47,8 @@ function CopyButton({ preRef }: { preRef: React.RefObject<HTMLPreElement | null>
       type="button"
       onClick={handleCopy}
       className="absolute top-2 right-2 z-10 rounded-md px-2 py-1 text-[11px] font-medium
-        bg-zinc-700/70 text-zinc-300 opacity-0 group-hover:opacity-100
-        hover:bg-zinc-600 transition-all duration-150 cursor-pointer select-none"
+        bg-[var(--bg-glass)] text-[var(--text-secondary)] opacity-0 group-hover:opacity-100
+        hover:bg-[var(--bg-elevated)] transition-all duration-150 cursor-pointer select-none"
     >
       {copied ? "Copied!" : "Copy"}
     </button>
@@ -63,7 +63,7 @@ function CodeBlockWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative group">
       <CopyButton preRef={preRef} />
-      <pre ref={preRef} className="overflow-x-auto rounded-md bg-zinc-950 p-3 text-sm border border-zinc-800/30">
+      <pre ref={preRef} className="overflow-x-auto rounded-xl bg-[var(--bg-elevated)] p-3 text-sm border border-[var(--border-subtle)]">
         {children}
       </pre>
     </div>
@@ -84,6 +84,17 @@ function makeMdComponents(isStreaming: boolean): Components {
         return <ChartBlock code={codeText} className="my-3 not-prose" />;
       }
 
+      if (lang === "svg") {
+        return (
+          <div className="my-3 not-prose">
+            <div
+              className="svg-container overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto"
+              dangerouslySetInnerHTML={{ __html: codeText }}
+            />
+          </div>
+        );
+      }
+
       if (isMermaidCode(lang, codeText)) {
         if (isStreaming) {
           // Progressive render with debounce & silent error handling
@@ -101,7 +112,7 @@ function makeMdComponents(isStreaming: boolean): Components {
       if (isInline) {
         return (
           <code
-            className="rounded-sm bg-zinc-800/60 px-1 py-0.5 text-[0.85em] text-zinc-200 font-mono"
+            className="bg-[rgba(245,158,11,0.1)] text-[#fbbf24] rounded px-1.5 py-0.5 text-[12px] font-mono"
             {...props}
           >
             {children}
@@ -139,9 +150,9 @@ export function MarkdownRenderer({ content, className, isStreaming = false }: Ma
   return (
     <div className={clsx(
       "prose prose-invert prose-sm max-w-none break-words",
-      "prose-headings:font-medium prose-headings:text-zinc-200",
-      "prose-p:text-zinc-300 prose-p:leading-relaxed",
-      "prose-strong:font-medium prose-strong:text-zinc-200",
+      "prose-headings:font-medium prose-headings:text-[var(--text-primary)]",
+      "prose-p:text-[var(--text-secondary)] prose-p:leading-relaxed",
+      "prose-strong:font-medium prose-strong:text-[var(--text-primary)]",
       "prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline",
       className,
     )}>

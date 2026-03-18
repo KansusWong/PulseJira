@@ -19,9 +19,9 @@ interface ProgressiveDisclosureProps {
 
 const variantStyles: Record<string, { border: string; bg: string; text: string }> = {
   default: {
-    border: "border-zinc-800/50",
-    bg: "bg-zinc-900/30",
-    text: "text-zinc-400",
+    border: "border-[var(--border-subtle)]",
+    bg: "bg-[var(--bg-glass)]",
+    text: "text-[var(--text-secondary)]",
   },
   agent: {
     border: "border-indigo-500/20",
@@ -62,9 +62,9 @@ export function ProgressiveDisclosure({
         className="w-full flex items-center gap-2 px-3 py-2 text-left"
       >
         {isOpen ? (
-          <ChevronDown className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0" />
+          <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)] flex-shrink-0" />
         ) : (
-          <ChevronRight className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0" />
+          <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)] flex-shrink-0" />
         )}
         <span className={clsx("text-xs", style.text, isActive && "animate-pulse")}>
           {summary}
@@ -73,7 +73,7 @@ export function ProgressiveDisclosure({
 
       {isOpen && (
         <div className="px-3 pb-3 pt-0">
-          <div className="border-t border-zinc-800/30 pt-2 text-xs text-zinc-500">
+          <div className="border-t border-[var(--border-subtle)] pt-2 text-xs text-[var(--text-muted)]">
             {children}
           </div>
         </div>

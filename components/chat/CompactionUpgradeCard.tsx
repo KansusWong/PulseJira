@@ -82,7 +82,7 @@ export function CompactionUpgradeCard({
   return (
     <div className="relative">
       {/* Countdown progress bar */}
-      <div className="absolute top-0 left-0 right-0 h-0.5 bg-zinc-800 rounded-t-2xl overflow-hidden z-10">
+      <div className="absolute top-0 left-0 right-0 h-0.5 bg-[var(--bg-elevated)] rounded-t-2xl overflow-hidden z-10">
         <div
           className="h-full bg-amber-500/60 transition-all duration-1000 ease-linear"
           style={{ width: `${(secondsLeft / 30) * 100}%` }}
@@ -100,7 +100,7 @@ export function CompactionUpgradeCard({
 
       {/* Countdown label */}
       <div className="text-center pb-2 -mt-1">
-        <span className="text-[11px] text-zinc-600">
+        <span className="text-[11px] text-[var(--text-muted)]">
           {t("compactionUpgrade.countdown", { seconds: String(secondsLeft) })}
         </span>
       </div>

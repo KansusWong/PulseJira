@@ -11,14 +11,22 @@ export function StreamingBubble({ sections }: { sections: StreamingSection[] }) 
   if (sections.length === 0) return null;
   return (
     <div className="mr-auto max-w-[85%]">
-      <div className="px-1 py-1">
-        {sections.map((section, i) => (
-          <StreamingSectionView
-            key={i}
-            section={section}
-            isLast={i === sections.length - 1}
-          />
-        ))}
+      <div className="flex gap-3">
+        {/* Avatar: 28px amber square — matches MessageBubble assistant style */}
+        <div className="w-7 h-7 rounded-lg bg-[var(--accent-subtle)] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 text-[var(--text-secondary)] leading-[1.7] [&_strong]:text-[var(--text-primary)]">
+          {sections.map((section, i) => (
+            <StreamingSectionView
+              key={i}
+              section={section}
+              isLast={i === sections.length - 1}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -36,7 +44,7 @@ function StreamingSectionView({
       <div className="relative">
         <MarkdownRenderer content={section.content} isStreaming />
         {isLast && (
-          <span className="inline-block w-0.5 h-4 bg-zinc-600 animate-pulse ml-0.5 align-text-bottom absolute bottom-1" />
+          <span className="inline-block w-0.5 h-4 bg-[var(--text-muted)] animate-pulse ml-0.5 align-text-bottom absolute bottom-1" />
         )}
       </div>
     );
@@ -55,15 +63,15 @@ function StreamingSectionView({
         {section.status === "error" && (
           <X className="w-3 h-3 text-red-400/70" />
         )}
-        <span className="text-zinc-400 font-medium">{section.toolLabel}</span>
+        <span className="text-[var(--text-muted)] font-medium">{section.toolLabel}</span>
         {section.args && (
-          <span className="text-zinc-600 truncate max-w-[250px]">
+          <span className="text-[var(--text-muted)] opacity-60 truncate max-w-[250px]">
             {section.args}
           </span>
         )}
       </div>
       {section.resultPreview && (
-        <div className="mt-0.5 text-[11px] text-zinc-600 truncate pl-5">
+        <div className="mt-0.5 text-[11px] text-[var(--text-muted)] opacity-60 truncate pl-5">
           {section.resultPreview}
         </div>
       )}
@@ -132,7 +140,7 @@ function InlineToolApproval({ toolName }: { toolName: string }) {
           <span className="text-emerald-400">{t("toolApproval.approved")}</span>
         )}
         {panel.status === "rejected" && (
-          <span className="text-zinc-500">{t("toolApproval.rejected")}</span>
+          <span className="text-[var(--text-muted)]">{t("toolApproval.rejected")}</span>
         )}
       </div>
     );
@@ -153,7 +161,7 @@ function InlineToolApproval({ toolName }: { toolName: string }) {
         <div className="px-3 pb-2">
           <button
             onClick={() => setArgsExpanded(!argsExpanded)}
-            className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             {argsExpanded ? (
               <ChevronDown className="w-3 h-3" />
@@ -163,7 +171,7 @@ function InlineToolApproval({ toolName }: { toolName: string }) {
             {t("toolApproval.arguments")}
           </button>
           {argsExpanded && (
-            <pre className="mt-1 text-[11px] text-zinc-400 bg-zinc-900/60 rounded-md p-2 overflow-x-auto max-h-40 whitespace-pre-wrap break-words">
+            <pre className="mt-1 text-[11px] text-[var(--text-muted)] bg-[var(--bg-elevated)] rounded-md p-2 overflow-x-auto max-h-40 whitespace-pre-wrap break-words">
               {JSON.stringify(panel.toolArgs, null, 2)}
             </pre>
           )}
@@ -184,7 +192,7 @@ function InlineToolApproval({ toolName }: { toolName: string }) {
           </button>
           <button
             onClick={handleReject}
-            className="flex-1 px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-xs font-medium transition-colors"
+            className="flex-1 px-3 py-1.5 rounded-md bg-[var(--bg-elevated)] hover:bg-[var(--bg-glass)] text-[var(--text-secondary)] text-xs font-medium transition-colors"
           >
             {t("toolApproval.reject")}
           </button>

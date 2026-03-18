@@ -23,7 +23,7 @@ export function AttachmentPreview({ files, uploading, onRemove }: AttachmentPrev
       {files.map((file) => (
         <div
           key={file.id}
-          className="group relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-xs"
+          className="group relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg-glass)] border border-[var(--border-subtle)] text-xs"
         >
           {file.type === "image" ? (
             <img
@@ -32,20 +32,20 @@ export function AttachmentPreview({ files, uploading, onRemove }: AttachmentPrev
               className="w-8 h-8 rounded object-cover flex-shrink-0"
             />
           ) : (
-            <FileText className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+            <FileText className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" />
           )}
-          <span className="text-zinc-400 truncate max-w-[120px]">{file.name}</span>
-          <span className="text-zinc-600">{formatSize(file.size)}</span>
+          <span className="text-[var(--text-secondary)] truncate max-w-[120px]">{file.name}</span>
+          <span className="text-[var(--text-muted)]">{formatSize(file.size)}</span>
           <button
             onClick={() => onRemove(file.id)}
-            className="p-0.5 rounded hover:bg-zinc-700 text-zinc-600 hover:text-zinc-300 transition-colors"
+            className="p-0.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           >
             <X className="w-3 h-3" />
           </button>
         </div>
       ))}
       {uploading && (
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-800/80 border border-zinc-700/50 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg-glass)] border border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           <span>上传中...</span>
         </div>

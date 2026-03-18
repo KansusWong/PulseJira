@@ -37,7 +37,7 @@ export function ChartBlock({ code, className }: ChartBlockProps) {
   }
 
   return (
-    <div className={`rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden ${className ?? ""}`}>
+    <div className={`rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] overflow-hidden ${className ?? ""}`}>
       {inner}
     </div>
   );
@@ -76,7 +76,7 @@ function renderChart(chart: any) {
 
 function CodeFallback({ code, className }: { code: string; className?: string }) {
   return (
-    <pre className={`overflow-x-auto rounded-md bg-zinc-950 p-3 text-sm text-zinc-400 border border-zinc-800/30 ${className ?? ""}`}>
+    <pre className={`overflow-x-auto rounded-md bg-[var(--bg-elevated)] p-3 text-sm text-[var(--text-muted)] border border-[var(--border-subtle)] ${className ?? ""}`}>
       <code>{code}</code>
     </pre>
   );

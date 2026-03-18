@@ -135,7 +135,7 @@ export function MermaidChart({
         <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
             onClick={handleExport}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-100 bg-zinc-800/80 hover:bg-zinc-700/80 backdrop-blur-sm transition-colors duration-150 cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--bg-glass)] hover:bg-[var(--bg-elevated)] backdrop-blur-sm transition-colors duration-150 cursor-pointer"
           >
             <DownloadIcon />
             {exportLabel || t("mermaid.export")}
@@ -146,7 +146,7 @@ export function MermaidChart({
       {/* Optional title */}
       {title && (
         <div className="px-1 pb-2">
-          <span className="text-sm font-medium text-zinc-400">{title}</span>
+          <span className="text-sm font-medium text-[var(--text-muted)]">{title}</span>
         </div>
       )}
 
@@ -154,7 +154,7 @@ export function MermaidChart({
       <div className="relative min-h-[120px]">
         {status === "loading" && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex items-center gap-2 text-sm text-zinc-500">
+            <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
               <SpinnerIcon />
               {t("mermaid.loading")}
             </div>

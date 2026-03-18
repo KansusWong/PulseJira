@@ -67,8 +67,8 @@ export const StreamingMermaidChart = memo(function StreamingMermaidChart({
   // Fallback: show raw code when no successful render yet
   if (!lastGoodSvg) {
     return (
-      <div className={`rounded-md bg-zinc-950 p-3 text-sm border border-zinc-800/30 overflow-x-auto ${className}`}>
-        <pre className="text-zinc-400 font-mono text-xs whitespace-pre">{code}</pre>
+      <div className={`rounded-md bg-[var(--bg-elevated)] p-3 text-sm border border-[var(--border-subtle)] overflow-x-auto ${className}`}>
+        <pre className="text-[var(--text-muted)] font-mono text-xs whitespace-pre">{code}</pre>
       </div>
     );
   }
