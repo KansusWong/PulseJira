@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import clsx from "clsx";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { TopBar } from "./TopBar";
+import { ArtifactsPanel } from "./ArtifactsPanel";
 
 interface DashboardShellProps {
   sidebar?: React.ReactNode;
@@ -167,15 +168,13 @@ export function DashboardShell({
           </div>
         )}
 
-        {/* Artifacts Panel placeholder (actual component wired in Task 9) */}
+        {/* Artifacts Panel */}
         {showArtifacts && (
           <aside
-            className="min-w-[320px] flex flex-col overflow-hidden border-l border-border bg-background"
+            className="min-w-[320px] flex flex-col overflow-hidden border-l border-[var(--border-subtle)]"
             style={{ flex: artifactFlex }}
           >
-            <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
-              Artifacts Panel
-            </div>
+            <ArtifactsPanel />
           </aside>
         )}
 

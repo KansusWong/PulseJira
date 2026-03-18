@@ -308,3 +308,22 @@ body {
 .prose pre code .hljs-bullet { color: #f69d50; }
 .prose pre code .hljs-link { color: #96d0ff; text-decoration: underline; }
 .prose pre code .hljs-subst { color: #adbac7; }
+
+/* ── highlight.js tokens (global — used by ArtifactsPanel code viewer) ── */
+.hljs-comment, .hljs-quote { color: #768390; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: #f47067; }
+.hljs-string, .hljs-attr, .hljs-addition { color: #96d0ff; }
+.hljs-number, .hljs-literal { color: #6cb6ff; }
+.hljs-title, .hljs-section, .hljs-title.function_ { color: #dcbdfb; }
+.hljs-type, .hljs-template-variable { color: #f69d50; }
+.hljs-variable, .hljs-name, .hljs-selector-id, .hljs-selector-class { color: #f69d50; }
+.hljs-deletion { color: #f47067; background: rgba(244,112,103,0.15); }
+.hljs-meta { color: #768390; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
+.hljs-params { color: #adbac7; }
+.hljs-regexp { color: #96d0ff; }
+.hljs-symbol { color: #6cb6ff; }
+.hljs-bullet { color: #f69d50; }
+.hljs-link { color: #96d0ff; text-decoration: underline; }
+.hljs-subst { color: #adbac7; }
