@@ -883,7 +883,6 @@ export default function DemoPage() {
           onSubmit={handleSend}
           onStop={handleStop}
           streaming={streaming}
-          contextUsage={contextUsage}
         />
       </div>
     </div>

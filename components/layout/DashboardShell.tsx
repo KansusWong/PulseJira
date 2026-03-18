@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import clsx from "clsx";
 import { usePulseStore } from "@/store/usePulseStore.new";
+import { TopBar } from "./TopBar";
 
 interface DashboardShellProps {
   sidebar?: React.ReactNode;
@@ -147,10 +148,13 @@ export function DashboardShell({
         {/* Main Content (Chat area) */}
         <main
           data-workspace-root="true"
-          className="min-w-[320px] flex flex-col overflow-y-auto relative"
+          className="min-w-[320px] flex flex-col overflow-hidden relative"
           style={{ flex: showArtifacts ? chatFlex : 1 }}
         >
-          {main}
+          <TopBar />
+          <div className="flex-1 overflow-y-auto">
+            {main}
+          </div>
         </main>
 
         {/* Drag handle between chat and artifacts */}

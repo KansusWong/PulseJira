@@ -4,12 +4,16 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { ArrowUp, Paperclip, Square, ChevronDown, Check, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
-import { ContextWindowIndicator } from "./ContextWindowIndicator";
 import { AttachmentPreview } from "./AttachmentPreview";
 import type { AttachmentMeta } from "@/lib/core/types";
 
-const FAST_MODEL_LABEL = process.env.NEXT_PUBLIC_FAST_MODEL_LABEL || 'GLM-4-Flash';
 const THINKING_MODEL_LABEL = process.env.NEXT_PUBLIC_THINKING_MODEL_LABEL || 'GLM-5';
+
+/** Available fast models — shown as selectable options when thinking mode is off. */
+const FAST_MODELS: { id: string; label: string; desc: string }[] = [
+  { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet', desc: 'chat.modelSonnetDesc' },
+  { id: 'glm-4-flash', label: 'GLM-4-Flash', desc: 'chat.modelFastDesc' },
+];
 
 const ALLOWED_TYPES = [
   "image/png", "image/jpeg", "image/gif", "image/webp",
@@ -30,10 +34,11 @@ interface ChatInputProps {
   disabled?: boolean;
   streaming?: boolean;
   executionMode?: string | null;
-  contextUsage?: { estimated: number; max: number; ratio: number } | null;
   conversationId?: string;
   thinkingMode?: boolean;
   onThinkingModeChange?: (enabled: boolean) => void;
+  selectedFastModel?: string;
+  onFastModelChange?: (modelId: string) => void;
 }
 
 export function ChatInput({
@@ -43,10 +48,11 @@ export function ChatInput({
   disabled = false,
   streaming = false,
   executionMode,
-  contextUsage,
   conversationId,
   thinkingMode,
   onThinkingModeChange,
+  selectedFastModel,
+  onFastModelChange,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
@@ -150,14 +156,14 @@ export function ChatInput({
   };
 
   const canSend = (text.trim() || pendingFiles.length > 0) && !disabled && !uploading;
-  const modelLabel = thinkingMode ? THINKING_MODEL_LABEL : FAST_MODEL_LABEL;
+  const activeFastModel = FAST_MODELS.find(m => m.id === (selectedFastModel || '')) || FAST_MODELS[0];
+  const modelLabel = thinkingMode ? THINKING_MODEL_LABEL : activeFastModel.label;
 
   return (
     <div className="px-4 py-3">
       <div className="relative max-w-3xl mx-auto">
-        <div className="flex items-center gap-2">
-          {/* Main input container */}
-          <div className="flex-1 flex flex-col bg-zinc-900/80 border border-zinc-800 rounded-2xl focus-within:border-zinc-600 transition-colors">
+        {/* Main input container */}
+        <div className="flex flex-col bg-zinc-900/80 border border-zinc-800 rounded-2xl focus-within:border-zinc-600 transition-colors">
             {/* Pending attachments */}
             {(pendingFiles.length > 0 || uploading) && (
               <div className="pt-2">
@@ -235,17 +241,27 @@ export function ChatInput({
                   {/* Dropdown menu */}
                   {showModelMenu && (
                     <div className="absolute bottom-full right-0 mb-2 w-64 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl overflow-hidden z-50">
-                      {/* Fast model option */}
-                      <button
-                        onClick={() => { onThinkingModeChange?.(false); setShowModelMenu(false); }}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-800/60 transition-colors text-left"
-                      >
-                        <div>
-                          <div className="text-sm text-zinc-200">{FAST_MODEL_LABEL}</div>
-                          <div className="text-xs text-zinc-500 mt-0.5">{t('chat.modelFastDesc')}</div>
-                        </div>
-                        {!thinkingMode && <Check className="w-4 h-4 text-blue-400 flex-shrink-0 ml-3" />}
-                      </button>
+                      {/* Fast model options */}
+                      {FAST_MODELS.map((fm, idx) => {
+                        const isActive = !thinkingMode && (selectedFastModel || '') === fm.id;
+                        return (
+                          <button
+                            key={fm.id || 'default'}
+                            onClick={() => {
+                              onThinkingModeChange?.(false);
+                              onFastModelChange?.(fm.id);
+                              setShowModelMenu(false);
+                            }}
+                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-800/60 transition-colors text-left"
+                          >
+                            <div>
+                              <div className="text-sm text-zinc-200">{fm.label}</div>
+                              <div className="text-xs text-zinc-500 mt-0.5">{t(fm.desc)}</div>
+                            </div>
+                            {isActive && <Check className="w-4 h-4 text-blue-400 flex-shrink-0 ml-3" />}
+                          </button>
+                        );
+                      })}
 
                       <div className="border-t border-zinc-800 mx-3" />
 
@@ -313,18 +329,6 @@ export function ChatInput({
               </div>
             </div>
           </div>
-
-          {/* Context window battery indicator */}
-          {contextUsage && (
-            <div className="flex-shrink-0">
-              <ContextWindowIndicator
-                ratio={contextUsage.ratio}
-                estimated={contextUsage.estimated}
-                max={contextUsage.max}
-              />
-            </div>
-          )}
-        </div>
 
         {/* Bottom hint */}
         <div className="flex items-center justify-center gap-4 mt-2">

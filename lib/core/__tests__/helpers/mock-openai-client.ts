@@ -37,7 +37,6 @@ let callCounter = 0;
 /** Build a response whose assistant message contains a single tool call. */
 export function buildToolCallResponse(
   toolName: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   args: Record<string, any>,
 ): MockChatResponse {
   const id = `call_${++callCounter}`;

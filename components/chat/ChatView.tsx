@@ -69,6 +69,7 @@ export function ChatView() {
   // Streaming steps — now in store (shared with TeamCollaborationView)
   const streamingSteps = usePulseStore((s) => s.streamingSteps);
   const addStreamingStep = usePulseStore((s) => s.addStreamingStep);
+  const completeStreamingStep = usePulseStore((s) => s.completeStreamingStep);
   const clearStreamingSteps = usePulseStore((s) => s.clearStreamingSteps);
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
   const setTeamCollaborationActive = usePulseStore((s) => s.setTeamCollaborationActive);
@@ -98,6 +99,8 @@ export function ChatView() {
   const setContextUsage = usePulseStore((s) => s.setContextUsage);
   const thinkingMode = usePulseStore((s) => s.thinkingMode);
   const setThinkingMode = usePulseStore((s) => s.setThinkingMode);
+  const selectedFastModel = usePulseStore((s) => s.selectedFastModel);
+  const setSelectedFastModel = usePulseStore((s) => s.setSelectedFastModel);
 
   // RAF-based token buffering to avoid excessive re-renders
   const tokenBufferRef = useRef('');
@@ -145,9 +148,6 @@ export function ChatView() {
       })
       .catch((err) => console.error('[ChatView] Failed to load messages:', err));
 
-    // Fire-and-forget: warm agent caches (config, soul, tool schemas)
-    // so the first message in this conversation is faster.
-    fetch('/api/chat/preload', { method: 'POST' }).catch(() => {});
   }, [activeConversationId, setMessages]);
 
   // 恢复 plan panel（刷新页面后的 fallback）
@@ -320,6 +320,7 @@ export function ChatView() {
       // Stream from API
       try {
         const currentThinkingMode = usePulseStore.getState().thinkingMode;
+        const currentFastModel = usePulseStore.getState().selectedFastModel;
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -328,6 +329,7 @@ export function ChatView() {
             message: text,
             attachments: attachments || undefined,
             thinking: currentThinkingMode || undefined,
+            model: (!currentThinkingMode && currentFastModel) || undefined,
           }),
           signal: abortController.signal,
         });
@@ -595,6 +597,13 @@ export function ChatView() {
           break;
         }
 
+        case "step_complete": {
+          // ReAct step finished — patch the thinking step with model & duration
+          const { stepNumber, model, durationMs } = event.data;
+          completeStreamingStep(stepNumber, { model, durationMs });
+          break;
+        }
+
         case "context_usage": {
           setContextUsage(event.data);
           break;
@@ -648,7 +657,7 @@ export function ChatView() {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, t]
   );
 
   const teamFullscreen = teamCollaborationActive && isStreaming;
@@ -724,7 +733,7 @@ export function ChatView() {
 
       {/* Input */}
       <div className="border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
-        <ChatInput onSubmit={handleSend} onStop={handleStop} streaming={isStreaming} thinkingMode={thinkingMode} onThinkingModeChange={setThinkingMode} contextUsage={contextUsage} conversationId={activeConversationId ?? undefined} />
+        <ChatInput onSubmit={handleSend} onStop={handleStop} streaming={isStreaming} thinkingMode={thinkingMode} onThinkingModeChange={setThinkingMode} selectedFastModel={selectedFastModel} onFastModelChange={setSelectedFastModel} conversationId={activeConversationId ?? undefined} />
       </div>
     </div>
   );
