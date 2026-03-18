@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "@fontsource/inter";
+import "@fontsource/jetbrains-mono";
 import "@/lib/config/env";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -15,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="antialiased">
+      <body className="antialiased" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
         <Providers>{children}</Providers>
       </body>
     </html>

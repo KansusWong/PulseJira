@@ -3,29 +3,80 @@
 @tailwind utilities;
 
 :root {
-  --background: #000000;
-  --foreground: #ededed;
-  --paper: #09090b; /* Zinc 950 */
-  --border: #27272a; /* Zinc 800 */
+  /* ── Background tiers ──────────────────────────────────── */
+  --bg-base: #050505;
+  --bg-surface: #0a0a0b;
+  --bg-elevated: #141415;
+  --bg-glass: rgba(255,255,255,0.04);
+  --bg-hover: rgba(255,255,255,0.06);
 
-  /* Agent accent colors */
+  /* ── Accent ────────────────────────────────────────────── */
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --accent-subtle: rgba(245,158,11,0.12);
+  --accent-ghost: rgba(245,158,11,0.06);
+  --accent-foreground: #000000;
+
+  /* ── Text ──────────────────────────────────────────────── */
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #52525b;
+
+  /* ── Borders ───────────────────────────────────────────── */
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-default: rgba(255,255,255,0.10);
+  --border-accent: rgba(245,158,11,0.25);
+
+  /* ── Spacing ───────────────────────────────────────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* ── Radius ────────────────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
+
+  /* ── Shadows ───────────────────────────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-glow: 0 0 20px rgba(245,158,11,0.15);
+
+  /* ── Typography ────────────────────────────────────────── */
+  --text-xl: 20px;
+  --text-md: 15px;
+  --text-base: 13.5px;
+  --text-sm: 12px;
+  --text-label: 10px;
+  --font-code: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* ── Legacy aliases (backward compat) ──────────────────── */
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --paper: var(--bg-surface);
+  --border: var(--border-default);
+
+  /* ── Agent accent colors ───────────────────────────────── */
   --accent-pm: #a855f7;        /* Purple */
   --accent-tech-lead: #3b82f6; /* Blue */
   --accent-critic: #ef4444;    /* Red */
   --accent-researcher: #22c55e;/* Green */
   --accent-blue-team: #38bdf8; /* Light Blue */
   --accent-arbitrator: #f59e0b;/* Amber */
-
-  /* Warm accent */
-  --accent: #f59e0b;
-  --accent-foreground: #000000;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  font-family: 'Inter', system-ui, sans-serif;
   overflow: hidden; /* App-like feel */
+  font-size: var(--text-base);
 }
 
 /* Scrollbar styling for that sleek look */
@@ -37,18 +88,34 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-default);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: var(--text-muted);
 }
 
 @layer utilities {
+  /* Legacy .glass alias → glass-2 */
   .glass {
-    background: rgba(9, 9, 11, 0.6);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+  .glass-1 {
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .glass-2 {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+  .glass-3 {
+    background: rgba(255,255,255,0.10);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.15);
   }
 }
 
@@ -85,6 +152,39 @@ body {
 .ambient-glow {
   animation: ambient-pulse 8s ease-in-out infinite;
 }
+
+/* ── Shimmer loading animation ────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(255,255,255,0.06) 50%, var(--bg-elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Design-system animations ─────────────────────────────── */
+@keyframes ds-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes ds-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(245,158,11,0.15); }
+  50% { box-shadow: 0 0 20px rgba(245,158,11,0.35); }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-ds-pulse { animation: ds-pulse 2s ease-in-out infinite; }
+.animate-ds-blink { animation: ds-blink 1s steps(2, start) infinite; }
+.animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
+.animate-slide-in-right { animation: slide-in-right 0.25s ease-out both; }
 
 /* Sci-fi fire icon animation */
 @keyframes fire-pulse {
