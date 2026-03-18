@@ -1282,6 +1282,54 @@ CREATE INDEX IF NOT EXISTS idx_mate_working_memory_mate    ON mate_working_memor
 CREATE INDEX IF NOT EXISTS idx_mate_working_memory_mission ON mate_working_memory(mission_id);
 
 -- ############################################################################
+-- SECTION 20.9: Ensure multi-tenant columns on pre-existing tables
+-- (Idempotent: safe on both fresh and existing databases)
+-- ############################################################################
+
+-- projects
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS org_id      UUID;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by  UUID;
+
+-- conversations
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS org_id      UUID;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS created_by  UUID;
+
+-- messages
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS user_id UUID;
+
+-- api_keys
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS org_id  UUID;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS user_id UUID;
+
+-- llm_usage
+ALTER TABLE llm_usage ADD COLUMN IF NOT EXISTS org_id  UUID;
+ALTER TABLE llm_usage ADD COLUMN IF NOT EXISTS user_id UUID;
+
+-- audit_log
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS org_id UUID;
+
+-- webhook_configs
+ALTER TABLE webhook_configs ADD COLUMN IF NOT EXISTS org_id UUID;
+
+-- vault_artifacts (multi-tenant + marketplace + mate extensions)
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS org_id          UUID;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS visibility      TEXT DEFAULT 'org';
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS version_label   TEXT;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS status          TEXT DEFAULT 'draft';
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS payload         JSONB;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS created_by      UUID;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS published_by    UUID;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS published_at    TIMESTAMPTZ;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS superseded_by   TEXT;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS embedding       vector(256);
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS created_by_mate TEXT;
+ALTER TABLE vault_artifacts ADD COLUMN IF NOT EXISTS mission_id      UUID;
+
+-- user_preferences (rebuild as per-user per-org with JSONB)
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS org_id       UUID;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS preferences  JSONB DEFAULT '{}';
+
+-- ############################################################################
 -- SECTION 21: Deferred Foreign Keys (depends on all tables above)
 -- ############################################################################
 
