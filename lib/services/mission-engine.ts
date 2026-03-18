@@ -36,10 +36,8 @@ export interface MissionConfig {
   title: string;
   /** Full mission description / requirements. */
   description: string;
-  /** State summary from chat (context compaction). */
+  /** State summary from chat (context compaction / RebuilD's conversation context). */
   stateSummary?: string;
-  /** User-specified lead mate name. */
-  suggestedLead?: string;
   /** Source channel. */
   channel?: string;
   /** Workspace search directories for MateRegistry. */
@@ -171,13 +169,12 @@ export class MissionEngine {
     const searchDirs = this.config.searchDirs || ['.'];
     const registry = getMateRegistry(searchDirs);
 
-    // Select lead mate (包工头)
-    this.leadMate = registry.matchForLead(
-      this.config.description,
-      this.config.suggestedLead,
-    );
+    // Lead is always RebuilD — the main agent that was talking to the user.
+    // RebuilD doesn't wake as a mate; it acts through Planning/Review prompts
+    // that carry its conversational context (stateSummary).
+    this.leadMate = null; // RebuilD is implicit lead, not a MateDefinition
 
-    // Select team mates via LLM analysis
+    // Select worker mates via LLM analysis
     const teamPlan = await this.analyzeTeamNeeds();
 
     // Match mates from registry
@@ -204,7 +201,7 @@ export class MissionEngine {
       data: {
         mission_id: this.missionId,
         status: 'formation',
-        lead: this.leadMate?.name || 'auto',
+        lead: 'rebuild',
         agents: this.teamMates.map(m => ({
           name: m.name,
           role: m.description,
@@ -223,19 +220,25 @@ export class MissionEngine {
     description: string;
     suggestedMate?: string;
   }>> {
+    // Include conversation context so team composition reflects RebuilD's understanding
+    const contextHint = this.config.stateSummary
+      ? `\n\n对话背景摘要：\n${this.config.stateSummary.slice(0, 2000)}`
+      : '';
+
     try {
       const result = await generateJSON(
-        `You are a project manager analyzing a task to determine what team members are needed.
+        `你是 RebuilD，正在为一个 Mission 组建执行团队。
 
-Respond with JSON: { "teammates": [{ "name": "slug-name", "role": "one-line role", "description": "what they need to do" }] }
+分析任务需求，确定需要哪些团队成员。输出 JSON：
+{ "teammates": [{ "name": "slug-name", "role": "一句话角色描述", "description": "具体要做什么" }] }
 
-Rules:
-- Names: descriptive slugs (e.g., "frontend-dev", "api-designer", "qa-engineer")
-- Maximum 5 teammates
-- Think about real dependencies: who needs to finish before whom
-- Include a QA/review role if the task involves code changes`,
+规则：
+- name 用描述性英文 slug（如 "frontend-dev", "api-designer", "qa-engineer"）
+- 最多 5 人
+- 考虑真实依赖关系：谁要等谁
+- 如果涉及代码变更，加一个 QA/review 角色${contextHint}`,
         this.config.description.slice(0, 5000),
-        { agentName: 'mission-planner' },
+        { agentName: 'rebuild-planner' },
       );
       return result?.teammates || [];
     } catch {
@@ -280,33 +283,39 @@ Rules:
       .map(m => `- ${m.name}: ${m.description}`)
       .join('\n');
 
+    // Build context: RebuilD's conversation history (stateSummary) gives planning
+    // the same understanding RebuilD had when it decided to escalate to Mission.
+    const contextBlock = this.config.stateSummary
+      ? `\n\n## 对话上下文（来自 RebuilD 与用户的沟通）\n\n${this.config.stateSummary.slice(0, 3000)}`
+      : '';
+
     try {
       const plan = await generateJSON(
-        `You are a lead engineer creating an execution plan for a mission.
+        `你是 RebuilD，用户的主 Agent。你决定将这个任务升级为 Mission 模式，由你来规划和调度。
 
-Available team members:
+你已经组建了以下团队：
 ${mateDescriptions}
 
-Create a task dependency graph (DAG). Respond with JSON:
+现在请为团队创建任务依赖图（DAG）。以 JSON 格式输出：
 {
   "tasks": [
     {
       "id": "task-slug",
-      "description": "What needs to be done",
+      "description": "具体要做什么（给执行者看的，要清晰明确）",
       "assignee": "mate-name",
       "dependsOn": ["other-task-id"]
     }
   ]
 }
 
-Rules:
-- Each task assigned to exactly one team member from the list
-- Use dependsOn to express ordering: QA depends on dev tasks, integration depends on both frontend and backend, etc.
-- Tasks with no dependencies can run in parallel
-- Keep tasks atomic and clear
-- Maximum 10 tasks`,
+规则：
+- 每个 task 只分给列表中的一个团队成员
+- 用 dependsOn 表达顺序：QA 依赖 dev、集成测试依赖前后端等
+- 没有依赖的任务将自动并行执行
+- 任务要原子化、可独立验收
+- 最多 10 个任务${contextBlock}`,
         this.config.description.slice(0, 5000),
-        { agentName: 'mission-planner' },
+        { agentName: 'rebuild-planner' },
       );
 
       const tasks = plan?.tasks || [];
@@ -335,7 +344,7 @@ Rules:
       key: `mission::${this.missionId}::plan`,
       value: this.dag.toProgressString(),
       type: 'artifact',
-      author: this.leadMate?.name || 'system',
+      author: 'rebuild',
     });
 
     this.push({
@@ -550,35 +559,51 @@ Rules:
     const completedTasks = allTasks.filter(t => t.status === 'completed');
     const failedTasks = allTasks.filter(t => t.status === 'failed');
 
-    // Build review summary
-    const sections = completedTasks.map(t => {
+    // Build raw results for RebuilD to review
+    const rawSections = completedTasks.map(t => {
       const resultStr = typeof t.result === 'string' ? t.result : JSON.stringify(t.result);
-      return `### ${t.assignee} — ${t.description}\n${resultStr.slice(0, 1000)}`;
+      return `### ${t.assignee} — ${t.description}\n${resultStr.slice(0, 1500)}`;
     });
 
     if (failedTasks.length > 0) {
-      sections.push(`### ❌ 失败任务\n${failedTasks.map(t =>
+      rawSections.push(`### 失败任务\n${failedTasks.map(t =>
         `- ${t.assignee}: ${t.description} — ${t.result?.error || 'unknown error'}`
       ).join('\n')}`);
     }
 
-    const summary = `# Mission 执行报告: ${this.config.title}
+    const rawReport = `任务: ${this.config.title}\n总计: ${allTasks.length} | 完成: ${completedTasks.length} | 失败: ${failedTasks.length}\n\n${rawSections.join('\n\n')}`;
 
-## 概要
-- 总任务: ${allTasks.length}
-- 完成: ${completedTasks.length}
-- 失败: ${failedTasks.length}
+    // RebuilD reviews the results — not just concatenation, but judgment
+    let summary: string;
+    try {
+      const reviewResult = await generateJSON(
+        `你是 RebuilD，用户的主 Agent。你刚刚以包工头身份调度了一个 Mission，现在所有 mate 的工作已完成。
 
-## 各 Mate 产出
+请审查以下各 mate 的产出，写一份给用户的验收报告。
 
-${sections.join('\n\n')}`;
+要求：
+1. 用中文，语气自然（你在跟用户直接对话）
+2. 先给出整体结论（完成度、质量判断）
+3. 逐个 mate 点评关键产出，指出亮点和不足
+4. 如果有失败任务，分析原因并给出建议
+5. 最后给出下一步建议
+
+输出 JSON: { "summary": "完整的 markdown 格式报告" }`,
+        rawReport.slice(0, 8000),
+        { agentName: 'rebuild-reviewer' },
+      );
+      summary = reviewResult?.summary || rawReport;
+    } catch {
+      // Fallback to raw report if LLM review fails
+      summary = `# Mission 执行报告: ${this.config.title}\n\n## 概要\n- 总任务: ${allTasks.length}\n- 完成: ${completedTasks.length}\n- 失败: ${failedTasks.length}\n\n## 各 Mate 产出\n\n${rawSections.join('\n\n')}`;
+    }
 
     // Write to blackboard
     await this.blackboard.write({
       key: `mission::${this.missionId}::review-result`,
       value: summary,
       type: 'artifact',
-      author: this.leadMate?.name || 'system',
+      author: 'rebuild',
     });
 
     return summary;

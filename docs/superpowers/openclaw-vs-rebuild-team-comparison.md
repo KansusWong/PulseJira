@@ -2078,3 +2078,79 @@ channel.push({
 | 团队广播 | lead → 全员 | 计划变更 / 紧急通知 | `[团队广播 from {lead}]: ...` | 系统通知样式 |
 
 三种消息共用同一个 MateMessageQueue，通过 `MateMessage.type` 区分。BaseAgent 不需要改核心逻辑，只是 `onUserMessageCheck` 返回的内容格式变了。
+
+## 24. RebuilD 三档工作模型：Lead Mate 即 RebuilD
+
+### 设计结论
+
+经过讨论确认：**Lead Mate 不从 MateRegistry 中选择，Lead 永远是 RebuilD 自身。**
+
+这一结论基于以下分析：
+
+### 三档模式定义
+
+```
+档位 1：小事 — RebuilD 独立完成
+  触发: 默认行为，不触发任何调度
+  流程: RebuilD 在自己的 ReAct 循环中直接执行
+  例子: "把 README 的错别字改了"、"解释下这段代码"
+
+档位 2：简单委派 — TaskTool 单次调度
+  触发: RebuilD 在 ReAct 循环中主动判断"交给专人更好"
+  流程: RebuilD → task tool → wake mate → 结果回到 RebuilD 上下文 → RebuilD 整合回话
+  本质: RebuilD 是主角，mate 是它的手
+  例子: "帮我查下竞品定价"、"写个单元测试"
+
+档位 3：复杂 Mission — 包工头模式
+  触发: Dispatcher 四条件（上下文≥70%、复杂度关键词双命中、用户请求、外部渠道）
+  流程: RebuilD 规划(Planning) → 选人(Formation) → mate 并行干活(Execution) → RebuilD 验收(Review)
+  本质: RebuilD 是包工头，mate 是工人
+  例子: "做一个完整的用户认证系统"、"重构整个 API 层"
+```
+
+### 合理性分析
+
+**为什么 Lead 应该是 RebuilD？**
+
+1. **上下文连续性**：RebuilD 跟用户聊了 N 轮，了解需求背景和用户偏好。匿名 `generateJSON()` 调用没有这些信息，导致 Planning 质量不如 RebuilD 自己判断。
+2. **Vault 经验积累**：RebuilD 是长期存在的主 Agent，对项目历史最熟悉。让它做规划和验收，决策质量更高。
+3. **架构简洁**：不需要"选包工头"的逻辑，去掉了一个不确定环节。MateRegistry 只负责选 worker mates。
+4. **用户心智模型**：用户始终跟 RebuilD 对话，Mission 模式只是 RebuilD 调度能力的扩展，而不是"换了一个 agent 在指挥"。
+
+**风险与取舍**
+
+| 风险 | 评估 | 应对 |
+|------|------|------|
+| 无法选专业化 Lead（如 PM Lead vs Tech Lead） | 当前阶段不需要，后续可扩展 | 保留 `matchForLead()` 作为工具方法，不在 MissionEngine 中调用 |
+| RebuilD 的 system prompt 很大，Planning 阶段 token 开销 | 不使用完整 prompt，使用精简的规划视角 prompt + stateSummary | Planning/Review 仍用 `generateJSON()`，但 prompt 带入对话上下文 |
+| RebuilD agent 实例在 Mission 执行时已结束 | Mission 是 handleTeamInit 里的独立流程 | Planning/Review 不 wake RebuilD agent，而是用 RebuilD 视角的 prompt |
+
+**不是把 RebuilD wake 成一个 mate 去跑 ReAct 循环**（那样太重且有循环风险），而是让 MissionEngine 的 Planning 和 Review 阶段的 LLM 调用**以 RebuilD 的身份和上下文**做决策。
+
+### 代码变更
+
+```
+MissionEngine:
+  - formation(): 移除 matchForLead()，leadMate 固定为 'rebuild'
+  - planning(): generateJSON prompt 加入 stateSummary，以 RebuilD 视角拆活
+  - review(): generateJSON 替代纯字符串拼接，RebuilD 视角审查产出
+
+Dispatcher:
+  - selectLead(): 标记 @deprecated，保留但不再被 MissionEngine 调用
+  - createMissionDraft(): 移除 suggestedLead 字段
+```
+
+### 档位边界的控制机制
+
+```
+档位 1 → 档位 2 的边界：
+  RebuilD 自己在 ReAct 循环中决定是否调用 TaskTool。
+  这是 agent 级别的自主判断，不需要外部规则。
+
+档位 2 → 档位 3 的边界：
+  Dispatcher 的四个升级触发条件：
+  1. 上下文使用率 ≥ 70%
+  2. 复杂度关键词双命中
+  3. 用户主动请求团队模式
+  4. 外部渠道（WeCom/飞书/Telegram）来的任务
+```

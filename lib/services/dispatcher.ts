@@ -3,13 +3,15 @@
  *
  * NOT an agent. Pure functions that decide:
  *   1. shouldEscalate(): should this chat become a Mission?
- *   2. selectLead(): who should be the 包工头?
- *   3. createMissionDraft(): build a MissionDraft from chat context
+ *   2. createMissionDraft(): build a MissionDraft from chat context
  *
- * Three escalation triggers:
+ * Lead is always RebuilD (§24) — selectLead() is deprecated.
+ *
+ * Four escalation triggers:
+ *   - User request: explicit team/mission request
+ *   - External channel: task from third-party platform (WeCom, Feishu, etc.)
  *   - Context threshold: token usage approaching limit
- *   - Complexity signals: task analysis suggests multi-agent work
- *   - External channel: task arrives from third-party platform (WeCom, Feishu, etc.)
+ *   - Complexity signals: keyword-based heuristic
  */
 
 import type { MateDefinition } from '../core/types';
@@ -45,7 +47,6 @@ export interface MissionDraft {
   sourceChannel: string;
   title: string;
   description: string;
-  suggestedLead?: string;
   complexitySignals: string[];
 }
 
@@ -150,12 +151,11 @@ export function shouldEscalate(ctx: EscalationContext): EscalationResult {
 // ---------------------------------------------------------------------------
 
 /**
+ * @deprecated Lead is always RebuilD (§24). Kept for potential future use
+ * where specialized leads (PM Lead vs Tech Lead) are needed.
+ *
  * Select a lead mate (包工头) for a mission.
  * Uses MateRegistry.matchForLead() with can_lead=true preference.
- *
- * @param missionDescription - What the mission is about
- * @param explicitName - User-specified lead (@ mention)
- * @param searchDirs - Workspace search directories for MateRegistry
  */
 export function selectLead(
   missionDescription: string,
