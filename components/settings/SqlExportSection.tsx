@@ -89,10 +89,10 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
               <span
                 className={clsx(
                   "w-1.5 h-1.5 rounded-full shrink-0",
-                  !loading && !error ? "bg-emerald-500" : "bg-zinc-600"
+                  !loading && !error ? "bg-emerald-500" : "bg-[var(--bg-elevated)]"
                 )}
               />
-              <label className="text-xs text-zinc-400 font-medium">
+              <label className="text-xs text-[var(--text-secondary)] font-medium">
                 {t('sql.title')}
               </label>
             </div>
@@ -104,7 +104,7 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
                     "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
                     copied
                       ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
-                      : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                      : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                   )}
                 >
                   {copied ? (
@@ -116,7 +116,7 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
                 </button>
                 <button
                   onClick={handleDownload}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />
                   {t('sql.downloadSql')}
@@ -125,7 +125,7 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
             )}
           </div>
           {loading ? (
-            <div className="flex items-center gap-2 pl-3.5 py-2 text-zinc-500 text-sm">
+            <div className="flex items-center gap-2 pl-3.5 py-2 text-[var(--text-muted)] text-sm">
               <Loader2 className="w-4 h-4 animate-spin" />
               {t('sql.loadingSql')}
             </div>
@@ -136,29 +136,29 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
             </div>
           ) : (
             <div className="pl-3.5 space-y-2">
-              <div className="max-h-72 overflow-y-auto p-3 bg-zinc-900 border border-zinc-700 rounded-lg">
-                <pre className="text-[11px] leading-relaxed font-mono text-zinc-500 whitespace-pre-wrap break-all">
+              <div className="max-h-72 overflow-y-auto p-3 bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg">
+                <pre className="text-[11px] leading-relaxed font-mono text-[var(--text-muted)] whitespace-pre-wrap break-all">
                   {sql}
                 </pre>
               </div>
 
-              <div className="text-[11px] text-zinc-600">
+              <div className="text-[11px] text-[var(--text-muted)]">
                 {t('sql.filesMerged', { count: fileCount })} | {t('sql.lines', { count: totalLines.toLocaleString() })}
               </div>
             </div>
           )}
         </div>
       ) : (
-        <div className="bg-paper border border-border rounded-xl overflow-hidden">
+        <div className="glass-1 rounded-xl overflow-hidden">
           {/* Header */}
-          <div className="px-6 py-5 border-b border-border">
+          <div className="px-6 py-5 border-b border-[var(--border-subtle)]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-purple-500/10 rounded-lg">
                   <Database className="w-5 h-5 text-purple-400" />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-zinc-100">
+                  <h2 className="text-base font-bold text-[var(--text-primary)]">
                     {t('sql.title')}
                   </h2>
                 </div>
@@ -173,7 +173,7 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
                       "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all",
                       copied
                         ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
-                        : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                        : "bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                     )}
                   >
                     {copied ? (
@@ -185,7 +185,7 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
                   </button>
                   <button
                     onClick={handleDownload}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-[var(--bg-elevated)] border-[var(--border-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
                   >
                     <Download className="w-3.5 h-3.5" />
                     {t('sql.downloadSql')}
@@ -198,7 +198,7 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
           {/* Content */}
           {loading ? (
             <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+              <Loader2 className="w-5 h-5 animate-spin text-[var(--text-muted)]" />
             </div>
           ) : error ? (
             <div className="flex items-center justify-center gap-2 py-16 text-red-400 text-sm">
@@ -208,15 +208,15 @@ export function SqlExportSection({ embedded = false, onStatusChange }: SqlExport
           ) : (
             <>
               {/* SQL preview */}
-              <div className="max-h-96 overflow-y-auto p-4 bg-zinc-950/50">
-                <pre className="text-[11px] leading-relaxed font-mono text-zinc-500 whitespace-pre-wrap break-all">
+              <div className="max-h-96 overflow-y-auto p-4 bg-[var(--bg-surface)]/50">
+                <pre className="text-[11px] leading-relaxed font-mono text-[var(--text-muted)] whitespace-pre-wrap break-all">
                   {sql}
                 </pre>
               </div>
 
               {/* Footer stats */}
-              <div className="px-6 py-3 border-t border-border flex items-center justify-between">
-                <span className="text-[11px] text-zinc-600">
+              <div className="px-6 py-3 border-t border-[var(--border-subtle)] flex items-center justify-between">
+                <span className="text-[11px] text-[var(--text-muted)]">
                   {t('sql.filesMerged', { count: fileCount })} | {t('sql.lines', { count: totalLines.toLocaleString() })}
                 </span>
               </div>

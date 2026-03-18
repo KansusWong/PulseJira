@@ -167,22 +167,22 @@ export function UsageSnapshotCard() {
         <div className="flex items-center gap-3">
           <BarChart3 className="w-6 h-6 text-cyan-400" />
           <div>
-            <h2 className="text-lg font-bold text-zinc-100">{t('usage.title')}</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">{t('usage.title')}</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               {viewMode === 'cost' ? t('usage.descCost') : viewMode === 'time' ? t('usage.descTime') : t('usage.descTokens')}{t('usage.descSuffix')}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {ago !== null && (
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-[var(--text-muted)]">
               Updated {ago}s ago
             </span>
           )}
           <button
             onClick={() => fetchUsage()}
             disabled={loading}
-            className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+            className="p-2 rounded-lg bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
             title={t('usage.refresh')}
           >
             {loading ? (
@@ -197,13 +197,13 @@ export function UsageSnapshotCard() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+          <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
             PROJECT
           </span>
           <select
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
-            className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-600"
+            className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-accent)]"
           >
             <option value="">{t('usage.allProjects')}</option>
             {projects.map((p) => (
@@ -214,26 +214,26 @@ export function UsageSnapshotCard() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+          <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
             VIEW
           </span>
-          <div className="flex rounded-lg overflow-hidden border border-zinc-700">
+          <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)]">
             <button
               onClick={() => setViewMode("tokens")}
-              className={viewMode === "tokens" ? "bg-zinc-700 text-zinc-100 px-3 py-1.5 text-xs font-medium" : "bg-zinc-800/50 text-zinc-500 px-3 py-1.5 text-xs font-medium hover:text-zinc-300"}
+              className={viewMode === "tokens" ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] px-3 py-1.5 text-xs font-medium" : "bg-[var(--bg-elevated)] text-[var(--text-muted)] px-3 py-1.5 text-xs font-medium hover:text-[var(--text-primary)]"}
             >
               TOKENS
             </button>
             <button
               onClick={() => setViewMode("time")}
-              className={viewMode === "time" ? "bg-zinc-700 text-zinc-100 px-3 py-1.5 text-xs font-medium" : "bg-zinc-800/50 text-zinc-500 px-3 py-1.5 text-xs font-medium hover:text-zinc-300"}
+              className={viewMode === "time" ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] px-3 py-1.5 text-xs font-medium" : "bg-[var(--bg-elevated)] text-[var(--text-muted)] px-3 py-1.5 text-xs font-medium hover:text-[var(--text-primary)]"}
               title={t('usage.switchToTime')}
             >
               TIME
             </button>
             <button
               onClick={() => setViewMode("cost")}
-              className={viewMode === "cost" ? "bg-zinc-700 text-zinc-100 px-3 py-1.5 text-xs font-medium" : "bg-zinc-800/50 text-zinc-500 px-3 py-1.5 text-xs font-medium hover:text-zinc-300"}
+              className={viewMode === "cost" ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] px-3 py-1.5 text-xs font-medium" : "bg-[var(--bg-elevated)] text-[var(--text-muted)] px-3 py-1.5 text-xs font-medium hover:text-[var(--text-primary)]"}
               title={t('usage.switchToCost')}
             >
               COST
@@ -244,79 +244,79 @@ export function UsageSnapshotCard() {
 
       {loading && !data ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--text-muted)]" />
         </div>
       ) : data ? (
         <>
           {viewMode === "cost" ? (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     {t('usage.cost7d')}
                   </div>
                   <div className="text-xl font-bold text-emerald-400">
                     {formatCost(data.last7Days.costUsd ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     {formatTokens(data.last7Days.totalTokens)} tokens
                   </div>
                 </div>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     {t('usage.cost30d')}
                   </div>
                   <div className="text-xl font-bold text-emerald-400">
                     {formatCost(data.last30Days.costUsd ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     {formatTokens(data.last30Days.totalTokens)} tokens
                   </div>
                 </div>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     {t('usage.costSignal')}
                   </div>
                   <div className="text-xl font-bold text-emerald-400">
                     {formatCost(data.signalUsage?.costUsd30d ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     7d: {formatCost(data.signalUsage?.costUsd7d ?? 0)}
                   </div>
                 </div>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     {t('usage.costProject')}
                   </div>
                   <div className="text-xl font-bold text-emerald-400">
                     {formatCost(data.projectUsage?.costUsd30d ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     7d: {formatCost(data.projectUsage?.costUsd7d ?? 0)}
                   </div>
                 </div>
               </div>
 
               {/* Per-Agent Cost Breakdown */}
-              <div className="bg-zinc-900/80 border border-emerald-900/30 rounded-xl p-4">
+              <div className="bg-[var(--bg-glass)] border border-emerald-900/30 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                     {t('usage.costByAgent')}
                   </div>
                 </div>
                 {data.byAgent.length === 0 ? (
-                  <p className="text-sm text-zinc-500">{t('usage.noAgentData')}</p>
+                  <p className="text-sm text-[var(--text-muted)]">{t('usage.noAgentData')}</p>
                 ) : (
                   <div className="space-y-2">
                     {data.byAgent.filter((a) => (a.costUsd ?? 0) > 0).slice(0, 10).map((a) => (
                       <div key={a.agentName} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-zinc-300 font-mono truncate max-w-[140px]">
+                          <span className="text-[var(--text-primary)] font-mono truncate max-w-[140px]">
                             {a.agentName}
                           </span>
                           {AGENT_LABELS[a.agentName] && (
-                            <span className="text-[10px] text-zinc-600 shrink-0">
+                            <span className="text-[10px] text-[var(--text-muted)] shrink-0">
                               {AGENT_LABELS[a.agentName]}
                             </span>
                           )}
@@ -325,7 +325,7 @@ export function UsageSnapshotCard() {
                           <span className="text-emerald-400 font-medium">
                             {formatCost(a.costUsd ?? 0)}
                           </span>
-                          <span className="text-zinc-500 text-xs w-10 text-right">
+                          <span className="text-[var(--text-muted)] text-xs w-10 text-right">
                             {a.percentage}%
                           </span>
                         </div>
@@ -337,10 +337,10 @@ export function UsageSnapshotCard() {
 
               {/* Per-Account Cost Breakdown */}
               {data.byAccount && data.byAccount.length > 0 && (
-                <div className="bg-zinc-900/80 border border-violet-900/30 rounded-xl p-4">
+                <div className="bg-[var(--bg-glass)] border border-violet-900/30 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 rounded-full bg-violet-400" />
-                    <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                    <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                       {t('usage.costByAccount')}
                     </div>
                   </div>
@@ -354,7 +354,7 @@ export function UsageSnapshotCard() {
                           <span className="text-emerald-400 font-medium">
                             {formatCost(a.costUsd ?? 0)}
                           </span>
-                          <span className="text-zinc-500 text-xs w-10 text-right">
+                          <span className="text-[var(--text-muted)] text-xs w-10 text-right">
                             {a.percentage}%
                           </span>
                         </div>
@@ -367,58 +367,58 @@ export function UsageSnapshotCard() {
           ) : viewMode === "time" ? (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     LAST 7 DAYS
                   </div>
-                  <div className="text-xl font-bold text-zinc-100">
+                  <div className="text-xl font-bold text-[var(--text-primary)]">
                     {formatDuration(data.last7DaysTime?.totalDurationMs ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     Avg {formatDuration(data.last7DaysTime?.avgDurationMs ?? 0)} / call · {data.last7DaysTime?.calls ?? 0} calls
                   </div>
                 </div>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     LAST 30 DAYS
                   </div>
-                  <div className="text-xl font-bold text-zinc-100">
+                  <div className="text-xl font-bold text-[var(--text-primary)]">
                     {formatDuration(data.last30DaysTime?.totalDurationMs ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     Avg {formatDuration(data.last30DaysTime?.avgDurationMs ?? 0)} / call · {data.last30DaysTime?.calls ?? 0} calls
                   </div>
                 </div>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     {t('usage.signalUsageTime')}
                   </div>
-                  <div className="text-xl font-bold text-zinc-100">
+                  <div className="text-xl font-bold text-[var(--text-primary)]">
                     {formatDuration(data.signalUsage?.totalDurationMs30d ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     7d: {formatDuration(data.signalUsage?.totalDurationMs7d ?? 0)} · Avg {formatDuration(data.signalUsage?.avgDurationMs30d ?? 0)}
                   </div>
                 </div>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                  <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                     {t('usage.projectUsageTime')}
                   </div>
-                  <div className="text-xl font-bold text-zinc-100">
+                  <div className="text-xl font-bold text-[var(--text-primary)]">
                     {formatDuration(data.projectUsage?.totalDurationMs30d ?? 0)}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">
+                  <div className="text-xs text-[var(--text-muted)] mt-0.5">
                     7d: {formatDuration(data.projectUsage?.totalDurationMs7d ?? 0)} · Avg {formatDuration(data.projectUsage?.avgDurationMs30d ?? 0)}
                   </div>
                 </div>
               </div>
 
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-4">
+              <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-4">
                   {t('usage.dailyTime7d')}
                 </div>
                 {chartData.length === 0 ? (
-                  <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">
+                  <div className="h-48 flex items-center justify-center text-[var(--text-muted)] text-sm">
                     {t('common.noData')}
                   </div>
                 ) : (
@@ -445,9 +445,9 @@ export function UsageSnapshotCard() {
                             const item = payload[0]?.payload;
                             if (!item) return null;
                             return (
-                              <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-lg">
-                                <p className="text-xs text-zinc-400 mb-0.5">{item.fullDate}</p>
-                                <p className="text-sm font-semibold text-zinc-100">{formatDuration(item.value)}</p>
+                              <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 shadow-lg">
+                                <p className="text-xs text-[var(--text-secondary)] mb-0.5">{item.fullDate}</p>
+                                <p className="text-sm font-semibold text-[var(--text-primary)]">{formatDuration(item.value)}</p>
                               </div>
                             );
                           }}
@@ -467,31 +467,31 @@ export function UsageSnapshotCard() {
                 )}
               </div>
 
-              <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-4">
+              <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-4">
                   {t('usage.topAgentsTime')}
                 </div>
                 {topAgentsByTime.length === 0 ? (
-                  <p className="text-sm text-zinc-500">{t('usage.noAgentTimeData')}</p>
+                  <p className="text-sm text-[var(--text-muted)]">{t('usage.noAgentTimeData')}</p>
                 ) : (
                   <div className="space-y-2">
                     {topAgentsByTime.map((a) => (
                       <div key={a.agentName} className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-zinc-300 font-mono truncate max-w-[140px]">
+                          <span className="text-[var(--text-primary)] font-mono truncate max-w-[140px]">
                             {a.agentName}
                           </span>
                           {AGENT_LABELS[a.agentName] && (
-                            <span className="text-[10px] text-zinc-600 shrink-0">
+                            <span className="text-[10px] text-[var(--text-muted)] shrink-0">
                               {AGENT_LABELS[a.agentName]}
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-zinc-400">
+                          <span className="text-[var(--text-secondary)]">
                             {formatDuration(a.totalDurationMs ?? 0)}
                           </span>
-                          <span className="text-zinc-500 text-xs">
+                          <span className="text-[var(--text-muted)] text-xs">
                             {formatDuration(a.avgDurationMs ?? 0)}/call
                           </span>
                         </div>
@@ -502,10 +502,10 @@ export function UsageSnapshotCard() {
               </div>
 
               {data.byAccount && data.byAccount.length > 0 && (
-                <div className="bg-zinc-900/80 border border-violet-900/30 rounded-xl p-4">
+                <div className="bg-[var(--bg-glass)] border border-violet-900/30 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-2 h-2 rounded-full bg-violet-400" />
-                    <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                    <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                       {t('usage.byAccountTime')}
                     </div>
                   </div>
@@ -516,10 +516,10 @@ export function UsageSnapshotCard() {
                           {a.accountName}
                         </span>
                         <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-zinc-400">
+                          <span className="text-[var(--text-secondary)]">
                             {formatDuration(a.totalDurationMs ?? 0)}
                           </span>
-                          <span className="text-zinc-500 text-xs">
+                          <span className="text-[var(--text-muted)] text-xs">
                             {formatDuration(a.avgDurationMs ?? 0)}/call
                           </span>
                         </div>
@@ -533,59 +533,59 @@ export function UsageSnapshotCard() {
             <>
           {/* Metric cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-              <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+            <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+              <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                 LAST 7 DAYS
               </div>
-              <div className="text-xl font-bold text-zinc-100">
+              <div className="text-xl font-bold text-[var(--text-primary)]">
                 {formatTokens(data.last7Days.totalTokens)} TOKENS
               </div>
-              <div className="text-xs text-zinc-500 mt-0.5">
+              <div className="text-xs text-[var(--text-muted)] mt-0.5">
                 Avg {formatTokens(data.last7Days.avgPerDay)} / day
               </div>
             </div>
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-              <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+            <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+              <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                 LAST 30 DAYS
               </div>
-              <div className="text-xl font-bold text-zinc-100">
+              <div className="text-xl font-bold text-[var(--text-primary)]">
                 {formatTokens(data.last30Days.totalTokens)} TOKENS
               </div>
-              <div className="text-xs text-zinc-500 mt-0.5 font-mono">
+              <div className="text-xs text-[var(--text-muted)] mt-0.5 font-mono">
                 Total {data.last30Days.totalTokens.toLocaleString()}
               </div>
             </div>
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-              <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+            <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+              <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                 {t('usage.signalUsage')}
               </div>
-              <div className="text-xl font-bold text-zinc-100">
+              <div className="text-xl font-bold text-[var(--text-primary)]">
                 {formatTokens(data.signalUsage?.totalTokens30d ?? 0)} TOKENS
               </div>
-              <div className="text-xs text-zinc-500 mt-0.5">
+              <div className="text-xs text-[var(--text-muted)] mt-0.5">
                 7d: {formatTokens(data.signalUsage?.totalTokens7d ?? 0)} · {t('usage.share')} {data.last30Days.totalTokens > 0 ? Math.round(((data.signalUsage?.totalTokens30d ?? 0) / data.last30Days.totalTokens) * 100) : 0}%
               </div>
             </div>
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-              <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+            <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+              <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                 {t('usage.projectUsage')}
               </div>
-              <div className="text-xl font-bold text-zinc-100">
+              <div className="text-xl font-bold text-[var(--text-primary)]">
                 {formatTokens(data.projectUsage?.totalTokens30d ?? 0)} TOKENS
               </div>
-              <div className="text-xs text-zinc-500 mt-0.5">
+              <div className="text-xs text-[var(--text-muted)] mt-0.5">
                 7d: {formatTokens(data.projectUsage?.totalTokens7d ?? 0)} · {t('usage.share')} {data.last30Days.totalTokens > 0 ? Math.round(((data.projectUsage?.totalTokens30d ?? 0) / data.last30Days.totalTokens) * 100) : 0}%
               </div>
             </div>
           </div>
 
           {/* Chart */}
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-            <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-4">
+          <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+            <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-4">
               {t('usage.dailyUsage7d')}
             </div>
             {chartData.length === 0 ? (
-              <div className="h-48 flex items-center justify-center text-zinc-500 text-sm">
+              <div className="h-48 flex items-center justify-center text-[var(--text-muted)] text-sm">
                 {t('common.noData')}
               </div>
             ) : (
@@ -612,9 +612,9 @@ export function UsageSnapshotCard() {
                         const item = payload[0]?.payload;
                         if (!item || item.value === 0) return null;
                         return (
-                          <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 shadow-lg">
-                            <p className="text-xs text-zinc-400 mb-0.5">{item.fullDate}</p>
-                            <p className="text-sm font-semibold text-zinc-100">{formatTokens(item.value)} <span className="text-zinc-400 font-normal">Tokens</span></p>
+                          <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 shadow-lg">
+                            <p className="text-xs text-[var(--text-secondary)] mb-0.5">{item.fullDate}</p>
+                            <p className="text-sm font-semibold text-[var(--text-primary)]">{formatTokens(item.value)} <span className="text-[var(--text-secondary)] font-normal">Tokens</span></p>
                           </div>
                         );
                       }}
@@ -635,18 +635,18 @@ export function UsageSnapshotCard() {
           </div>
 
           {/* Signal Intelligence Usage Detail */}
-          <div className="bg-zinc-900/80 border border-amber-900/30 rounded-xl p-4">
+          <div className="bg-[var(--bg-glass)] border border-amber-900/30 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-4">
               <div className="w-2 h-2 rounded-full bg-amber-400" />
-              <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+              <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                 {t('usage.signalTokenDetail')}
               </div>
-              <span className="text-[10px] text-zinc-600 ml-auto">
+              <span className="text-[10px] text-[var(--text-muted)] ml-auto">
                 {t('usage.signalStages')}
               </span>
             </div>
             {(data.signalUsage?.byAgent?.length ?? 0) === 0 ? (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-[var(--text-muted)]">
                 {t('usage.noSignalData')}
               </p>
             ) : (
@@ -661,20 +661,20 @@ export function UsageSnapshotCard() {
                         {a.agentName}
                       </span>
                       {AGENT_LABELS[a.agentName] && (
-                        <span className="text-[10px] text-zinc-600 shrink-0">
+                        <span className="text-[10px] text-[var(--text-muted)] shrink-0">
                           {AGENT_LABELS[a.agentName]}
                         </span>
                       )}
                     </div>
-                    <span className="text-zinc-400 shrink-0">
+                    <span className="text-[var(--text-secondary)] shrink-0">
                       {formatTokens(a.totalTokens)}
                     </span>
                   </div>
                 ))}
               </div>
             )}
-            <div className="mt-3 pt-3 border-t border-zinc-800 flex justify-between text-xs">
-              <span className="text-zinc-500">{t('usage.signalTotal30d')}</span>
+            <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex justify-between text-xs">
+              <span className="text-[var(--text-muted)]">{t('usage.signalTotal30d')}</span>
               <span className="text-amber-400 font-semibold">
                 {formatTokens(data.signalUsage?.totalTokens30d ?? 0)}
               </span>
@@ -683,10 +683,10 @@ export function UsageSnapshotCard() {
 
           {/* Per-Account Breakdown */}
           {data.byAccount && data.byAccount.length > 0 && (
-            <div className="bg-zinc-900/80 border border-violet-900/30 rounded-xl p-4">
+            <div className="bg-[var(--bg-glass)] border border-violet-900/30 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-2 h-2 rounded-full bg-violet-400" />
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   {t('usage.byAccount')}
                 </div>
               </div>
@@ -702,10 +702,10 @@ export function UsageSnapshotCard() {
                       </span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-zinc-400">
+                      <span className="text-[var(--text-secondary)]">
                         {formatTokens(a.totalTokens)}
                       </span>
-                      <span className="text-zinc-500 text-xs w-10 text-right">
+                      <span className="text-[var(--text-muted)] text-xs w-10 text-right">
                         {a.percentage}%
                       </span>
                     </div>
@@ -716,12 +716,12 @@ export function UsageSnapshotCard() {
           )}
 
           {/* Top Agents */}
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
-            <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-4">
+          <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
+            <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-4">
               {t('usage.topAgentsAll')}
             </div>
             {data.byAgent.length === 0 ? (
-              <p className="text-sm text-zinc-500">{t('usage.noAgentData')}</p>
+              <p className="text-sm text-[var(--text-muted)]">{t('usage.noAgentData')}</p>
             ) : (
               <div className="space-y-2">
                 {data.byAgent.slice(0, 8).map((a) => (
@@ -730,20 +730,20 @@ export function UsageSnapshotCard() {
                     className="flex items-center justify-between text-sm"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-zinc-300 font-mono truncate max-w-[140px]">
+                      <span className="text-[var(--text-primary)] font-mono truncate max-w-[140px]">
                         {a.agentName}
                       </span>
                       {AGENT_LABELS[a.agentName] && (
-                        <span className="text-[10px] text-zinc-600 shrink-0">
+                        <span className="text-[10px] text-[var(--text-muted)] shrink-0">
                           {AGENT_LABELS[a.agentName]}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-zinc-400">
+                      <span className="text-[var(--text-secondary)]">
                         {formatTokens(a.totalTokens)}
                       </span>
-                      <span className="text-zinc-500 text-xs w-10 text-right">
+                      <span className="text-[var(--text-muted)] text-xs w-10 text-right">
                         {a.percentage}%
                       </span>
                     </div>
@@ -756,7 +756,7 @@ export function UsageSnapshotCard() {
           )}
         </>
       ) : (
-        <div className="text-center py-12 text-zinc-500 text-sm">
+        <div className="text-center py-12 text-[var(--text-muted)] text-sm">
           {t('usage.loadFailed')}
         </div>
       )}

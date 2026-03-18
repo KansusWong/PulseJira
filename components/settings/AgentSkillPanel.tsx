@@ -147,7 +147,7 @@ export function AgentSkillPanel({ agentId, skills, onAddSkill }: AgentSkillPanel
     <div className="flex flex-col h-full overflow-y-auto p-4 space-y-4">
       {/* Section 1: Bound skills */}
       <div>
-        <h4 className="text-xs font-mono text-zinc-500 uppercase mb-2">
+        <h4 className="text-xs font-mono text-[var(--text-muted)] uppercase mb-2">
           {t('agent.enabledSkills')} ({boundSkills.length})
         </h4>
         {boundSkills.length > 0 ? (
@@ -164,7 +164,7 @@ export function AgentSkillPanel({ agentId, skills, onAddSkill }: AgentSkillPanel
             ))}
           </div>
         ) : (
-          <div className="text-xs text-zinc-600 bg-black/20 rounded-lg px-3 py-2">
+          <div className="text-xs text-[var(--text-muted)] bg-[var(--bg-surface)] rounded-lg px-3 py-2">
             {t('agent.noSkills')}
           </div>
         )}
@@ -172,7 +172,7 @@ export function AgentSkillPanel({ agentId, skills, onAddSkill }: AgentSkillPanel
 
       {/* Section 2: Upload */}
       <div>
-        <h4 className="text-xs font-mono text-zinc-500 uppercase mb-2">
+        <h4 className="text-xs font-mono text-[var(--text-muted)] uppercase mb-2">
           {t('agent.uploadSkill')}
         </h4>
         <SkillUploadArea onUploaded={handleUploaded} />
@@ -180,19 +180,19 @@ export function AgentSkillPanel({ agentId, skills, onAddSkill }: AgentSkillPanel
 
       {/* Section 3: Available skill pool */}
       <div>
-        <h4 className="text-xs font-mono text-zinc-500 uppercase mb-2">
+        <h4 className="text-xs font-mono text-[var(--text-muted)] uppercase mb-2">
           {t('agent.reuseLocalSkill')}
         </h4>
-        <div className="rounded-lg border border-zinc-800/80 bg-black/20 p-3 space-y-2">
-          <label className="inline-flex items-center gap-2 text-xs text-zinc-500">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 space-y-2">
+          <label className="inline-flex items-center gap-2 text-xs text-[var(--text-muted)]">
             <input
               type="checkbox"
               checked={showOnlyUnbound}
               onChange={(e) => setShowOnlyUnbound(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-zinc-600 bg-black/60"
+              className="h-3.5 w-3.5 rounded border-[var(--border-default)] bg-[var(--bg-surface)]"
             />
             {t('agent.showUnboundOnly')}
-            <span className="text-zinc-600">
+            <span className="text-[var(--text-muted)]">
               ({filteredCatalogSkills.length}/{availableSkills.length})
             </span>
           </label>
@@ -200,7 +200,7 @@ export function AgentSkillPanel({ agentId, skills, onAddSkill }: AgentSkillPanel
           <select
             value={selectedCatalogSkillId}
             onChange={(e) => setSelectedCatalogSkillId(e.target.value)}
-            className="w-full bg-black/50 border border-zinc-700/60 rounded-lg px-2.5 py-2 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+            className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-accent)]"
           >
             <option value="">
               {catalogLoading ? t('agent.loadingSkills') : t('agent.selectFromDiscovered')}
@@ -224,7 +224,7 @@ export function AgentSkillPanel({ agentId, skills, onAddSkill }: AgentSkillPanel
               {t('agent.bindSelectedSkill')}
             </button>
             {bindMessage && (
-              <span className="text-xs text-zinc-400">{bindMessage}</span>
+              <span className="text-xs text-[var(--text-secondary)]">{bindMessage}</span>
             )}
           </div>
         </div>

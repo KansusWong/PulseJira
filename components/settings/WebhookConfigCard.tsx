@@ -268,10 +268,10 @@ export function WebhookConfigCard() {
         <div className="flex items-center gap-3">
           <Bell className="w-6 h-6 text-amber-400" />
           <div>
-            <h2 className="text-lg font-bold text-zinc-100">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">
               {t("webhook.title")}
             </h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               {t("webhook.description")}
             </p>
           </div>
@@ -287,12 +287,12 @@ export function WebhookConfigCard() {
 
       {/* Add form */}
       {showForm && (
-        <div className="mb-6 p-4 rounded-xl border border-zinc-700/60 bg-zinc-900/80 space-y-3">
+        <div className="mb-6 p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <select
               value={formProvider}
               onChange={(e) => setFormProvider(e.target.value)}
-              className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-500"
+              className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-accent)]"
             >
               {PROVIDERS.map((p) => (
                 <option key={p} value={p}>
@@ -304,26 +304,26 @@ export function WebhookConfigCard() {
               value={formLabel}
               onChange={(e) => setFormLabel(e.target.value)}
               placeholder={t("webhook.provider")}
-              className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+              className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]"
             />
           </div>
           <input
             value={formUrl}
             onChange={(e) => setFormUrl(e.target.value)}
             placeholder={t("webhook.url")}
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
+            className="w-full bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] font-mono"
           />
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">
+            <label className="block text-xs text-[var(--text-secondary)] mb-1">
               {t("webhook.displayName")}
             </label>
             <input
               value={formDisplayName}
               onChange={(e) => setFormDisplayName(e.target.value)}
               placeholder={t("webhook.displayNamePlaceholder")}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+              className="w-full bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]"
             />
-            <p className="text-[10px] text-zinc-600 mt-1">
+            <p className="text-[10px] text-[var(--text-muted)] mt-1">
               {t("webhook.displayNameHint")}
             </p>
           </div>
@@ -336,7 +336,7 @@ export function WebhookConfigCard() {
                   "px-2.5 py-1 text-xs rounded-full border transition-colors",
                   formEvents.includes(event)
                     ? "border-amber-500/60 bg-amber-500/20 text-amber-300"
-                    : "border-zinc-700 text-zinc-500 hover:text-zinc-300",
+                    : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                 )}
               >
                 {t(`webhook.event.${event}`)}
@@ -344,7 +344,7 @@ export function WebhookConfigCard() {
             ))}
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">
+            <label className="block text-xs text-[var(--text-secondary)] mb-1">
               {t("webhook.messageTemplate")}
             </label>
             <textarea
@@ -352,16 +352,16 @@ export function WebhookConfigCard() {
               onChange={(e) => setFormTemplate(e.target.value)}
               placeholder={t("webhook.templatePlaceholder")}
               rows={2}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono resize-none"
+              className="w-full bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] font-mono resize-none"
             />
-            <p className="text-[10px] text-zinc-600 mt-1">
+            <p className="text-[10px] text-[var(--text-muted)] mt-1">
               {t("webhook.templateHint")}
             </p>
           </div>
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowForm(false)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-zinc-400 hover:bg-zinc-800 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
             >
               {t("common.cancel")}
             </button>
@@ -384,10 +384,10 @@ export function WebhookConfigCard() {
       {/* Loading */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-[var(--text-muted)]" />
         </div>
       ) : webhooks.length === 0 ? (
-        <div className="text-center py-16 text-zinc-600 text-sm">
+        <div className="text-center py-16 text-[var(--text-muted)] text-sm">
           {t("common.noData")}
         </div>
       ) : (
@@ -395,7 +395,7 @@ export function WebhookConfigCard() {
           {webhooks.map((wh) => (
             <div
               key={wh.id}
-              className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 transition-colors"
+              className="flex items-center gap-4 p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] hover:border-[var(--border-subtle)] transition-colors"
             >
               {/* Provider icon */}
               <span className="text-xl flex-shrink-0">
@@ -405,10 +405,10 @@ export function WebhookConfigCard() {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-zinc-200">
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
                     {wh.label || t(`webhook.${wh.provider}`)}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)] font-mono">
                     {wh.provider}
                   </span>
                   {wh.display_name && (
@@ -417,14 +417,14 @@ export function WebhookConfigCard() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-zinc-500 font-mono mt-0.5 truncate">
+                <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5 truncate">
                   {maskUrl(wh.webhook_url)}
                 </p>
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {wh.events.map((ev) => (
                     <span
                       key={ev}
-                      className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
+                      className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)]"
                     >
                       {t(`webhook.event.${ev}`)}
                     </span>
@@ -434,14 +434,14 @@ export function WebhookConfigCard() {
                 {editingTemplateId === wh.id ? (
                   <div className="mt-2 space-y-1.5">
                     <div>
-                      <label className="block text-[10px] text-zinc-500 mb-0.5">
+                      <label className="block text-[10px] text-[var(--text-muted)] mb-0.5">
                         {t("webhook.displayName")}
                       </label>
                       <input
                         value={editDisplayNameValue}
                         onChange={(e) => setEditDisplayNameValue(e.target.value)}
                         placeholder={t("webhook.displayNamePlaceholder")}
-                        className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+                        className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]"
                       />
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -459,7 +459,7 @@ export function WebhookConfigCard() {
                             "px-2 py-0.5 text-[10px] rounded-full border transition-colors",
                             editEventsValue.includes(ev)
                               ? "border-amber-500/60 bg-amber-500/20 text-amber-300"
-                              : "border-zinc-700 text-zinc-500 hover:text-zinc-300",
+                              : "border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
                           )}
                         >
                           {t(`webhook.event.${ev}`)}
@@ -471,9 +471,9 @@ export function WebhookConfigCard() {
                       onChange={(e) => setEditTemplateValue(e.target.value)}
                       placeholder={t("webhook.templatePlaceholder")}
                       rows={2}
-                      className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono resize-none"
+                      className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] font-mono resize-none"
                     />
-                    <p className="text-[10px] text-zinc-600">
+                    <p className="text-[10px] text-[var(--text-muted)]">
                       {t("webhook.templateHint")}
                     </p>
                     <div className="flex gap-2">
@@ -486,14 +486,14 @@ export function WebhookConfigCard() {
                       </button>
                       <button
                         onClick={() => setEditingTemplateId(null)}
-                        className="px-2 py-1 text-[10px] rounded text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                       >
                         {t("common.cancel")}
                       </button>
                     </div>
                   </div>
                 ) : wh.message_template ? (
-                  <p className="text-[10px] text-zinc-500 font-mono mt-1 truncate">
+                  <p className="text-[10px] text-[var(--text-muted)] font-mono mt-1 truncate">
                     {t("webhook.templateLabel")}: {wh.message_template}
                   </p>
                 ) : null}
@@ -540,7 +540,7 @@ export function WebhookConfigCard() {
                 onClick={() => handleToggleActive(wh.id, !wh.active)}
                 className={clsx(
                   "relative w-9 h-5 rounded-full transition-colors flex-shrink-0",
-                  wh.active ? "bg-emerald-500/60" : "bg-zinc-700",
+                  wh.active ? "bg-emerald-500/60" : "bg-[var(--bg-elevated)]",
                 )}
               >
                 <span
@@ -563,7 +563,7 @@ export function WebhookConfigCard() {
                     setEditingTemplateId(wh.id);
                   }
                 }}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
                 title={t("webhook.edit")}
               >
                 <Pencil className="w-4 h-4" />
@@ -573,7 +573,7 @@ export function WebhookConfigCard() {
               <button
                 onClick={() => handleTriggerDailyReport(wh.id)}
                 disabled={reportingId === wh.id}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
                 title={t("webhook.triggerDailyReport")}
               >
                 {reportingId === wh.id ? (
@@ -587,7 +587,7 @@ export function WebhookConfigCard() {
               <button
                 onClick={() => handleTest(wh.id)}
                 disabled={testingId === wh.id}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors disabled:opacity-40"
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40"
                 title={t("webhook.test")}
               >
                 {testingId === wh.id ? (
@@ -600,7 +600,7 @@ export function WebhookConfigCard() {
               {/* Delete button */}
               <button
                 onClick={() => setDeleteConfirmId(wh.id)}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                 title={t("webhook.delete")}
               >
                 <Trash2 className="w-4 h-4" />
@@ -612,28 +612,28 @@ export function WebhookConfigCard() {
       {/* Delete confirm modal */}
       {deleteConfirmId && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={() => setDeleteConfirmId(null)}
         >
           <div
-            className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 shadow-2xl max-w-sm w-full mx-4"
+            className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-6 shadow-2xl max-w-sm w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 rounded-full bg-red-500/10">
                 <AlertCircle className="w-5 h-5 text-red-400" />
               </div>
-              <h3 className="text-sm font-semibold text-zinc-100">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 {t("webhook.delete")}
               </h3>
             </div>
-            <p className="text-sm text-zinc-400 mb-6">
+            <p className="text-sm text-[var(--text-secondary)] mb-6">
               {t("webhook.deleteConfirm")}
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-zinc-400 hover:bg-zinc-800 transition-colors"
+                className="px-3 py-1.5 text-xs rounded-lg border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
               >
                 {t("common.cancel")}
               </button>

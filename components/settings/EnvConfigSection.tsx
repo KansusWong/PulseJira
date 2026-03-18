@@ -75,7 +75,7 @@ function StatusBadge({ status }: { status: "configured" | "partial" | "missing" 
   const styles = {
     configured: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     partial: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    missing: "bg-zinc-800 text-zinc-500 border-zinc-700",
+    missing: "bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border-subtle)]",
   };
   const labels = { configured: t('env.configured'), partial: t('env.partial'), missing: t('env.missing') };
   return (
@@ -117,10 +117,10 @@ function EnvVarRow({
         <span
           className={clsx(
             "w-1.5 h-1.5 rounded-full shrink-0",
-            info.configured ? "bg-emerald-500" : "bg-zinc-600"
+            info.configured ? "bg-emerald-500" : "bg-[var(--bg-elevated)]"
           )}
         />
-        <label className="text-xs text-zinc-400 font-medium">{info.label}</label>
+        <label className="text-xs text-[var(--text-secondary)] font-medium">{info.label}</label>
       </div>
 
       <div className="flex gap-2">
@@ -130,13 +130,13 @@ function EnvVarRow({
             value={value}
             onChange={(e) => onChange(info.key, e.target.value)}
             placeholder={displayPlaceholder}
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors font-mono"
+            className="w-full bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] transition-colors font-mono"
           />
           {info.isSecret && (
             <button
               type="button"
               onClick={() => setRevealed((p) => !p)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
             >
               {revealed ? (
                 <EyeOff className="w-3.5 h-3.5" />
@@ -187,7 +187,7 @@ function EnvGroup({
           ? "bg-emerald-500/5 border-emerald-500/10"
           : group.status === "partial"
           ? "bg-amber-500/5 border-amber-500/10"
-          : "bg-zinc-900/50 border-zinc-800"
+          : "bg-[var(--bg-glass)] border-[var(--border-subtle)]"
       )}
     >
       {/* Header */}
@@ -196,27 +196,27 @@ function EnvGroup({
         className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
         <div className="flex items-center gap-2.5">
-          <Icon className="w-4 h-4 text-zinc-400" />
-          <span className="text-sm font-medium text-zinc-200">
+          <Icon className="w-4 h-4 text-[var(--text-secondary)]" />
+          <span className="text-sm font-medium text-[var(--text-primary)]">
             {group.label}
           </span>
           <StatusBadge status={group.status} />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-zinc-600 font-mono">
+          <span className="text-[10px] text-[var(--text-muted)] font-mono">
             {configuredCount}/{totalCount}
           </span>
           {expanded ? (
-            <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
+            <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" />
           )}
         </div>
       </button>
 
       {/* Body */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-zinc-800/50 pt-3">
+        <div className="px-4 pb-4 space-y-4 border-t border-[var(--border-subtle)] pt-3">
           {group.vars.map((v) => (
             <EnvVarRow
               key={v.key}
@@ -266,18 +266,18 @@ export function EnvConfigSection({
     .length;
 
   return (
-    <div className="bg-paper border border-border rounded-xl overflow-hidden">
+    <div className="glass-1 rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-border">
+      <div className="px-6 py-5 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-emerald-500/10 rounded-lg">
             <Key className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-zinc-100">
+            <h2 className="text-base font-bold text-[var(--text-primary)]">
               {t('env.title')}
             </h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               {t('env.description')}
             </p>
           </div>
@@ -306,7 +306,7 @@ export function EnvConfigSection({
 
         {/* Save */}
         <div className="flex items-center justify-between pt-2">
-          <div className="text-[11px] text-zinc-600">
+          <div className="text-[11px] text-[var(--text-muted)]">
             {changedCount > 0 && (
               <span className="text-amber-400">
                 {t('env.pendingCount', { count: changedCount })}
@@ -326,7 +326,7 @@ export function EnvConfigSection({
                 ? "bg-emerald-500/20 text-emerald-400"
                 : saveStatus === "error"
                 ? "bg-red-500/20 text-red-400"
-                : "bg-zinc-100 text-zinc-900 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+                : "bg-white text-black hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed"
             )}
           >
             {saveStatus === "saving" && (

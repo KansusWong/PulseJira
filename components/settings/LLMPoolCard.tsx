@@ -124,7 +124,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   openai: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
   glm: "bg-blue-500/15 text-blue-400 border-blue-500/20",
   deepseek: "bg-violet-500/15 text-violet-400 border-violet-500/20",
-  custom: "bg-zinc-700/50 text-zinc-400 border-zinc-600",
+  custom: "bg-[var(--bg-elevated)] text-[var(--text-secondary)] border-[var(--border-default)]",
 };
 
 function ProviderBadge({ provider }: { provider: string }) {
@@ -303,8 +303,8 @@ function AccountCard({
       className={clsx(
         "rounded-lg border p-4 transition-colors",
         account.enabled
-          ? "bg-zinc-900/80 border-zinc-700"
-          : "bg-zinc-900/40 border-zinc-800 opacity-60"
+          ? "bg-[var(--bg-glass)] border-[var(--border-subtle)]"
+          : "bg-[var(--bg-glass)] border-[var(--border-subtle)] opacity-60"
       )}
     >
       <div className="flex items-start justify-between mb-3">
@@ -316,10 +316,10 @@ function AccountCard({
                 ? "bg-emerald-500"
                 : status === "cooldown"
                   ? "bg-amber-400"
-                  : "bg-zinc-600"
+                  : "bg-[var(--bg-elevated)]"
             )}
           />
-          <span className="text-sm font-medium text-zinc-200 truncate">
+          <span className="text-sm font-medium text-[var(--text-primary)] truncate">
             {title}
           </span>
           <ProviderBadge provider={account.provider} />
@@ -358,7 +358,7 @@ function AccountCard({
 
       <div className="space-y-1.5 text-xs">
         <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-          <span className="text-zinc-500">{t('llm.status')}</span>
+          <span className="text-[var(--text-muted)]">{t('llm.status')}</span>
           <div className="min-w-0 flex justify-end">
             <span
               className={clsx(
@@ -367,7 +367,7 @@ function AccountCard({
                   ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
                   : status === "cooldown"
                     ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                    : "bg-zinc-700/40 text-zinc-400 border-zinc-600"
+                    : "bg-[var(--bg-elevated)]/40 text-[var(--text-secondary)] border-[var(--border-default)]"
               )}
             >
               {statusLabel}
@@ -376,36 +376,36 @@ function AccountCard({
         </div>
         {health?.inCooldown && (
           <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-            <span className="text-zinc-500">{t('llm.remainingCooldown')}</span>
+            <span className="text-[var(--text-muted)]">{t('llm.remainingCooldown')}</span>
             <span className="text-amber-300 font-mono truncate text-right">
               {formatDuration(health.cooldownRemainingMs)}
             </span>
           </div>
         )}
         <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-          <span className="text-zinc-500">API Key</span>
-          <span className="text-zinc-400 font-mono truncate text-right" title={account.maskedApiKey}>
+          <span className="text-[var(--text-muted)]">API Key</span>
+          <span className="text-[var(--text-secondary)] font-mono truncate text-right" title={account.maskedApiKey}>
             {account.maskedApiKey}
           </span>
         </div>
         {account.baseURL && (
           <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-            <span className="text-zinc-500">Base URL</span>
-            <span className="text-zinc-400 font-mono truncate text-right" title={account.baseURL}>
+            <span className="text-[var(--text-muted)]">Base URL</span>
+            <span className="text-[var(--text-secondary)] font-mono truncate text-right" title={account.baseURL}>
               {account.baseURL}
             </span>
           </div>
         )}
         {account.modelMapping && Object.keys(account.modelMapping).length > 0 && (
           <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
-            <span className="text-zinc-500">{t('llm.mapping')}</span>
-            <span className="text-zinc-400 font-mono text-right truncate">
+            <span className="text-[var(--text-muted)]">{t('llm.mapping')}</span>
+            <span className="text-[var(--text-secondary)] font-mono text-right truncate">
               {t('llm.mappingCount', { count: Object.keys(account.modelMapping).length })}
             </span>
           </div>
         )}
         <div className="flex items-center justify-between">
-          <span className="text-zinc-500">Priority</span>
+          <span className="text-[var(--text-muted)]">Priority</span>
           <NumberStepper
             value={account.priority}
             min={0}
@@ -419,7 +419,7 @@ function AccountCard({
             {account.tags.map((tag) => (
               <span
                 key={tag}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700"
+                className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
               >
                 {tag}
               </span>
@@ -429,13 +429,13 @@ function AccountCard({
       </div>
 
       {/* Balance / Usage section */}
-      <div className="mt-3 pt-3 border-t border-zinc-800/60">
+      <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
         {balance ? (
           <div className="space-y-1.5">
             {balance.supported && hasAnyRemoteBalance ? (
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                  <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
                     <Wallet className="w-3 h-3" />
                     {t('llm.balance')}
                   </span>
@@ -453,7 +453,7 @@ function AccountCard({
               </div>
             ) : balance.supported && balance.error ? (
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
                   <Wallet className="w-3 h-3" />
                   {t('llm.balance')}
                 </span>
@@ -465,18 +465,18 @@ function AccountCard({
               </div>
             ) : !balance.supported ? (
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+                <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
                   <Wallet className="w-3 h-3" />
                   {t('llm.balance')}
                 </span>
-                <span className="text-[10px] text-zinc-600">
+                <span className="text-[10px] text-[var(--text-muted)]">
                   {isGlm ? t('llm.balanceRemoteNotConfigured') : t('llm.balanceNotSupported')}
                 </span>
               </div>
             ) : null}
 
             {balance.supported && balance.grantedBalance && balance.toppedUpBalance && (
-              <div className="flex items-center justify-between text-[10px] text-zinc-500">
+              <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
                 <span>{t('llm.grantedBalance')} {CURRENCY_SYMBOLS[displayCurrency || ""] || ""}{balance.grantedBalance}</span>
                 <span>{t('llm.toppedUpBalance')} {CURRENCY_SYMBOLS[displayCurrency || ""] || ""}{balance.toppedUpBalance}</span>
               </div>
@@ -484,8 +484,8 @@ function AccountCard({
 
             {balance.localUsage && (balance.localUsage.totalTokens > 0 || balance.localUsage.totalCalls > 0) && (
               <div className="flex items-center justify-between text-[10px]">
-                <span className="text-zinc-500">{t('llm.localStats')}</span>
-                <span className="text-zinc-400 font-mono">
+                <span className="text-[var(--text-muted)]">{t('llm.localStats')}</span>
+                <span className="text-[var(--text-secondary)] font-mono">
                   {t('llm.localStatsValue', { tokens: formatTokens(balance.localUsage.totalTokens), calls: balance.localUsage.totalCalls })}
                 </span>
               </div>
@@ -493,11 +493,11 @@ function AccountCard({
           </div>
         ) : (
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+            <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
               <Wallet className="w-3 h-3" />
               {t('llm.balance')}
             </span>
-            <span className="text-[10px] text-zinc-600">{t('llm.balanceClickRefresh')}</span>
+            <span className="text-[10px] text-[var(--text-muted)]">{t('llm.balanceClickRefresh')}</span>
           </div>
         )}
       </div>
@@ -556,8 +556,8 @@ function AddAccountForm({
   return (
     <div
       className={clsx(
-        "rounded-lg bg-zinc-900/40 transition-colors",
-        expanded ? "border border-dashed border-zinc-700" : "border-0"
+        "rounded-lg bg-[var(--bg-glass)] transition-colors",
+        expanded ? "border border-dashed border-[var(--border-subtle)]" : "border-0"
       )}
     >
       <div
@@ -569,20 +569,20 @@ function AddAccountForm({
         <div className="px-4 pb-4 space-y-3 pt-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-500 font-medium">{t('llm.nameRequired')}</label>
+              <label className="text-[10px] text-[var(--text-muted)] font-medium">{t('llm.nameRequired')}</label>
               <input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder={t('llm.namePlaceholder')}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-500 font-medium">Provider</label>
+              <label className="text-[10px] text-[var(--text-muted)] font-medium">Provider</label>
               <select
                 value={form.provider}
                 onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-500"
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-accent)]"
               >
                 <option value="openai">OpenAI</option>
                 <option value="glm">{t('llm.providerGlm')}</option>
@@ -593,19 +593,19 @@ function AddAccountForm({
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-medium">API Key *</label>
+            <label className="text-[10px] text-[var(--text-muted)] font-medium">API Key *</label>
             <div className="relative">
               <input
                 type={showKey ? "text" : "password"}
                 value={form.apiKey}
                 onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
                 placeholder="sk-..."
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-500"
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:border-[var(--border-accent)]"
               />
               <button
                 type="button"
                 onClick={() => setShowKey((p) => !p)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               >
                 {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
               </button>
@@ -614,27 +614,27 @@ function AddAccountForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-500 font-medium">Base URL</label>
+              <label className="text-[10px] text-[var(--text-muted)] font-medium">Base URL</label>
               <input
                 value={form.baseURL}
                 onChange={(e) => setForm((f) => ({ ...f, baseURL: e.target.value }))}
                 placeholder="https://api.openai.com/v1/"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-500"
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:border-[var(--border-accent)]"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-500 font-medium">{t('llm.defaultModel')}</label>
+              <label className="text-[10px] text-[var(--text-muted)] font-medium">{t('llm.defaultModel')}</label>
               <input
                 value={form.defaultModel}
                 onChange={(e) => setForm((f) => ({ ...f, defaultModel: e.target.value }))}
                 placeholder="gpt-4o"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-500"
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:border-[var(--border-accent)]"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] text-zinc-500 font-medium">
+            <label className="text-[10px] text-[var(--text-muted)] font-medium">
               {t('llm.modelMapping')}
             </label>
             <textarea
@@ -642,16 +642,16 @@ function AddAccountForm({
               onChange={(e) => setForm((f) => ({ ...f, modelMapping: e.target.value }))}
               rows={2}
               placeholder='{"gpt-4o":"moonshot-v1-8k","gpt-4.1":"moonshot-v1-32k"}'
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-500"
+              className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-mono focus:outline-none focus:border-[var(--border-accent)]"
             />
-            <p className="text-[10px] text-zinc-600">
+            <p className="text-[10px] text-[var(--text-muted)]">
               {t('llm.modelMappingHint')}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-500 font-medium">{t('llm.priorityHint')}</label>
+              <label className="text-[10px] text-[var(--text-muted)] font-medium">{t('llm.priorityHint')}</label>
               <NumberStepper
                 value={form.priority}
                 min={0}
@@ -662,12 +662,12 @@ function AddAccountForm({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-500 font-medium">{t('llm.tagsLabel')}</label>
+              <label className="text-[10px] text-[var(--text-muted)] font-medium">{t('llm.tagsLabel')}</label>
               <input
                 value={form.tags}
                 onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
-                placeholder="red-team, fast"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+                placeholder="compression, fast"
+                className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]"
               />
             </div>
           </div>
@@ -676,7 +676,7 @@ function AddAccountForm({
             <button
               onClick={handleSubmit}
               disabled={!form.name.trim() || !form.apiKey.trim() || saving}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-zinc-100 text-zinc-900 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-white text-black hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               {saving ? t('llm.savingAccount') : t('llm.addAccountBtn')}
@@ -1031,8 +1031,8 @@ export function LLMPoolCard() {
         <div className="flex items-center gap-3">
           <Layers className="w-6 h-6 text-violet-400" />
           <div>
-            <h2 className="text-lg font-bold text-zinc-100">{t('llm.title')}</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">{t('llm.title')}</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               {t('llm.description')}
             </p>
           </div>
@@ -1053,7 +1053,7 @@ export function LLMPoolCard() {
           <button
             onClick={handleRefreshPanel}
             disabled={loading || balanceLoading || !data?.accounts.length}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={t('llm.refreshTitle')}
           >
             {balanceLoading ? (
@@ -1076,31 +1076,31 @@ export function LLMPoolCard() {
 
       {loading && !data ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--text-muted)]" />
         </div>
       ) : data ? (
         <>
           {/* Strategy selector */}
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
+          <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider mb-1">
                   {t('llm.routeStrategy')}
                 </div>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--text-muted)]">
                   {data.strategy === "priority"
                     ? t('llm.strategyPriority')
                     : t('llm.strategyRoundRobin')}
                 </p>
               </div>
-              <div className="flex rounded-lg overflow-hidden border border-zinc-700">
+              <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)]">
                 <button
                   onClick={() => handleStrategyChange("priority")}
                   className={clsx(
                     "px-3 py-1.5 text-xs font-medium transition-colors",
                     data.strategy === "priority"
                       ? "bg-violet-500/20 text-violet-300"
-                      : "bg-zinc-800/50 text-zinc-500 hover:text-zinc-300"
+                      : "bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                   )}
                 >
                   {t('llm.priority')}
@@ -1111,7 +1111,7 @@ export function LLMPoolCard() {
                     "px-3 py-1.5 text-xs font-medium transition-colors",
                     data.strategy === "round-robin"
                       ? "bg-violet-500/20 text-violet-300"
-                      : "bg-zinc-800/50 text-zinc-500 hover:text-zinc-300"
+                      : "bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                   )}
                 >
                   {t('llm.roundRobin')}
@@ -1122,16 +1122,16 @@ export function LLMPoolCard() {
 
           {/* Runtime config + health + recent switches */}
           <div className="grid gap-4 lg:grid-cols-3">
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
+            <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Runtime Config
                 </div>
-                <Clock3 className="w-3.5 h-3.5 text-zinc-500" />
+                <Clock3 className="w-3.5 h-3.5 text-[var(--text-muted)]" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-zinc-500 font-medium">
+                  <label className="text-[10px] text-[var(--text-muted)] font-medium">
                     Failures to Cooldown
                   </label>
                   <NumberStepper
@@ -1148,7 +1148,7 @@ export function LLMPoolCard() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-zinc-500 font-medium">Cooldown (ms)</label>
+                  <label className="text-[10px] text-[var(--text-muted)] font-medium">Cooldown (ms)</label>
                   <NumberStepper
                     value={runtimeDraft?.cooldownMs ?? data.runtimeConfig.cooldownMs}
                     min={1000}
@@ -1165,11 +1165,11 @@ export function LLMPoolCard() {
                 </div>
               </div>
               <div className="mt-3 space-y-2">
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Failover Policy
                 </div>
-                <label className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 py-2 text-xs">
-                  <span className="text-zinc-300">{t('llm.failoverTimeout')}</span>
+                <label className="flex items-center justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-2.5 py-2 text-xs">
+                  <span className="text-[var(--text-primary)]">{t('llm.failoverTimeout')}</span>
                   <input
                     type="checkbox"
                     checked={runtimeDraft?.failoverPolicy?.failoverOnTimeout ?? data.runtimeConfig.failoverPolicy.failoverOnTimeout}
@@ -1185,8 +1185,8 @@ export function LLMPoolCard() {
                     className="h-3.5 w-3.5 accent-violet-400"
                   />
                 </label>
-                <label className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 py-2 text-xs">
-                  <span className="text-zinc-300">{t('llm.failover5xx')}</span>
+                <label className="flex items-center justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-2.5 py-2 text-xs">
+                  <span className="text-[var(--text-primary)]">{t('llm.failover5xx')}</span>
                   <input
                     type="checkbox"
                     checked={runtimeDraft?.failoverPolicy?.failoverOnServerError ?? data.runtimeConfig.failoverPolicy.failoverOnServerError}
@@ -1202,8 +1202,8 @@ export function LLMPoolCard() {
                     className="h-3.5 w-3.5 accent-violet-400"
                   />
                 </label>
-                <label className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 px-2.5 py-2 text-xs">
-                  <span className="text-zinc-300">{t('llm.failoverModelNotFound')}</span>
+                <label className="flex items-center justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-2.5 py-2 text-xs">
+                  <span className="text-[var(--text-primary)]">{t('llm.failoverModelNotFound')}</span>
                   <input
                     type="checkbox"
                     checked={runtimeDraft?.failoverPolicy?.failoverOnModelNotFound ?? data.runtimeConfig.failoverPolicy.failoverOnModelNotFound}
@@ -1224,7 +1224,7 @@ export function LLMPoolCard() {
                 <button
                   onClick={handleRuntimeConfigSave}
                   disabled={runtimeSaving}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-zinc-100 text-zinc-900 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-white text-black hover:bg-white/90 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {runtimeSaving ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1236,12 +1236,12 @@ export function LLMPoolCard() {
               </div>
             </div>
 
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
+            <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Pool Health
                 </div>
-                <Activity className="w-3.5 h-3.5 text-zinc-500" />
+                <Activity className="w-3.5 h-3.5 text-[var(--text-muted)]" />
               </div>
               <div className="grid grid-cols-3 gap-2 mb-3">
                 <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-1.5 text-center">
@@ -1252,9 +1252,9 @@ export function LLMPoolCard() {
                   <div className="text-lg text-amber-300 font-semibold">{healthSummary.cooldown}</div>
                   <div className="text-[10px] text-amber-400/80">Cooldown</div>
                 </div>
-                <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-2 py-1.5 text-center">
-                  <div className="text-lg text-zinc-300 font-semibold">{healthSummary.disabled}</div>
-                  <div className="text-[10px] text-zinc-500">Disabled</div>
+                <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-2 py-1.5 text-center">
+                  <div className="text-lg text-[var(--text-primary)] font-semibold">{healthSummary.disabled}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Disabled</div>
                 </div>
               </div>
               <div className="space-y-1.5 max-h-[176px] overflow-auto pr-1">
@@ -1262,9 +1262,9 @@ export function LLMPoolCard() {
                   visibleHealth.map((h) => (
                     <div
                       key={h.accountId}
-                      className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 py-2 text-xs"
+                      className="flex items-center justify-between rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-2.5 py-2 text-xs"
                     >
-                      <span className="text-zinc-300 truncate pr-3">{h.accountName}</span>
+                      <span className="text-[var(--text-primary)] truncate pr-3">{h.accountName}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         {h.status === "cooldown" && (
                           <span className="text-amber-300 font-mono">
@@ -1278,7 +1278,7 @@ export function LLMPoolCard() {
                               ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
                               : h.status === "cooldown"
                                 ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                                : "bg-zinc-700/40 text-zinc-400 border-zinc-600"
+                                : "bg-[var(--bg-elevated)]/40 text-[var(--text-secondary)] border-[var(--border-default)]"
                           )}
                         >
                           {h.status}
@@ -1287,28 +1287,28 @@ export function LLMPoolCard() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-xs text-zinc-500">{t('llm.noHealthData')}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{t('llm.noHealthData')}</div>
                 )}
               </div>
             </div>
 
             {/* Recent failover events */}
-            <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4">
+            <div className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+                <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Recent Switches
                 </div>
-                <History className="w-3.5 h-3.5 text-zinc-500" />
+                <History className="w-3.5 h-3.5 text-[var(--text-muted)]" />
               </div>
               <div className="space-y-2 max-h-[220px] overflow-auto pr-1">
                 {data.recentFailoverEvents.length > 0 ? (
                   data.recentFailoverEvents.map((event) => (
                     <div
                       key={event.id}
-                      className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2"
+                      className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-3 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs text-zinc-300 truncate">
+                        <div className="text-xs text-[var(--text-primary)] truncate">
                           {event.eventType === "switch"
                             ? `${event.fromAccountName || event.fromAccountId || "unknown"} → ${event.toAccountName || event.toAccountId || "unknown"}`
                             : `${event.fromAccountName || event.fromAccountId || "unknown"} exhausted`}
@@ -1324,14 +1324,14 @@ export function LLMPoolCard() {
                           {event.eventType}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
+                      <div className="mt-1 flex items-center justify-between text-[10px] text-[var(--text-muted)]">
                         <span className="truncate pr-2">{event.reason || "no reason"}</span>
                         <span title={event.createdAt}>{formatRelativeTime(event.createdAt, t('common.justNow'), t('common.ago'))}</span>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="text-xs text-zinc-500">{t('llm.noSwitchEvents')}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{t('llm.noSwitchEvents')}</div>
                 )}
               </div>
             </div>
@@ -1350,12 +1350,12 @@ export function LLMPoolCard() {
                 {data.unimportedEnv.map((env) => (
                   <div
                     key={env.id}
-                    className="flex items-center justify-between bg-zinc-900/60 rounded-lg px-3 py-2"
+                    className="flex items-center justify-between bg-[var(--bg-glass)] rounded-lg px-3 py-2"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-zinc-300">{env.name}</span>
+                      <span className="text-sm text-[var(--text-primary)]">{env.name}</span>
                       <ProviderBadge provider={env.provider} />
-                      <span className="text-xs text-zinc-500 font-mono">{env.maskedApiKey}</span>
+                      <span className="text-xs text-[var(--text-muted)] font-mono">{env.maskedApiKey}</span>
                     </div>
                     <button
                       onClick={() => handleImportEnv(env)}
@@ -1372,7 +1372,7 @@ export function LLMPoolCard() {
 
           {/* Account list */}
           {data.accounts.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 text-sm border border-dashed border-zinc-800 rounded-xl">
+            <div className="text-center py-12 text-[var(--text-muted)] text-sm border border-dashed border-[var(--border-subtle)] rounded-xl">
               {t('llm.noAccounts')}
             </div>
           ) : (
@@ -1399,7 +1399,7 @@ export function LLMPoolCard() {
           <AddAccountForm onAdd={handleAdd} saving={saving} expanded={addFormOpen} />
         </>
       ) : (
-        <div className="text-center py-12 text-zinc-500 text-sm">
+        <div className="text-center py-12 text-[var(--text-muted)] text-sm">
           {t('llm.loadPoolFailed')}
         </div>
       )}

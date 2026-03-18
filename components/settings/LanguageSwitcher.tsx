@@ -25,15 +25,15 @@ export function LanguageSwitcher() {
 
   return (
     <div className="px-3 py-2">
-      <div className="text-[10px] text-zinc-600 mb-1.5">{t('language.label')}</div>
-      <div className="flex rounded-lg overflow-hidden border border-zinc-700">
+      <div className="text-[10px] text-[var(--text-muted)] mb-1.5">{t('language.label')}</div>
+      <div className="flex rounded-lg overflow-hidden border border-[var(--border-subtle)]">
         <button
           onClick={() => handleSetLocale("zh")}
           className={clsx(
             "flex-1 px-3 py-1.5 text-xs font-medium transition-colors",
             locale === "zh"
-              ? "bg-zinc-700 text-zinc-100"
-              : "bg-zinc-800/50 text-zinc-500 hover:text-zinc-300"
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+              : "bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           )}
         >
           简体中文
@@ -43,8 +43,8 @@ export function LanguageSwitcher() {
           className={clsx(
             "flex-1 px-3 py-1.5 text-xs font-medium transition-colors",
             locale === "en"
-              ? "bg-zinc-700 text-zinc-100"
-              : "bg-zinc-800/50 text-zinc-500 hover:text-zinc-300"
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+              : "bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
           )}
         >
           English

@@ -39,12 +39,12 @@ export function SkillRow({ name, description, enabled, onToggle, onRemove }: Ski
   return (
     <div className={clsx(
       "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors",
-      enabled ? "bg-black/30" : "bg-black/10 opacity-60",
+      enabled ? "bg-[var(--bg-surface)]" : "bg-[var(--bg-surface)] opacity-60",
     )}>
       <div className="flex-1 min-w-0">
         <code className="text-xs text-green-400 font-mono">{name}</code>
         {description && (
-          <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-1">{description}</p>
+          <p className="text-[11px] text-[var(--text-muted)] mt-0.5 line-clamp-1">{description}</p>
         )}
       </div>
 
@@ -56,15 +56,15 @@ export function SkillRow({ name, description, enabled, onToggle, onRemove }: Ski
         title={enabled ? t('agent.toggleSkill') : t('agent.toggleSkill')}
       >
         {toggling ? (
-          <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+          <Loader2 className="w-4 h-4 animate-spin text-[var(--text-muted)]" />
         ) : (
           <div className={clsx(
             "w-8 h-[18px] rounded-full transition-colors relative",
-            enabled ? "bg-emerald-500/40" : "bg-zinc-700",
+            enabled ? "bg-emerald-500/40" : "bg-[var(--bg-elevated)]",
           )}>
             <div className={clsx(
               "absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all",
-              enabled ? "left-[15px] bg-emerald-400" : "left-[2px] bg-zinc-500",
+              enabled ? "left-[15px] bg-emerald-400" : "left-[2px] bg-[var(--bg-elevated)]",
             )} />
           </div>
         )}
@@ -74,7 +74,7 @@ export function SkillRow({ name, description, enabled, onToggle, onRemove }: Ski
       <button
         onClick={handleRemove}
         disabled={removing}
-        className="shrink-0 p-1 rounded hover:bg-red-900/30 text-zinc-600 hover:text-red-400 transition-colors disabled:opacity-40"
+        className="shrink-0 p-1 rounded hover:bg-red-900/30 text-[var(--text-muted)] hover:text-red-400 transition-colors disabled:opacity-40"
         title={t('agent.removeSkill')}
       >
         {removing ? (

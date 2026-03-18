@@ -69,7 +69,7 @@ export function SetupCard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-5 h-5 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-[var(--border-subtle)] border-t-[var(--text-primary)] rounded-full animate-spin" />
       </div>
     );
   }

@@ -151,7 +151,7 @@ export function AdvancedSettingsCard() {
   if (loading) {
     return (
       <div className="flex justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+        <Loader2 className="w-6 h-6 animate-spin text-[var(--text-muted)]" />
       </div>
     );
   }
@@ -161,17 +161,17 @@ export function AdvancedSettingsCard() {
       <div className="flex items-center gap-3 mb-6">
         <Settings2 className="w-6 h-6 text-purple-400" />
         <div>
-          <h2 className="text-lg font-bold text-zinc-100">
+          <h2 className="text-lg font-bold text-[var(--text-primary)]">
             {t("advancedSettings.title")}
           </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
             {t("advancedSettings.description")}
           </p>
         </div>
       </div>
 
       {/* ── Section 1: Agent Work Mode ── */}
-      <h3 className="text-sm font-semibold text-zinc-300 mb-3">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">
         {t("advancedSettings.section.workMode")}
       </h3>
 
@@ -187,9 +187,9 @@ export function AdvancedSettingsCard() {
                 "relative rounded-xl border-2 p-5 text-left transition-all",
                 isActive
                   ? `${mode.borderClass} ${mode.bgClass}`
-                  : "border-zinc-700/60 hover:border-zinc-600",
+                  : "border-[var(--border-subtle)] hover:border-[var(--border-default)]",
                 mode.disabled && "opacity-50 cursor-not-allowed",
-                !mode.disabled && !isActive && "hover:bg-zinc-800/40"
+                !mode.disabled && !isActive && "hover:bg-[var(--bg-elevated)]"
               )}
             >
               {isActive && (
@@ -201,13 +201,13 @@ export function AdvancedSettingsCard() {
               <h3
                 className={clsx(
                   "text-sm font-semibold mb-1",
-                  isActive ? mode.colorClass : "text-zinc-300"
+                  isActive ? mode.colorClass : "text-[var(--text-primary)]"
                 )}
               >
                 {t(`advancedSettings.mode.${mode.key}.title`)}
               </h3>
 
-              <p className="text-xs text-zinc-500 mb-3">
+              <p className="text-xs text-[var(--text-muted)] mb-3">
                 {t(`advancedSettings.mode.${mode.key}.description`)}
               </p>
 
@@ -219,16 +219,16 @@ export function AdvancedSettingsCard() {
                   .map((feature, i) => (
                     <div
                       key={i}
-                      className="flex items-center gap-1.5 text-xs text-zinc-400"
+                      className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"
                     >
-                      <span className={clsx("w-1 h-1 rounded-full", isActive ? mode.colorClass.replace("text-", "bg-") : "bg-zinc-600")} />
+                      <span className={clsx("w-1 h-1 rounded-full", isActive ? mode.colorClass.replace("text-", "bg-") : "bg-[var(--bg-elevated)]")} />
                       {feature}
                     </div>
                   ))}
               </div>
 
               {mode.disabled && (
-                <div className="mt-3 text-xs text-zinc-600 italic">
+                <div className="mt-3 text-xs text-[var(--text-muted)] italic">
                   {t("advancedSettings.comingSoon")}
                 </div>
               )}
@@ -238,7 +238,7 @@ export function AdvancedSettingsCard() {
       </div>
 
       {/* ── Section 2: Trust Level ── */}
-      <h3 className="text-sm font-semibold text-zinc-300 mb-3 mt-8">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3 mt-8">
         {t("advancedSettings.section.trustLevel")}
       </h3>
 
@@ -254,8 +254,8 @@ export function AdvancedSettingsCard() {
                 "relative rounded-xl border-2 p-5 text-left transition-all",
                 isActive
                   ? `${trust.borderClass} ${trust.bgClass}`
-                  : "border-zinc-700/60 hover:border-zinc-600",
-                !isActive && "hover:bg-zinc-800/40"
+                  : "border-[var(--border-subtle)] hover:border-[var(--border-default)]",
+                !isActive && "hover:bg-[var(--bg-elevated)]"
               )}
             >
               {isActive && (
@@ -267,13 +267,13 @@ export function AdvancedSettingsCard() {
               <h3
                 className={clsx(
                   "text-sm font-semibold mb-1",
-                  isActive ? trust.colorClass : "text-zinc-300"
+                  isActive ? trust.colorClass : "text-[var(--text-primary)]"
                 )}
               >
                 {t(`advancedSettings.trust.${trust.key}.title`)}
               </h3>
 
-              <p className="text-xs text-zinc-500 mb-3">
+              <p className="text-xs text-[var(--text-muted)] mb-3">
                 {t(`advancedSettings.trust.${trust.key}.description`)}
               </p>
 
@@ -285,9 +285,9 @@ export function AdvancedSettingsCard() {
                   .map((feature, i) => (
                     <div
                       key={i}
-                      className="flex items-center gap-1.5 text-xs text-zinc-400"
+                      className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"
                     >
-                      <span className={clsx("w-1 h-1 rounded-full", isActive ? trust.colorClass.replace("text-", "bg-") : "bg-zinc-600")} />
+                      <span className={clsx("w-1 h-1 rounded-full", isActive ? trust.colorClass.replace("text-", "bg-") : "bg-[var(--bg-elevated)]")} />
                       {feature}
                     </div>
                   ))}
@@ -305,25 +305,25 @@ export function AdvancedSettingsCard() {
             if (e.target === e.currentTarget) setConfirmModal(null);
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-zinc-700/60 bg-zinc-900 shadow-2xl overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-800">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-[var(--border-subtle)]">
               <AlertTriangle className="w-5 h-5 text-yellow-400" />
-              <h3 className="text-sm font-semibold text-zinc-200">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                 {t("advancedSettings.confirmTitle")}
               </h3>
             </div>
 
             <div className="px-5 py-4">
-              <p className="text-sm text-zinc-400 leading-relaxed">
+              <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
                 {t("advancedSettings.confirmMessage")}
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-zinc-800">
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[var(--border-subtle)]">
               <button
                 onClick={() => setConfirmModal(null)}
                 disabled={saving}
-                className="px-3 py-2 text-xs rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors disabled:opacity-40"
+                className="px-3 py-2 text-xs rounded-lg border border-[var(--border-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors disabled:opacity-40"
               >
                 {t("common.cancel")}
               </button>

@@ -50,7 +50,7 @@ export function RefreshOverlay({ visible, onComplete }: RefreshOverlayProps) {
     <AnimatePresence>
       {visible && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -93,14 +93,14 @@ export function RefreshOverlay({ visible, onComplete }: RefreshOverlayProps) {
             </div>
 
             {/* Text */}
-            <p className="text-sm text-zinc-300 font-medium">
+            <p className="text-sm text-[var(--text-primary)] font-medium">
               {phase === "loading"
                 ? t('refresh.loading')
                 : t('refresh.done')}
             </p>
 
             {/* Progress bar */}
-            <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
               <motion.div
                 className="h-full bg-emerald-500 rounded-full"
                 style={{ width: `${progress * 100}%` }}
@@ -109,7 +109,7 @@ export function RefreshOverlay({ visible, onComplete }: RefreshOverlayProps) {
             </div>
 
             {/* Percentage */}
-            <p className="text-[11px] text-zinc-500 font-mono tabular-nums">
+            <p className="text-[11px] text-[var(--text-muted)] font-mono tabular-nums">
               {Math.round(progress * 100)}%
             </p>
           </motion.div>

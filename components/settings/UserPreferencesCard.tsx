@@ -770,8 +770,8 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
 
   if (loading) {
     return (
-      <div className="bg-paper border border-border rounded-xl p-6 flex items-center justify-center min-h-[200px]">
-        <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+      <div className="glass-1 rounded-xl p-6 flex items-center justify-center min-h-[200px]">
+        <Loader2 className="w-5 h-5 animate-spin text-[var(--text-muted)]" />
       </div>
     );
   }
@@ -786,8 +786,8 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
 
   return (
     <>
-    <div className="bg-paper border border-border rounded-xl overflow-hidden">
-      <div className="px-6 py-5 border-b border-border">
+    <div className="glass-1 rounded-xl overflow-hidden">
+      <div className="px-6 py-5 border-b border-[var(--border-subtle)]">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className={clsx("p-2 rounded-lg", view === "platforms" ? "bg-cyan-500/10" : "bg-amber-500/10")}>
@@ -798,10 +798,10 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
               )}
             </div>
             <div>
-              <h2 className="text-base font-bold text-zinc-100">
+              <h2 className="text-base font-bold text-[var(--text-primary)]">
                 {view === "topics" ? t("prefs.title.topics") : view === "platforms" ? t("prefs.title.platforms") : t("prefs.title.all")}
               </h2>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
                 {view === "topics"
                   ? t("prefs.desc.topics")
                   : view === "platforms"
@@ -825,18 +825,18 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
       <div className="p-6 space-y-8">
         {showTopics && (
           <div>
-            <label className="text-sm font-medium text-zinc-300 mb-3 block">{t("prefs.interestedTopics")}</label>
+            <label className="text-sm font-medium text-[var(--text-primary)] mb-3 block">{t("prefs.interestedTopics")}</label>
             {preferences.topics.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {preferences.topics.map((topic) => (
                   <span
                     key={topic}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-zinc-800 text-zinc-300 rounded-full border border-zinc-700"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[var(--bg-elevated)] text-[var(--text-primary)] rounded-full border border-[var(--border-subtle)]"
                   >
                     {topic}
                     <button
                       onClick={() => handleRemoveTopic(topic)}
-                      className="text-zinc-500 hover:text-zinc-200 transition-colors"
+                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -857,12 +857,12 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                   }
                 }}
                 placeholder={t("prefs.topicPlaceholder")}
-                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                className="flex-1 bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] transition-colors"
               />
               <button
                 onClick={handleAddTopic}
                 disabled={!topicInput.trim()}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg border border-zinc-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] rounded-lg border border-[var(--border-subtle)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Plus className="w-3.5 h-3.5" />
                 {t("common.add")}
@@ -870,14 +870,14 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
             </div>
 
             {preferences.topics.length === 0 && (
-              <p className="text-[11px] text-zinc-600 mt-2 flex items-center gap-1.5">
+              <p className="text-[11px] text-[var(--text-muted)] mt-2 flex items-center gap-1.5">
                 <Info className="w-3 h-3" />
                 {t("prefs.topicHint")}
               </p>
             )}
 
-            <div className="mt-5 pt-4 border-t border-zinc-800">
-              <label className="text-sm font-medium text-zinc-300 mb-2 block">
+            <div className="mt-5 pt-4 border-t border-[var(--border-subtle)]">
+              <label className="text-sm font-medium text-[var(--text-primary)] mb-2 block">
                 {t("prefs.fetchInterval")}
               </label>
               <div className="flex items-center gap-2">
@@ -889,13 +889,13 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                     const v = parseInt(event.target.value, 10);
                     if (!Number.isNaN(v) && v >= 1) setFetchIntervalHours(v);
                   }}
-                  className="w-24 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-zinc-500 transition-colors"
+                  className="w-24 bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-accent)] transition-colors"
                 />
-                <span className="text-sm text-zinc-400">
+                <span className="text-sm text-[var(--text-secondary)]">
                   {t("prefs.fetchIntervalUnit")}
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-600 mt-1.5 flex items-center gap-1.5">
+              <p className="text-[11px] text-[var(--text-muted)] mt-1.5 flex items-center gap-1.5">
                 <Info className="w-3 h-3" />
                 {t("prefs.fetchIntervalHint")}
               </p>
@@ -908,10 +908,10 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
             <div className="space-y-3">
               {autoPlatforms.map((platform) => {
                 const colors = colorMap[platform.color] || {
-                  bg: "bg-zinc-800",
-                  border: "border-zinc-700",
-                  text: "text-zinc-300",
-                  dot: "bg-zinc-400",
+                  bg: "bg-[var(--bg-elevated)]",
+                  border: "border-[var(--border-subtle)]",
+                  text: "text-[var(--text-primary)]",
+                  dot: "bg-[var(--bg-elevated)]",
                 };
                 const config = preferences.platforms[platform.key] || defaultConfig();
                 const isAvailable = available[platform.key] ?? platform.available;
@@ -923,7 +923,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                     key={platform.key}
                     className={clsx(
                       "rounded-lg border p-4 transition-colors",
-                      isAvailable ? `${colors.bg} ${colors.border}` : "bg-zinc-900/50 border-zinc-800"
+                      isAvailable ? `${colors.bg} ${colors.border}` : "bg-[var(--bg-glass)] border-[var(--border-subtle)]"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -931,9 +931,9 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                       <span className="text-base mt-0.5">{platform.icon}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2.5">
-                          <span className="text-sm font-medium text-zinc-200">{platform.label}</span>
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{platform.label}</span>
                           {!isAvailable ? (
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700">
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
                               {t("prefs.credentialsNotConfigured")}
                             </span>
                           ) : (
@@ -945,7 +945,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                               )}
                             >
                               <span
-                                className={clsx("w-1.5 h-1.5 rounded-full", platformEnabled ? colors.dot : "bg-zinc-500")}
+                                className={clsx("w-1.5 h-1.5 rounded-full", platformEnabled ? colors.dot : "bg-[var(--bg-elevated)]")}
                               />
                               {platformEnabled ? t("common.active") : t("common.paused")}
                             </span>
@@ -961,7 +961,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                             className={clsx(
                               "p-1.5 rounded-md transition-colors disabled:opacity-40",
                               platformEnabled
-                                ? "text-zinc-500 hover:bg-zinc-800"
+                                ? "text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
                                 : "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                             )}
                             title={platformEnabled ? t("common.enabled") : t("common.start")}
@@ -979,7 +979,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                               "p-1.5 rounded-md transition-colors disabled:opacity-40",
                               platformEnabled
                                 ? "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                                : "text-zinc-500 hover:bg-zinc-800"
+                                : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
                             )}
                             title={platformEnabled ? t("common.pause") : t("common.paused")}
                           >
@@ -1013,7 +1013,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
 
                     {isAvailable && (
                       <div className="mt-3 pl-7">
-                        <label className="text-[11px] text-zinc-500 font-medium mb-2 block uppercase tracking-wider">
+                        <label className="text-[11px] text-[var(--text-muted)] font-medium mb-2 block uppercase tracking-wider">
                           {platform.sourceLabel}
                         </label>
 
@@ -1058,12 +1058,12 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                               }
                             }}
                             placeholder={platform.sourcePlaceholder}
-                            className="flex-1 bg-black/30 border border-zinc-700/50 rounded-md px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                            className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-md px-2.5 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] transition-colors"
                           />
                           <button
                             onClick={() => handleAddAutoSource(platform.key)}
                             disabled={!(sourceInputs[platform.key] || "").trim()}
-                            className="px-2 py-1.5 text-[11px] font-medium bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="px-2 py-1.5 text-[11px] font-medium bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -1074,7 +1074,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                 );
               })}
               {sourceLoading && (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 flex items-center gap-2 text-xs text-zinc-500">
+                <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-4 py-3 flex items-center gap-2 text-xs text-[var(--text-muted)]">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   {t("prefs.loadingExplicitSources")}
                 </div>
@@ -1088,10 +1088,10 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                 signalSources.map((source) => {
                   const platform = platformCatalog.find((item) => item.key === source.platform) || null;
                   const colors = colorMap[platform?.color || "violet"] || {
-                    bg: "bg-zinc-800",
-                    border: "border-zinc-700",
-                    text: "text-zinc-300",
-                    dot: "bg-zinc-400",
+                    bg: "bg-[var(--bg-elevated)]",
+                    border: "border-[var(--border-subtle)]",
+                    text: "text-[var(--text-primary)]",
+                    dot: "bg-[var(--bg-elevated)]",
                   };
                   const working = workingSourceIds.has(source.id);
                   const sourceKeywords = Array.isArray(source.keywords) ? source.keywords : [];
@@ -1105,8 +1105,8 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2.5">
                             <span className="text-base">{platform?.icon || "🌐"}</span>
-                            <span className="text-sm font-medium text-zinc-200">{source.label}</span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-900/60 text-zinc-400 border border-zinc-700">
+                            <span className="text-sm font-medium text-[var(--text-primary)]">{source.label}</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--bg-glass)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                               {t("prefs.explicitSource")}
                             </span>
                             <span
@@ -1114,7 +1114,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                                 "text-[10px] px-1.5 py-0.5 rounded border",
                                 source.active
                                   ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/10"
-                                  : "text-zinc-500 border-zinc-700 bg-zinc-800"
+                                  : "text-[var(--text-muted)] border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                               )}
                             >
                               {source.active ? t("common.active") : t("common.paused")}
@@ -1129,7 +1129,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                             className={clsx(
                               "p-1.5 rounded-md transition-colors disabled:opacity-40",
                               source.active
-                                ? "text-zinc-500 hover:bg-zinc-800"
+                                ? "text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
                                 : "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                             )}
                             title={source.active ? t("common.enabled") : t("common.start")}
@@ -1147,7 +1147,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                               "p-1.5 rounded-md transition-colors disabled:opacity-40",
                               source.active
                                 ? "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                                : "text-zinc-500 hover:bg-zinc-800"
+                                : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
                             )}
                             title={source.active ? t("common.pause") : t("common.paused")}
                           >
@@ -1169,8 +1169,8 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                       </div>
 
                       <div className="mt-3 pl-7 space-y-2">
-                        <p className="text-[11px] text-zinc-500 break-all">{source.identifier}</p>
-                        <label className="text-[11px] text-zinc-500 font-medium block uppercase tracking-wider">
+                        <p className="text-[11px] text-[var(--text-muted)] break-all">{source.identifier}</p>
+                        <label className="text-[11px] text-[var(--text-muted)] font-medium block uppercase tracking-wider">
                           {t("prefs.searchKeywordsOptional")}
                         </label>
                         {sourceKeywords.length > 0 && (
@@ -1214,12 +1214,12 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                               }
                             }}
                             placeholder="e.g. AI coding, LLM tools, developer productivity"
-                            className="flex-1 bg-black/30 border border-zinc-700/50 rounded-md px-2.5 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors"
+                            className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-md px-2.5 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] transition-colors"
                           />
                           <button
                             onClick={() => handleAddSourceKeyword(source)}
                             disabled={working || !(sourceKeywordInputs[source.id] || "").trim()}
-                            className="px-2 py-1.5 text-[11px] font-medium bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="px-2 py-1.5 text-[11px] font-medium bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -1234,33 +1234,33 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
 
         {newSourceModalOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             onClick={(event) => {
               if (event.target === event.currentTarget) {
                 setNewSourceModalOpen(false);
               }
             }}
           >
-            <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-zinc-700/50 bg-zinc-900 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+            <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] shadow-2xl">
+              <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-5 py-4">
                 <div className="flex items-center gap-2">
                   <Link2 className="w-4 h-4 text-cyan-400" />
-                  <h3 className="text-sm font-semibold text-zinc-200">{t("prefs.addNewSource")}</h3>
-                  <span className="text-[10px] text-zinc-500 font-mono">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">{t("prefs.addNewSource")}</h3>
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono">
                     {t("prefs.explicitSourceCount", { count: signalSources.length })}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setNewSourceModalOpen(false)}
-                  className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+                  className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                <p className="text-[11px] text-zinc-500">
+                <p className="text-[11px] text-[var(--text-muted)]">
                   {t("prefs.sourceDefaultHint")}
                 </p>
 
@@ -1272,7 +1272,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                       handleDraftSourceFieldChange({ platformName: event.target.value })
                     }
                     placeholder={t("prefs.platformNameRequired")}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+                    className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]"
                   />
                   <input
                     type="text"
@@ -1281,19 +1281,19 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                       handleDraftSourceFieldChange({ url: event.target.value })
                     }
                     placeholder={t("prefs.urlRequired")}
-                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+                    className="bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)]"
                   />
                   <input
                     type="text"
                     value={generatedIdentifier}
                     readOnly
                     placeholder="site:example.com"
-                    className="md:col-span-2 bg-zinc-900/70 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-400 placeholder:text-zinc-600"
+                    className="md:col-span-2 bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)]"
                   />
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 text-xs text-zinc-400">
+                  <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                     <input
                       type="checkbox"
                       checked={draftSource.active}
@@ -1312,7 +1312,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                         !draftSource.platformName.trim() ||
                         !draftSource.url.trim()
                       }
-                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-zinc-800 text-zinc-200 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors disabled:opacity-40"
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg border border-[var(--border-subtle)] transition-colors disabled:opacity-40"
                     >
                       {sourceTestStatus === "testing" ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1343,7 +1343,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                       sourceTestStatus === "success"
                         ? "text-emerald-400"
                         : sourceTestStatus === "testing"
-                        ? "text-zinc-400"
+                        ? "text-[var(--text-secondary)]"
                         : sourceTestStatus === "empty"
                         ? "text-amber-400"
                         : "text-red-400"
@@ -1355,29 +1355,29 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                 {sourceError && <p className="text-xs text-red-400">{sourceError}</p>}
 
                 {showCredentialModule && (
-                  <div className="border-t border-zinc-800 pt-4">
+                  <div className="border-t border-[var(--border-subtle)] pt-4">
                     <div className="flex items-center gap-2 mb-3">
                       <KeyRound className="w-4 h-4 text-emerald-400" />
-                      <label className="text-sm font-medium text-zinc-300">{t("prefs.tokenApiKeyEntry")}</label>
+                      <label className="text-sm font-medium text-[var(--text-primary)]">{t("prefs.tokenApiKeyEntry")}</label>
                     </div>
 
                     {socialVars.length === 0 ? (
-                      <p className="text-xs text-zinc-600">{t("prefs.noCredentials")}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{t("prefs.noCredentials")}</p>
                     ) : (
                       <div className="space-y-3">
                         {socialVars.map((envVar) => (
                           <div key={envVar.key} className="space-y-1">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-zinc-300">{envVar.label}</span>
-                                <span className="text-[10px] font-mono text-zinc-600">{envVar.key}</span>
+                                <span className="text-xs text-[var(--text-primary)]">{envVar.label}</span>
+                                <span className="text-[10px] font-mono text-[var(--text-muted)]">{envVar.key}</span>
                               </div>
                               <span
                                 className={clsx(
                                   "text-[10px] font-mono px-2 py-0.5 rounded-full border",
                                   envVar.configured
                                     ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/10"
-                                    : "text-zinc-500 border-zinc-700 bg-zinc-800"
+                                    : "text-[var(--text-muted)] border-[var(--border-subtle)] bg-[var(--bg-elevated)]"
                                 )}
                               >
                                 {envVar.configured ? t("prefs.configured", { value: envVar.maskedValue }) : t("prefs.notConfigured")}
@@ -1398,7 +1398,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                                   }))
                                 }
                                 placeholder={t("prefs.credentialPlaceholder")}
-                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors font-mono"
+                                className="w-full bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] transition-colors font-mono"
                               />
                               {envVar.isSecret && (
                                 <button
@@ -1409,7 +1409,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                                       [envVar.key]: !prev[envVar.key],
                                     }))
                                   }
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                                 >
                                   {credentialVisibility[envVar.key] ? (
                                     <EyeOff className="w-3.5 h-3.5" />
@@ -1432,7 +1432,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                                 ? "bg-emerald-500/20 text-emerald-400"
                                 : credentialStatus === "error"
                                 ? "bg-red-500/20 text-red-400"
-                                : "bg-zinc-100 text-zinc-900 hover:bg-white"
+                                : "bg-white text-black hover:bg-white/90"
                             )}
                           >
                             {credentialStatus === "saving" && (
@@ -1465,7 +1465,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
         )}
 
         <div className="flex items-center justify-between pt-2">
-          <div className="text-[11px] text-zinc-600">
+          <div className="text-[11px] text-[var(--text-muted)]">
             {preferences.updatedAt && (
               <>
                 {t("prefs.lastUpdated")}
@@ -1483,7 +1483,7 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
                   ? "bg-emerald-500/20 text-emerald-400"
                   : saveStatus === "error"
                   ? "bg-red-500/20 text-red-400"
-                  : "bg-zinc-100 text-zinc-900 hover:bg-white"
+                  : "bg-white text-black hover:bg-white/90"
               )}
             >
               {saveStatus === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -1504,17 +1504,17 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
     </div>
     {deleteTarget && (
       <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl">
-          <div className="px-5 py-4 border-b border-zinc-800">
-            <h3 className="text-sm font-semibold text-zinc-100">{t("prefs.deleteConfirmTitle")}</h3>
-            <p className="text-xs text-zinc-400 mt-1">
+        <div className="w-full max-w-md rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-glass)] shadow-2xl">
+          <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">{t("prefs.deleteConfirmTitle")}</h3>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
               {deleteTarget.kind === "explicit-source"
                 ? t("prefs.deleteSourceConfirm", { name: deleteTarget.source.label })
                 : t("prefs.deletePlatformConfirm", { name: deleteTarget.platformLabel })}
             </p>
           </div>
           <div className="px-5 py-4 space-y-3">
-            <label className="flex items-start gap-2 text-xs text-zinc-300">
+            <label className="flex items-start gap-2 text-xs text-[var(--text-primary)]">
               <input
                 type="checkbox"
                 checked={deleteConfirmChecked}
@@ -1524,20 +1524,20 @@ export function UserPreferencesCard({ view = "all" }: UserPreferencesCardProps) 
               {t("prefs.deleteIrreversible")}
             </label>
             <div>
-              <p className="text-[11px] text-zinc-500 mb-1.5">{t("prefs.typeDeleteToContinue")}</p>
+              <p className="text-[11px] text-[var(--text-muted)] mb-1.5">{t("prefs.typeDeleteToContinue")}</p>
               <input
                 type="text"
                 value={deleteConfirmInput}
                 onChange={(event) => setDeleteConfirmInput(event.target.value)}
                 placeholder="DELETE"
-                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-red-500/50"
               />
             </div>
           </div>
-          <div className="px-5 py-4 border-t border-zinc-800 flex items-center justify-end gap-2">
+          <div className="px-5 py-4 border-t border-[var(--border-subtle)] flex items-center justify-end gap-2">
             <button
               onClick={closeDeleteModal}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-primary)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)]"
             >
               {t("common.cancel")}
             </button>

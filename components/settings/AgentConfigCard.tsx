@@ -60,13 +60,13 @@ export function AgentConfigCard({ agent, localOverride, onChange, onSave, onAddS
       <div
         onClick={() => setModalOpen(true)}
         className={clsx(
-          "group relative rounded-xl bg-zinc-900/80 border border-zinc-800/60 overflow-hidden cursor-pointer",
-          "hover:border-zinc-600/80 hover:bg-zinc-900 transition-all duration-200",
+          "group relative glass-1 rounded-xl overflow-hidden cursor-pointer",
+          "hover:border-[var(--border-default)] transition-all duration-200",
           "flex flex-col"
         )}
       >
         {/* Colored bottom accent */}
-        <div className={clsx("absolute bottom-0 left-0 right-0 h-[3px]", uiMeta?.color ?? "bg-zinc-600")} />
+        <div className={clsx("absolute bottom-0 left-0 right-0 h-[3px]", uiMeta?.color ?? "bg-[var(--bg-elevated)]")} />
 
         <div className="p-5 flex flex-col flex-1">
           {/* Top: Avatar + Name + Settings icon */}
@@ -74,18 +74,18 @@ export function AgentConfigCard({ agent, localOverride, onChange, onSave, onAddS
             <div className="flex items-center gap-3">
               <div className={clsx(
                 "w-10 h-10 rounded-full flex items-center justify-center text-xl",
-                "bg-zinc-800/80 border border-zinc-700/50"
+                "bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
               )}>
                 {uiMeta?.emoji ?? "\u{1F916}"}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-zinc-100 leading-tight">{agent.displayName}</h3>
-                <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{agent.role}</p>
+                <h3 className="text-sm font-bold text-[var(--text-primary)] leading-tight">{agent.displayName}</h3>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-1">{agent.role}</p>
               </div>
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); setModalOpen(true); }}
-              className="p-1 rounded-md text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-zinc-300 hover:bg-zinc-800 transition-all"
+              className="p-1 rounded-md text-[var(--text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-all"
             >
               <Settings2 className="w-4 h-4" />
             </button>
@@ -93,7 +93,7 @@ export function AgentConfigCard({ agent, localOverride, onChange, onSave, onAddS
 
           {/* Model */}
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-mono text-zinc-400">{currentModel}</span>
+            <span className="text-xs font-mono text-[var(--text-secondary)]">{currentModel}</span>
           </div>
 
           {/* Tags */}
@@ -111,22 +111,22 @@ export function AgentConfigCard({ agent, localOverride, onChange, onSave, onAddS
             )}
             {anyChanged && <Badge variant="warning">{t('common.modified')}</Badge>}
             {agent.skills.length > 0 && (
-              <span className="text-[10px] text-zinc-600 font-mono">
+              <span className="text-[10px] text-[var(--text-muted)] font-mono">
                 {agent.skills.length} skills
               </span>
             )}
           </div>
 
           {/* Prompt snippet */}
-          <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2 flex-1">
+          <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2 flex-1">
             {promptSnippet}{promptSnippet.length >= 60 ? "\u2026" : ""}
           </p>
 
           {/* Bottom status dots */}
           <div className="flex items-center gap-1.5 mt-4">
-            <span className={clsx("w-1.5 h-1.5 rounded-full", uiMeta?.color ?? "bg-zinc-600")} />
-            <span className={clsx("w-1.5 h-1.5 rounded-full opacity-60", uiMeta?.color ?? "bg-zinc-600")} />
-            <span className={clsx("w-1.5 h-1.5 rounded-full opacity-30", uiMeta?.color ?? "bg-zinc-600")} />
+            <span className={clsx("w-1.5 h-1.5 rounded-full", uiMeta?.color ?? "bg-[var(--bg-elevated)]")} />
+            <span className={clsx("w-1.5 h-1.5 rounded-full opacity-60", uiMeta?.color ?? "bg-[var(--bg-elevated)]")} />
+            <span className={clsx("w-1.5 h-1.5 rounded-full opacity-30", uiMeta?.color ?? "bg-[var(--bg-elevated)]")} />
           </div>
         </div>
       </div>

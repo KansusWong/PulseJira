@@ -27,13 +27,13 @@ export function AgentSoulPanel({
       {/* System Prompt */}
       <div className="flex-1 flex flex-col min-h-0">
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs font-mono text-zinc-500 uppercase">
+          <label className="text-xs font-mono text-[var(--text-muted)] uppercase">
             System Prompt {promptChanged && <span className="text-amber-400 ml-1">({t('common.modified')})</span>}
           </label>
           {promptChanged && (
             <button
               onClick={() => onReset("systemPrompt")}
-              className="text-xs text-zinc-600 hover:text-zinc-300 flex items-center gap-1"
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-1"
             >
               <RotateCcw className="w-3 h-3" /> {t('common.reset')}
             </button>
@@ -42,7 +42,7 @@ export function AgentSoulPanel({
         <textarea
           value={currentPrompt}
           onChange={(e) => onChange(agent.id, { systemPrompt: e.target.value })}
-          className="flex-1 min-h-[400px] w-full bg-black/50 border border-zinc-700/50 rounded-lg p-3 text-xs font-mono text-zinc-300 focus:outline-none focus:border-blue-500 transition-colors resize-y leading-relaxed"
+          className="flex-1 min-h-[400px] w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg p-3 text-xs font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-accent)] transition-colors resize-y leading-relaxed"
         />
       </div>
     </div>

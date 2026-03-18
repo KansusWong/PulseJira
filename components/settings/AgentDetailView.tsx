@@ -110,24 +110,24 @@ export function AgentDetailView({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-[1400px] h-[min(90vh,900px)] bg-zinc-900 border border-zinc-700/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full max-w-[1400px] h-[min(90vh,900px)] bg-[var(--bg-glass)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)] shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{uiMeta?.emoji ?? "\u{1F916}"}</span>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-zinc-100">{agent.displayName}</h2>
+                <h2 className="text-lg font-bold text-[var(--text-primary)]">{agent.displayName}</h2>
                 {agent.createdBy === 'subagent' && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30">
                     子Agent
                   </span>
                 )}
               </div>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-[var(--text-muted)]">
                 {agent.role}
                 {agent.createdBy && <span className="ml-1 text-violet-500/60">by {agent.createdBy}</span>}
                 {agent.projectId && <span className="ml-1 text-cyan-500/60">project: {agent.projectId.slice(0, 8)}</span>}
@@ -144,7 +144,7 @@ export function AgentDetailView({
                   if (ok) onClose();
                 }}
                 disabled={deleting}
-                className="p-1.5 rounded-lg hover:bg-red-900/40 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-40"
+                className="p-1.5 rounded-lg hover:bg-red-900/40 text-[var(--text-muted)] hover:text-red-400 transition-colors disabled:opacity-40"
                 title={t('common.delete')}
               >
                 {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
@@ -152,7 +152,7 @@ export function AgentDetailView({
             )}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -162,7 +162,7 @@ export function AgentDetailView({
         {/* Three-column body */}
         <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
           {/* Left: Identity + Model */}
-          <div className="w-full lg:w-[250px] shrink-0 border-b lg:border-b-0 lg:border-r border-zinc-800 overflow-hidden">
+          <div className="w-full lg:w-[250px] shrink-0 border-b lg:border-b-0 lg:border-r border-[var(--border-subtle)] overflow-hidden">
             <AgentIdentityPanel
               agent={agent}
               localOverride={localOverride}
@@ -175,7 +175,7 @@ export function AgentDetailView({
           </div>
 
           {/* Center: System Prompt */}
-          <div className="flex-1 min-w-0 border-b lg:border-b-0 lg:border-r border-zinc-800 overflow-hidden">
+          <div className="flex-1 min-w-0 border-b lg:border-b-0 lg:border-r border-[var(--border-subtle)] overflow-hidden">
             <AgentSoulPanel
               agent={agent}
               localOverride={localOverride}

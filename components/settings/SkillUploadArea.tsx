@@ -114,7 +114,7 @@ export function SkillUploadArea({ onUploaded }: SkillUploadAreaProps) {
   };
 
   return (
-    <div className="rounded-lg border border-zinc-800/80 bg-black/20 p-3 space-y-3">
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 space-y-3">
       {/* Tab toggle */}
       <div className="flex items-center gap-1">
         <button
@@ -122,8 +122,8 @@ export function SkillUploadArea({ onUploaded }: SkillUploadAreaProps) {
           className={clsx(
             "px-2.5 py-1 rounded text-[11px] font-semibold transition-colors",
             tab === "file"
-              ? "bg-zinc-700 text-zinc-200"
-              : "text-zinc-500 hover:text-zinc-300",
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
           )}
         >
           {t('agent.uploadFile')}
@@ -133,8 +133,8 @@ export function SkillUploadArea({ onUploaded }: SkillUploadAreaProps) {
           className={clsx(
             "px-2.5 py-1 rounded text-[11px] font-semibold transition-colors",
             tab === "paste"
-              ? "bg-zinc-700 text-zinc-200"
-              : "text-zinc-500 hover:text-zinc-300",
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
           )}
         >
           {t('agent.pasteContent')}
@@ -151,15 +151,15 @@ export function SkillUploadArea({ onUploaded }: SkillUploadAreaProps) {
             "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed py-6 cursor-pointer transition-colors",
             dragging
               ? "border-cyan-500/60 bg-cyan-500/5"
-              : "border-zinc-700/60 hover:border-zinc-600",
+              : "border-[var(--border-subtle)] hover:border-[var(--border-default)]",
           )}
         >
           {status === "uploading" ? (
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+            <Loader2 className="w-6 h-6 animate-spin text-[var(--text-muted)]" />
           ) : (
-            <Upload className="w-6 h-6 text-zinc-600" />
+            <Upload className="w-6 h-6 text-[var(--text-muted)]" />
           )}
-          <p className="text-xs text-zinc-500">.md / .zip</p>
+          <p className="text-xs text-[var(--text-muted)]">.md / .zip</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -174,13 +174,13 @@ export function SkillUploadArea({ onUploaded }: SkillUploadAreaProps) {
             value={pasteSkillId}
             onChange={(e) => setPasteSkillId(e.target.value)}
             placeholder="skill-id"
-            className="w-full bg-black/50 border border-zinc-700/60 rounded-lg px-2.5 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
+            className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] font-mono"
           />
           <textarea
             value={pasteContent}
             onChange={(e) => setPasteContent(e.target.value)}
             placeholder="Paste SKILL.md content..."
-            className="w-full h-32 bg-black/50 border border-zinc-700/60 rounded-lg px-2.5 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono resize-y leading-relaxed"
+            className="w-full h-32 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-accent)] font-mono resize-y leading-relaxed"
           />
           <button
             onClick={handlePasteSubmit}
