@@ -21,7 +21,7 @@ export default function FeishuProvider(): OAuthConfig<FeishuProfile> {
     },
     token: {
       url: 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token',
-      async request({ params, provider }) {
+      async request({ params, provider }: { params: any; provider: any }) {
         const appTokenRes = await fetch(
           'https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal',
           {
@@ -55,7 +55,7 @@ export default function FeishuProvider(): OAuthConfig<FeishuProfile> {
     },
     userinfo: {
       url: 'https://open.feishu.cn/open-apis/authen/v1/user_info',
-      async request({ tokens }) {
+      async request({ tokens }: { tokens: any }) {
         const res = await fetch(
           'https://open.feishu.cn/open-apis/authen/v1/user_info',
           { headers: { Authorization: `Bearer ${tokens.access_token}` } },

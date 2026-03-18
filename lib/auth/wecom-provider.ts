@@ -24,7 +24,7 @@ export default function WeComProvider(): OAuthConfig<WeComProfile> {
     },
     token: {
       url: 'https://qyapi.weixin.qq.com/cgi-bin/gettoken',
-      async request({ params, provider }) {
+      async request({ params, provider }: { params: any; provider: any }) {
         const tokenRes = await fetch(
           `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${provider.clientId}&corpsecret=${provider.clientSecret}`,
         );
@@ -44,7 +44,7 @@ export default function WeComProvider(): OAuthConfig<WeComProfile> {
       },
     },
     userinfo: {
-      async request({ tokens }) {
+      async request({ tokens }: { tokens: any }) {
         const res = await fetch(
           `https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token=${tokens.access_token}&userid=${(tokens as any).userId}`,
         );
