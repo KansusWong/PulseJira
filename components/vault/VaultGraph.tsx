@@ -15,6 +15,7 @@ import {
   Target,
   Bot,
 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 // Dynamic import — react-force-graph-2d uses Canvas (browser-only)
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
@@ -304,10 +305,12 @@ function drawNodeIcon(ctx: CanvasRenderingContext2D, x: number, y: number, r: nu
 interface ZoomTransform { k: number; x: number; y: number }
 
 export function VaultGraph({ data }: { data: GraphData }) {
+  const { t, locale } = useTranslation();
   const [selectedNode, setSelectedNode] = useState<FGNode | null>(null);
   const [popupPos, setPopupPos] = useState<PopupPos | null>(null);
   const [hoveredNode, setHoveredNode] = useState<FGNode | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [filterType, setFilterType] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -440,9 +443,13 @@ export function VaultGraph({ data }: { data: GraphData }) {
   // Convert data — place nodes in a large initial circle so simulation
   // starts spread out rather than all at origin
   const graphData = useMemo(() => {
-    const count = data.nodes.length || 1;
+    const filteredNodes = filterType
+      ? data.nodes.filter(n => n.type === filterType)
+      : data.nodes;
+
+    const count = filteredNodes.length || 1;
     const initRadius = Math.max(count * 40, 400);
-    const nodes: FGNode[] = data.nodes.map((n, i) => {
+    const nodes: FGNode[] = filteredNodes.map((n, i) => {
       const angle = (2 * Math.PI * i) / count;
       return {
         id: n.id,
@@ -458,7 +465,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
       .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
       .map((e) => ({ source: e.source, target: e.target, type: e.type }));
     return { nodes, links };
-  }, [data]);
+  }, [data, filterType]);
 
   const nodeMap = useMemo(() => {
     const m = new Map<string, FGNode>();
@@ -859,15 +866,15 @@ export function VaultGraph({ data }: { data: GraphData }) {
         icon: User,
         content: (
           <div className="space-y-3">
-            <p className="text-sm text-zinc-300 leading-relaxed">
+            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
               {meta.description || "暂无介绍"}
             </p>
             {meta.domains && (
               <div>
-                <span className="text-[11px] text-zinc-500 block mb-1">擅长领域</span>
+                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-1.5">擅长领域</span>
                 <div className="flex flex-wrap gap-1.5">
                   {(meta.domains as string[]).map((d) => (
-                    <span key={d} className="text-[11px] px-2 py-0.5 rounded-full border border-zinc-700/50 text-zinc-400 bg-zinc-800/50">
+                    <span key={d} className="text-[11px] px-2 py-0.5 rounded-full glass-1">
                       {d}
                     </span>
                   ))}
@@ -876,14 +883,14 @@ export function VaultGraph({ data }: { data: GraphData }) {
             )}
             {meta.status && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-zinc-500">状态</span>
-                <span className="px-2 py-0.5 rounded text-zinc-300 bg-zinc-800">{meta.status}</span>
+                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">状态</span>
+                <span className="px-2 py-0.5 rounded-full glass-1">{meta.status}</span>
               </div>
             )}
             {meta.can_lead !== undefined && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-zinc-500">可主导任务</span>
-                <span className="text-zinc-300">{meta.can_lead ? "是" : "否"}</span>
+                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">可主导任务</span>
+                <span className="text-[var(--text-secondary)]">{meta.can_lead ? "是" : "否"}</span>
               </div>
             )}
           </div>
@@ -917,7 +924,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
           <div className="space-y-3">
             {meta.status && (
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-zinc-500">阶段</span>
+                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">阶段</span>
                 <span
                   className="text-[11px] px-2 py-0.5 rounded-full font-medium"
                   style={{ color, backgroundColor: color + "15" }}
@@ -928,16 +935,16 @@ export function VaultGraph({ data }: { data: GraphData }) {
             )}
             {meta.lead_mate && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-zinc-500">主导</span>
-                <span className="text-zinc-300">{meta.lead_mate}</span>
+                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">主导</span>
+                <span className="text-[var(--text-secondary)]">{meta.lead_mate}</span>
               </div>
             )}
             {meta.team_mates && (
               <div>
-                <span className="text-[11px] text-zinc-500 block mb-1">团队成员</span>
+                <span className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider block mb-1.5">团队成员</span>
                 <div className="flex flex-wrap gap-1.5">
                   {(meta.team_mates as string[]).map((m) => (
-                    <span key={m} className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-800/50 text-emerald-400 bg-emerald-900/20">
+                    <span key={m} className="text-[11px] px-2 py-0.5 rounded-full glass-1" style={{ color: '#34d399' }}>
                       {m}
                     </span>
                   ))}
@@ -945,9 +952,9 @@ export function VaultGraph({ data }: { data: GraphData }) {
               </div>
             )}
             {meta.token_budget != null && (
-              <div className="text-xs text-zinc-500">
+              <div className="text-xs text-[var(--text-muted)]">
                 Token: {meta.tokens_used?.toLocaleString()} / {meta.token_budget?.toLocaleString()}
-                <div className="mt-1 w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="mt-1 w-full h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -968,7 +975,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
         icon: TYPE_ICONS[type] || FileText,
         content: (
           <div className="space-y-3">
-            <p className="text-sm text-zinc-300 leading-relaxed">
+            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
               {meta.description || "暂无描述"}
             </p>
             {meta.tags && meta.tags.length > 0 && (
@@ -976,7 +983,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
                 {(meta.tags as string[]).map((tag) => (
                   <span
                     key={tag}
-                    className="text-[11px] px-2 py-0.5 rounded-full border border-zinc-700/50 text-zinc-400 bg-zinc-800/50"
+                    className="text-[11px] px-2 py-0.5 rounded-full glass-1"
                   >
                     {tag}
                   </span>
@@ -984,13 +991,13 @@ export function VaultGraph({ data }: { data: GraphData }) {
               </div>
             )}
             {meta.reuse_count != null && meta.reuse_count > 0 && (
-              <div className="text-xs text-zinc-500">
-                被复用 <span className="text-zinc-300 font-medium">{meta.reuse_count}</span> 次
+              <div className="text-xs text-[var(--text-muted)]">
+                被复用 <span className="text-[var(--text-secondary)] font-medium">{meta.reuse_count}</span> 次
               </div>
             )}
             {meta.created_by_mate && (
-              <div className="text-xs text-zinc-500">
-                创建者 <span className="text-zinc-300">{meta.created_by_mate}</span>
+              <div className="text-xs text-[var(--text-muted)]">
+                创建者 <span className="text-[var(--text-secondary)]">{meta.created_by_mate}</span>
               </div>
             )}
           </div>
@@ -1022,7 +1029,36 @@ export function VaultGraph({ data }: { data: GraphData }) {
   }, [selectedNode, selectedEdges, nodeMap, navigateToNode]);
 
   return (
-    <div className="relative h-full bg-[#09090b]" ref={containerRef}>
+    <div className="relative h-full bg-[#050505]" ref={containerRef}>
+      {/* Ambient glow overlays */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute w-[800px] h-[800px] rounded-full"
+          style={{
+            top: '10%',
+            left: '15%',
+            background: 'radial-gradient(circle, rgba(245,158,11,0.06), transparent 70%)',
+          }}
+        />
+        <div
+          className="absolute w-[600px] h-[600px] rounded-full"
+          style={{
+            bottom: '20%',
+            right: '10%',
+            background: 'radial-gradient(circle, rgba(245,158,11,0.06), transparent 70%)',
+          }}
+        />
+        <div
+          className="absolute w-[700px] h-[700px] rounded-full"
+          style={{
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'radial-gradient(circle, rgba(245,158,11,0.06), transparent 70%)',
+          }}
+        />
+      </div>
+
       {/* Force Graph */}
       {dimensions.width > 0 && (
         <ForceGraph2D
@@ -1030,7 +1066,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
           graphData={graphData}
           width={dimensions.width}
           height={dimensions.height}
-          backgroundColor="#09090b"
+          backgroundColor="#050505"
           nodeCanvasObject={paintNode}
           nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
             const r = getNodeRadius(node as FGNode) + 4;
@@ -1059,36 +1095,52 @@ export function VaultGraph({ data }: { data: GraphData }) {
       )}
 
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 flex flex-wrap gap-2 bg-zinc-900/80 backdrop-blur-sm rounded-lg p-3 border border-zinc-800/50">
-        {Object.entries(TYPE_COLORS).map(([type, color]) => (
-          <div key={type} className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-            <span className="text-[11px] text-zinc-400">{TYPE_LABELS[type] || type}</span>
-          </div>
-        ))}
+      <div className="absolute bottom-4 left-4 flex flex-wrap gap-3 glass-2 rounded-xl p-3">
+        {Object.entries(TYPE_COLORS).map(([type, color]) => {
+          const Icon = TYPE_ICONS[type];
+          const isActive = filterType === type;
+          const labelDict = locale === 'zh' ? TYPE_LABELS_ZH : TYPE_LABELS;
+
+          return (
+            <button
+              key={type}
+              onClick={() => setFilterType(isActive ? null : type)}
+              className="flex items-center gap-1.5 transition-all hover:scale-105"
+            >
+              <span
+                className={`w-[6px] h-[6px] rounded-full transition-all ${isActive ? 'ring-2 ring-[#f59e0b] ring-offset-2 ring-offset-[#050505]' : ''}`}
+                style={{ backgroundColor: color }}
+              />
+              {Icon && <Icon className="w-3.5 h-3.5" style={{ color }} />}
+              <span className="text-[11px] text-[var(--text-secondary)]">{labelDict[type] || type}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Stats */}
-      <div className="absolute top-4 left-4 text-xs text-zinc-500 bg-zinc-900/60 backdrop-blur-sm rounded px-2 py-1">
-        {data.nodes.length} nodes &middot; {data.edges.length} edges
+      <div className="absolute top-4 left-4 glass-1 rounded-full px-3 py-1.5">
+        <span className="text-[12px] text-[var(--text-muted)]">
+          {filterType ? graphData.nodes.length : data.nodes.length} nodes &middot; {filterType ? graphData.links.length : data.edges.length} edges
+        </span>
       </div>
 
       {/* ---- Floating Popup Card ---- */}
       {selectedNode && popupPos && popupSections && (
         <div
           ref={popupRef}
-          className="absolute z-50 w-[420px] max-h-[70vh] overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/50 flex flex-col"
+          className="absolute z-50 w-[420px] max-h-[70vh] overflow-hidden glass-3 rounded-2xl shadow-lg flex flex-col"
           style={{ left: popupPos.x, top: popupPos.y }}
         >
           {/* Popup header */}
           <div
-            className="px-5 pt-4 pb-3 border-b border-zinc-800/50"
-            style={{ background: `linear-gradient(135deg, ${getColor(selectedNode.type)}08, transparent)` }}
+            className="px-5 pt-4 pb-3 border-b border-[var(--border-subtle)]"
+            style={{ background: `linear-gradient(135deg, ${getColor(selectedNode.type)}0f, transparent)` }}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-[40px] h-[40px] rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ backgroundColor: getColor(selectedNode.type) + "18" }}
                 >
                   {(() => {
@@ -1097,20 +1149,20 @@ export function VaultGraph({ data }: { data: GraphData }) {
                   })()}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-[15px] font-semibold text-zinc-100 leading-tight truncate">
+                  <h2 className="text-[14px] font-medium text-[var(--text-primary)] leading-tight truncate">
                     {selectedNode.label}
                   </h2>
                   <span
-                    className="text-[10px] font-medium uppercase tracking-widest mt-0.5 inline-block"
+                    className="text-[10px] font-medium uppercase tracking-wider mt-0.5 inline-block"
                     style={{ color: getColor(selectedNode.type) }}
                   >
-                    {TYPE_LABELS_ZH[selectedNode.type] || selectedNode.type}
+                    {(locale === 'zh' ? TYPE_LABELS_ZH : TYPE_LABELS)[selectedNode.type] || selectedNode.type}
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => { setSelectedNode(null); setPopupPos(null); }}
-                className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors flex-shrink-0"
+                className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors flex-shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1124,8 +1176,8 @@ export function VaultGraph({ data }: { data: GraphData }) {
               return (
                 <div key={i}>
                   <div className="flex items-center gap-2 mb-2.5">
-                    <SIcon className="w-3.5 h-3.5 text-zinc-500" />
-                    <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                    <SIcon className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    <h3 className="text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
                       {section.title}
                     </h3>
                   </div>
@@ -1161,24 +1213,24 @@ function EdgeButton({
   return (
     <button
       onClick={() => onClick(otherId)}
-      className="w-full flex items-center gap-2.5 text-xs py-2 px-3 rounded-lg hover:bg-zinc-800/60 transition-colors text-left group"
+      className="w-full flex items-center gap-2.5 text-xs py-2 px-3 rounded-lg glass-1 hover:bg-[var(--bg-elevated)] transition-colors text-left group"
     >
       <span
-        className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-1 ring-white/10"
+        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
         style={{ backgroundColor: otherColor }}
       />
       <div className="flex-1 min-w-0">
-        <span className="text-zinc-200 block truncate group-hover:text-zinc-100">
+        <span className="text-[var(--text-primary)] block truncate group-hover:text-[var(--text-primary)]">
           {other?.label || otherId}
         </span>
-        <span className="text-zinc-600 text-[10px]">
+        <span className="text-[var(--text-muted)] text-[10px]">
           {other ? TYPE_LABELS_ZH[other.type] || other.type : "unknown"}
         </span>
       </div>
-      <span className="text-zinc-500 flex-shrink-0 text-[10px] bg-zinc-800/80 px-2 py-0.5 rounded-full border border-zinc-700/30">
+      <span className="text-[var(--text-muted)] flex-shrink-0 text-[10px] glass-1 px-2 py-0.5 rounded-full">
         {isOutgoing ? "\u2192" : "\u2190"} {EDGE_LABELS[edge.type] || edge.type}
       </span>
-      <ExternalLink className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+      <ExternalLink className="w-3 h-3 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
     </button>
   );
 }
