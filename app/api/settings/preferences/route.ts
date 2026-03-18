@@ -13,10 +13,14 @@ import {
 } from '@/lib/services/preferences-store';
 import { listSignalPlatformsForClient } from '@/lib/services/signal-platform-registry';
 import { errorResponse } from '@/lib/utils/api-error';
+import { getAuthContext } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const preferences = await getPreferences();
+    const auth = getAuthContext();
+    const preferences = auth.userId && auth.orgId
+      ? await getPreferences(auth.userId, auth.orgId)
+      : await getPreferences();
     const availablePlatforms = getAvailablePlatforms();
     const platformCatalog = listSignalPlatformsForClient();
 
@@ -36,6 +40,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
+    const auth = getAuthContext();
     let body;
     try {
       body = await req.json();
@@ -51,7 +56,9 @@ export async function PUT(req: Request) {
     if (agentExecutionMode !== undefined) patch.agentExecutionMode = agentExecutionMode;
     if (trustLevel !== undefined) patch.trustLevel = trustLevel;
 
-    const updated = await setPreferences(patch);
+    const updated = auth.userId && auth.orgId
+      ? await setPreferences(patch, auth.userId, auth.orgId)
+      : await setPreferences(patch);
 
     return NextResponse.json({ success: true, data: updated });
   } catch (e: any) {

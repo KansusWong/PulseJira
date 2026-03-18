@@ -144,11 +144,64 @@ async function saveToDB(prefs: UserPreferences): Promise<void> {
   }
 }
 
+async function loadFromDBScoped(userId: string, orgId: string): Promise<UserPreferences> {
+  try {
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .select('preferences')
+      .eq('user_id', userId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (error || !data?.preferences) {
+      return { ...DEFAULT_PREFERENCES };
+    }
+
+    const raw = data.preferences as any;
+    return {
+      topics: Array.isArray(raw.topics) ? raw.topics : [],
+      platforms: raw.platforms || buildDefaultPlatformMap(),
+      agentExecutionMode: raw.agentExecutionMode || 'simple',
+      trustLevel: raw.trustLevel || 'standard',
+      updatedAt: raw.updatedAt || new Date().toISOString(),
+    };
+  } catch (err) {
+    console.error('[preferences-store] Failed to load scoped prefs:', err);
+    return { ...DEFAULT_PREFERENCES };
+  }
+}
+
+async function saveToDBScoped(userId: string, orgId: string, prefs: UserPreferences): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('user_preferences')
+      .upsert(
+        {
+          user_id: userId,
+          org_id: orgId,
+          preferences: prefs,
+          updated_at: prefs.updatedAt,
+        },
+        { onConflict: 'user_id,org_id' }
+      );
+    if (error) {
+      console.error('[preferences-store] Failed to save scoped prefs:', error.message);
+    }
+  } catch (err) {
+    console.error('[preferences-store] saveToDBScoped exception:', err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API (now async)
 // ---------------------------------------------------------------------------
 
-export async function getPreferences(): Promise<UserPreferences> {
+export async function getPreferences(userId?: string, orgId?: string): Promise<UserPreferences> {
+  // If userId/orgId provided, load per-user per-org prefs (no cache for now)
+  if (userId && orgId) {
+    return loadFromDBScoped(userId, orgId);
+  }
+  // Legacy path: global singleton
   if (cache) return { ...cache };
   if (!cachePromise) {
     cachePromise = loadFromDB().then(data => { cache = data; cachePromise = null; return data; });
@@ -157,8 +210,8 @@ export async function getPreferences(): Promise<UserPreferences> {
   return { ...result };
 }
 
-export async function setPreferences(patch: Partial<UserPreferences>): Promise<UserPreferences> {
-  const current = await getPreferences();
+export async function setPreferences(patch: Partial<UserPreferences>, userId?: string, orgId?: string): Promise<UserPreferences> {
+  const current = await getPreferences(userId, orgId);
 
   const nextPlatforms: Record<string, PlatformConfig> = {
     ...current.platforms,
@@ -177,8 +230,12 @@ export async function setPreferences(patch: Partial<UserPreferences>): Promise<U
     updatedAt: new Date().toISOString(),
   };
 
-  await saveToDB(updated);  // Write to DB first
-  cache = updated;          // Update cache only after DB succeeds
+  if (userId && orgId) {
+    await saveToDBScoped(userId, orgId, updated);
+  } else {
+    await saveToDB(updated);
+    cache = updated;
+  }
 
   return { ...updated };
 }

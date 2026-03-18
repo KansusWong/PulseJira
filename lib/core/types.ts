@@ -56,6 +56,14 @@ export interface AgentContext {
   }) => void;
   /** Called when the LLM starts a new ReAct thinking step. */
   onStepStart?: (stepNumber: number) => void;
+  /** Called when a ReAct step completes (LLM response received). */
+  onStepComplete?: (params: {
+    stepNumber: number;
+    model: string;
+    durationMs: number;
+    promptTokens?: number;
+    completionTokens?: number;
+  }) => void;
   /** Called at each ReAct step with current context window usage. */
   onContextUsage?: (usage: { estimated: number; max: number; ratio: number }) => void;
   /** Called between ReAct steps. Returns a user-injected message, or null. */
@@ -67,8 +75,6 @@ export interface AgentConfig {
   systemPrompt: string;
   tools?: import('./base-tool').BaseTool[];
   model?: string;
-  /** Fast model for intermediate tool-calling steps (e.g. 'glm-4-flash'). Falls back to model if unset. */
-  fastModel?: string;
   client?: OpenAI;
   maxLoops?: number;
   exitToolName?: string;
@@ -78,8 +84,34 @@ export interface AgentConfig {
   accountId?: string;
   /** Explicit pool account name (when client is provided externally). */
   accountName?: string;
-  /** Tags for pool-based account routing (e.g. ['red-team']). */
+  /** Tags for pool-based account routing (e.g. ['compression']). */
   poolTags?: string[];
+  /** Lazy-loaded prompt modules injected on-demand when triggered tools are first called. */
+  lazyModules?: LazyPromptModule[];
+  /** Tier 1 tool names — always included in LLM API calls. If unset, all tools are sent (backward compat). */
+  tier1Tools?: Set<string>;
+  /** Tier 2 tool groups — loaded on-demand via keyword or tool-call triggers. */
+  tier2Groups?: ToolTierGroup[];
+}
+
+/** A tool group that gets activated when trigger conditions are met. */
+export interface ToolTierGroup {
+  id: string;
+  tools: string[];
+  /** Regex tested against user message to activate this group. */
+  triggerKeywords: RegExp;
+  /** When any of these tools are called, activate this group. */
+  triggerTools: string[];
+}
+
+/** A prompt module that gets injected into the conversation when a trigger tool is first called. */
+export interface LazyPromptModule {
+  /** Unique module identifier (e.g. 'git', 'memory'). */
+  id: string;
+  /** Pre-loaded module content (markdown). */
+  content: string;
+  /** Tool names that trigger this module's injection. */
+  triggerTools: string[];
 }
 
 export type ToolExecutionResult =
@@ -274,6 +306,8 @@ export interface Conversation {
   title: string | null;
   status: 'active' | 'archived' | 'converted';
   project_id: string | null;
+  org_id?: string;
+  created_by?: string;
   complexity_assessment: ComplexityAssessment | null;
   execution_mode: ExecutionMode | null;
   clarification_round?: number;
@@ -391,6 +425,7 @@ export type ChatEventType =
   | 'tool_call_start'
   | 'tool_call_end'
   | 'step_start'
+  | 'step_complete'
   | 'context_usage'
   | 'mate_token'
   | 'error'
@@ -429,6 +464,10 @@ export interface StructuredAgentStep {
   resultPreview?: string;
   message: string;
   timestamp: number;
+  /** Model used for this step (populated on step_complete). */
+  model?: string;
+  /** LLM call duration in ms (populated on step_complete). */
+  durationMs?: number;
 }
 
 /** Agent status in a team. */

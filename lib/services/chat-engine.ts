@@ -28,7 +28,7 @@ import type { Workspace } from '@/lib/sandbox/types';
 import { getEnvironmentContext } from '@/lib/utils/environment';
 import { createRebuilDAgent, BLOCKED_SUBORDINATE_TOOLS } from '@/agents/rebuild';
 import { loadAgentConfig } from '@/lib/config/agent-config';
-import { estimateTokens } from '@/lib/core/token-budget';
+import { clearPlanModeState } from '@/lib/tools/plan-mode-state';
 import { loadSoul } from '@/agents/utils';
 import { CreateWorkspaceTool } from '@/lib/tools/create-workspace';
 import type {
@@ -40,42 +40,6 @@ import type {
   AttachmentMeta,
 } from '@/lib/core/types';
 
-// ---------------------------------------------------------------------------
-// History token budget — fill as many recent messages as the budget allows
-// ---------------------------------------------------------------------------
-
-const HISTORY_TOKEN_BUDGET = parseInt(process.env.HISTORY_TOKEN_BUDGET || '80000', 10);
-
-/**
- * Build conversation history string from messages, fitting within a token budget.
- * Works backwards from the most recent message so the latest context is always kept.
- */
-function buildHistoryContext(messages: ChatMessage[], tokenBudget: number = HISTORY_TOKEN_BUDGET): string {
-  if (!messages.length) return '';
-
-  const formatted: string[] = [];
-  let usedTokens = 0;
-  let includedCount = 0;
-
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    const line = `[${msg.role}]: ${msg.content}`;
-    const lineTokens = estimateTokens(line);
-
-    if (usedTokens + lineTokens > tokenBudget) break;
-
-    formatted.unshift(line);
-    usedTokens += lineTokens;
-    includedCount++;
-  }
-
-  // Let the LLM know earlier messages were omitted
-  if (includedCount < messages.length) {
-    formatted.unshift(`[system]: (${messages.length - includedCount} earlier messages omitted due to context budget)`);
-  }
-
-  return formatted.join('\n\n');
-}
 
 // ---------------------------------------------------------------------------
 // Agent instance cache — reuse per conversation (TTL 5 min, max 20 entries)
@@ -133,6 +97,10 @@ interface ChatContext {
   attachments?: AttachmentMeta[];
   /** User-selected thinking mode: true = primary model (GLM-5), false/undefined = fast model. */
   thinking?: boolean;
+  /** Explicit model override from user selection (e.g. 'claude-3-7-sonnet-latest'). */
+  model?: string;
+  orgId?: string;
+  userId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -281,10 +249,13 @@ export class ChatEngine {
     conversationId: string,
     message: string,
     attachments?: AttachmentMeta[],
-    options?: { thinking?: boolean },
+    options?: { thinking?: boolean; model?: string; orgId?: string; userId?: string },
   ): AsyncGenerator<ChatEvent> {
+    // 0. Reset stale plan-mode state from previous run (prevents "Already in plan mode" errors)
+    clearPlanModeState(conversationId);
+
     // 1. Load or create conversation
-    const conversation = await this.getOrCreateConversation(conversationId);
+    const conversation = await this.getOrCreateConversation(conversationId, options?.orgId);
 
     // 2. Save user message (with attachment metadata if present)
     const msgMeta = attachments?.length ? { attachments } : undefined;
@@ -308,6 +279,9 @@ export class ChatEngine {
       assessment: null,
       attachments,
       thinking: options?.thinking,
+      model: options?.model,
+      orgId: options?.orgId,
+      userId: options?.userId,
     };
 
     yield* this.handleUnified(context);
@@ -352,7 +326,9 @@ export class ChatEngine {
       // Read trust level for approval gate
       let trustLevel: 'auto' | 'standard' | 'collaborative' = 'standard';
       try {
-        const prefs = await getPreferences();
+        const prefs = context.userId && context.orgId
+          ? await getPreferences(context.userId, context.orgId)
+          : await getPreferences();
         trustLevel = prefs.trustLevel || 'standard';
       } catch { /* default standard */ }
 
@@ -463,11 +439,13 @@ export class ChatEngine {
         new CreateWorkspaceTool(conversationId, workspaceRef, onProjectCreated),
       ];
 
-      // Model routing: thinking=true → primary model, false → fast model (if configured)
+      // Model routing: explicit model > thinking toggle > env default
       const FAST_MODEL = process.env.AGENT_FAST_MODEL || '';
-      const effectiveModel = context.thinking
-        ? (configOverride.model || undefined)
-        : (FAST_MODEL || configOverride.model || undefined);
+      const effectiveModel = context.model
+        ? context.model
+        : context.thinking
+          ? (configOverride.model || undefined)
+          : (FAST_MODEL || configOverride.model || undefined);
 
       // Reuse cached agent for the same conversation + workspace + model, or create new
       const cachedEntry = getCachedAgent(conversationId, workspace?.localPath);
@@ -506,8 +484,6 @@ export class ChatEngine {
 
       // Build attachment context for agent
       const attachmentContext = ChatEngine.buildAttachmentContext(context.attachments, workspace?.localPath);
-
-      const historyContext = buildHistoryContext(context.messages);
 
       // Channel-based logger
       const channelLogger = async (msg: string) => {
@@ -549,6 +525,9 @@ export class ChatEngine {
       const onStepStart = (stepNumber: number) => {
         channel.push({ type: 'step_start', data: { step: stepNumber } });
       };
+      const onStepComplete = (params: { stepNumber: number; model: string; durationMs: number; promptTokens?: number; completionTokens?: number }) => {
+        channel.push({ type: 'step_complete', data: params });
+      };
       const onContextUsage = (usage: { estimated: number; max: number; ratio: number }) => {
         channel.push({ type: 'context_usage', data: usage });
       };
@@ -556,8 +535,8 @@ export class ChatEngine {
       // --- 6. Run agent in background (streaming mode) ---
       const envContext = `[Environment]\n${ChatEngine.getEnvironmentContext()}`;
       const userInput = attachmentContext
-        ? `${envContext}\n\n${historyContext}\n\n${attachmentContext}\n\n[user]: ${context.userMessage}`
-        : `${envContext}\n\n${historyContext}\n\n[user]: ${context.userMessage}`;
+        ? `${envContext}\n\n${attachmentContext}\n\n[user]: ${context.userMessage}`
+        : `${envContext}\n\n[user]: ${context.userMessage}`;
       const agentPromise = agent.runStreaming(
         userInput,
         {
@@ -571,6 +550,7 @@ export class ChatEngine {
           onToolCallStart,
           onToolCallEnd,
           onStepStart,
+          onStepComplete,
           onContextUsage,
           workspacePath: workspace?.localPath,
         },
@@ -1130,7 +1110,7 @@ Rules:
   // Database helpers
   // =========================================================================
 
-  async getOrCreateConversation(id?: string): Promise<Conversation> {
+  async getOrCreateConversation(id?: string, orgId?: string): Promise<Conversation> {
     if (id && supabaseConfigured) {
       const { data } = await supabase
         .from('conversations')
@@ -1144,6 +1124,7 @@ Rules:
     if (supabaseConfigured) {
       const insertPayload: Record<string, any> = { status: 'active' };
       if (id) insertPayload.id = id;
+      if (orgId) insertPayload.org_id = orgId;
       const { data, error } = await supabase
         .from('conversations')
         .upsert(insertPayload, { onConflict: 'id', ignoreDuplicates: true })
@@ -1168,6 +1149,7 @@ Rules:
       title: null,
       status: 'active',
       project_id: null,
+      org_id: orgId || undefined,
       complexity_assessment: null,
       execution_mode: null,
       clarification_round: 0,
