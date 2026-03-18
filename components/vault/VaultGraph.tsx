@@ -1,23 +1,28 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import clsx from "clsx";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
 import {
-  Network,
-  Bot,
-  Target,
+  X,
+  ExternalLink,
+  GitBranch,
+  User,
   FileText,
   Code,
   Wrench,
   Layers,
   Presentation,
-  ChevronDown,
-  ChevronRight,
-  ArrowRight,
+  Target,
+  Bot,
 } from "lucide-react";
 
+// Dynamic import — react-force-graph-2d uses Canvas (browser-only)
+const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
+  ssr: false,
+});
+
 // ---------------------------------------------------------------------------
-// Types (matches API response)
+// Types
 // ---------------------------------------------------------------------------
 
 interface GraphNode {
@@ -39,264 +44,1141 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
+interface FGNode {
+  id: string;
+  type: string;
+  label: string;
+  metadata?: Record<string, any>;
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+}
+
+interface FGLink {
+  source: string | FGNode;
+  target: string | FGNode;
+  type: string;
+}
+
+// Click position for popup placement
+interface PopupPos {
+  x: number;
+  y: number;
+}
+
 // ---------------------------------------------------------------------------
-// Node type config
+// Color / style config
 // ---------------------------------------------------------------------------
 
-const NODE_TYPE_CONFIG: Record<string, {
-  icon: typeof Network;
-  color: string;
-  bg: string;
-  label: string;
-}> = {
-  mate:    { icon: Bot,          color: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'Mates' },
-  mission: { icon: Target,       color: 'text-blue-400',    bg: 'bg-blue-400/10',    label: 'Missions' },
-  doc:     { icon: FileText,     color: 'text-amber-400',   bg: 'bg-amber-400/10',   label: 'Documents' },
-  code:    { icon: Code,         color: 'text-purple-400',  bg: 'bg-purple-400/10',  label: 'Code' },
-  skill:   { icon: Layers,       color: 'text-cyan-400',    bg: 'bg-cyan-400/10',    label: 'Skills' },
-  tool:    { icon: Wrench,       color: 'text-orange-400',  bg: 'bg-orange-400/10',  label: 'Tools' },
-  pptx:    { icon: Presentation, color: 'text-pink-400',    bg: 'bg-pink-400/10',    label: 'Presentations' },
-  epic:    { icon: Target,       color: 'text-indigo-400',  bg: 'bg-indigo-400/10',  label: 'Epics' },
-  task:    { icon: Target,       color: 'text-teal-400',    bg: 'bg-teal-400/10',    label: 'Tasks' },
+const TYPE_COLORS: Record<string, string> = {
+  mate:    "#34d399",
+  mission: "#60a5fa",
+  doc:     "#fbbf24",
+  code:    "#c084fc",
+  skill:   "#22d3ee",
+  tool:    "#fb923c",
+  pptx:    "#f472b6",
+  epic:    "#818cf8",
+  task:    "#2dd4bf",
 };
 
-const DEFAULT_CONFIG = { icon: FileText, color: 'text-zinc-400', bg: 'bg-zinc-400/10', label: 'Other' };
+const TYPE_LABELS: Record<string, string> = {
+  mate: "Mate",
+  mission: "Mission",
+  doc: "Document",
+  code: "Code",
+  skill: "Skill",
+  tool: "Tool",
+  pptx: "Presentation",
+  epic: "Epic",
+  task: "Task",
+};
 
-// ---------------------------------------------------------------------------
-// Edge type labels
-// ---------------------------------------------------------------------------
+const TYPE_LABELS_ZH: Record<string, string> = {
+  mate: "团队成员",
+  mission: "协作任务",
+  doc: "文档",
+  code: "代码产出",
+  skill: "技能",
+  tool: "工具",
+  pptx: "演示文稿",
+  epic: "Epic",
+  task: "任务",
+};
+
+const TYPE_ICONS: Record<string, typeof Bot> = {
+  mate: Bot,
+  mission: Target,
+  doc: FileText,
+  code: Code,
+  skill: Layers,
+  tool: Wrench,
+  pptx: Presentation,
+};
 
 const EDGE_LABELS: Record<string, string> = {
-  produced:      'produced',
-  depends_on:    'depends on',
-  reuses:        'reuses',
-  part_of:       'part of',
-  supersedes:    'supersedes',
-  participated:  'participated in',
-  led:           'led',
+  produced:     "产出",
+  depends_on:   "依赖",
+  reuses:       "复用",
+  part_of:      "归属",
+  supersedes:   "替代",
+  participated: "参与",
+  led:          "主导",
 };
+
+const DEFAULT_COLOR = "#71717a";
+
+function getColor(type: string) {
+  return TYPE_COLORS[type] || DEFAULT_COLOR;
+}
+
+const NODE_RADII: Record<string, number> = {
+  mate: 13,
+  mission: 16,
+  epic: 14,
+  doc: 11,
+  code: 11,
+  skill: 8,
+  tool: 8,
+  pptx: 10,
+  task: 10,
+};
+
+function getNodeRadius(node: FGNode) {
+  return NODE_RADII[node.type] || 10;
+}
+
+// Canvas-drawn geometric shape icons per node type (fallback for cross-OS consistency)
+function drawNodeIcon(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, type: string, color: string) {
+  const iconSize = r * 0.55;
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  switch (type) {
+    case "mate": {
+      // Person silhouette: head circle + body arc
+      const headR = iconSize * 0.32;
+      ctx.beginPath();
+      ctx.arc(x, y - iconSize * 0.2, headR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y + iconSize * 0.55, iconSize * 0.45, Math.PI * 1.15, Math.PI * 1.85);
+      ctx.stroke();
+      break;
+    }
+    case "mission": {
+      // Target / crosshair: concentric circles + cross lines
+      ctx.beginPath();
+      ctx.arc(x, y, iconSize * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, iconSize * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      // Cross lines
+      ctx.beginPath();
+      ctx.moveTo(x - iconSize * 0.8, y);
+      ctx.lineTo(x + iconSize * 0.8, y);
+      ctx.moveTo(x, y - iconSize * 0.8);
+      ctx.lineTo(x, y + iconSize * 0.8);
+      ctx.stroke();
+      break;
+    }
+    case "doc": {
+      // Document: rounded rectangle with lines
+      const w = iconSize * 0.65;
+      const h = iconSize * 0.85;
+      ctx.beginPath();
+      ctx.roundRect(x - w, y - h, w * 2, h * 2, 1.5);
+      ctx.stroke();
+      // Text lines
+      ctx.beginPath();
+      ctx.moveTo(x - w * 0.5, y - h * 0.35);
+      ctx.lineTo(x + w * 0.5, y - h * 0.35);
+      ctx.moveTo(x - w * 0.5, y + h * 0.05);
+      ctx.lineTo(x + w * 0.5, y + h * 0.05);
+      ctx.moveTo(x - w * 0.5, y + h * 0.45);
+      ctx.lineTo(x + w * 0.2, y + h * 0.45);
+      ctx.stroke();
+      break;
+    }
+    case "code": {
+      // Angle brackets: < />
+      ctx.beginPath();
+      ctx.moveTo(x - iconSize * 0.35, y - iconSize * 0.45);
+      ctx.lineTo(x - iconSize * 0.75, y);
+      ctx.lineTo(x - iconSize * 0.35, y + iconSize * 0.45);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + iconSize * 0.35, y - iconSize * 0.45);
+      ctx.lineTo(x + iconSize * 0.75, y);
+      ctx.lineTo(x + iconSize * 0.35, y + iconSize * 0.45);
+      ctx.stroke();
+      break;
+    }
+    case "skill": {
+      // Lightning bolt
+      ctx.beginPath();
+      ctx.moveTo(x + iconSize * 0.15, y - iconSize * 0.75);
+      ctx.lineTo(x - iconSize * 0.3, y + iconSize * 0.05);
+      ctx.lineTo(x + iconSize * 0.05, y + iconSize * 0.05);
+      ctx.lineTo(x - iconSize * 0.15, y + iconSize * 0.75);
+      ctx.lineTo(x + iconSize * 0.3, y - iconSize * 0.05);
+      ctx.lineTo(x - iconSize * 0.05, y - iconSize * 0.05);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case "tool": {
+      // Wrench shape
+      ctx.beginPath();
+      ctx.arc(x - iconSize * 0.35, y - iconSize * 0.35, iconSize * 0.3, Math.PI * 0.7, Math.PI * 2.3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - iconSize * 0.15, y - iconSize * 0.15);
+      ctx.lineTo(x + iconSize * 0.55, y + iconSize * 0.55);
+      ctx.stroke();
+      break;
+    }
+    case "pptx": {
+      // Bar chart
+      const bw = iconSize * 0.2;
+      ctx.fillRect(x - iconSize * 0.6, y + iconSize * 0.1, bw, iconSize * 0.6);
+      ctx.fillRect(x - iconSize * 0.15, y - iconSize * 0.35, bw, iconSize * 1.05);
+      ctx.fillRect(x + iconSize * 0.3, y - iconSize * 0.1, bw, iconSize * 0.8);
+      break;
+    }
+    case "epic": {
+      // Package / box
+      const bw = iconSize * 0.7;
+      const bh = iconSize * 0.55;
+      ctx.beginPath();
+      ctx.roundRect(x - bw, y - bh, bw * 2, bh * 2, 2);
+      ctx.stroke();
+      // Horizontal line
+      ctx.beginPath();
+      ctx.moveTo(x - bw, y - bh * 0.1);
+      ctx.lineTo(x + bw, y - bh * 0.1);
+      ctx.stroke();
+      // Vertical tab
+      ctx.beginPath();
+      ctx.moveTo(x - bw * 0.3, y - bh);
+      ctx.lineTo(x - bw * 0.3, y - bh * 0.1);
+      ctx.moveTo(x + bw * 0.3, y - bh);
+      ctx.lineTo(x + bw * 0.3, y - bh * 0.1);
+      ctx.stroke();
+      break;
+    }
+    case "task": {
+      // Checkbox with check
+      const s = iconSize * 0.65;
+      ctx.beginPath();
+      ctx.roundRect(x - s, y - s, s * 2, s * 2, 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.45, y + s * 0.05);
+      ctx.lineTo(x - s * 0.05, y + s * 0.45);
+      ctx.lineTo(x + s * 0.5, y - s * 0.4);
+      ctx.stroke();
+      break;
+    }
+    default: {
+      // Generic dot
+      ctx.beginPath();
+      ctx.arc(x, y, iconSize * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
+// d3-zoom transform: { k: zoom, x: panX, y: panY }
+interface ZoomTransform { k: number; x: number; y: number }
+
 export function VaultGraph({ data }: { data: GraphData }) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['mate', 'mission']));
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<FGNode | null>(null);
+  const [popupPos, setPopupPos] = useState<PopupPos | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<FGNode | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const fgRef = useRef<any>(null);
+  // Track the graph's current zoom/pan transform
+  const transformRef = useRef<ZoomTransform>({ k: 1, x: 0, y: 0 });
 
-  // Group nodes by type
-  const grouped = useMemo(() => {
-    const groups = new Map<string, GraphNode[]>();
-    for (const node of data.nodes) {
-      const type = node.type || 'other';
-      if (!groups.has(type)) groups.set(type, []);
-      groups.get(type)!.push(node);
-    }
-    // Sort groups: mate first, then mission, then by count desc
-    const priority = ['mate', 'mission', 'doc', 'code', 'skill', 'tool', 'pptx', 'epic', 'task'];
-    return [...groups.entries()].sort((a, b) => {
-      const ai = priority.indexOf(a[0]);
-      const bi = priority.indexOf(b[0]);
-      if (ai !== -1 && bi !== -1) return ai - bi;
-      if (ai !== -1) return -1;
-      if (bi !== -1) return 1;
-      return b[1].length - a[1].length;
+  // Hover glow animation phase (driven by rAF, stored in ref to avoid re-renders)
+  const hoverPhaseRef = useRef<number>(0);
+  const hoverAnimFrameRef = useRef<number>(0);
+
+  // Hovered edge for midpoint label
+  const [hoveredEdge, setHoveredEdge] = useState<FGLink | null>(null);
+
+  // Edge gradient cache: only recreate when node positions change > 5px
+  const edgeGradientCache = useRef<
+    Map<string, { gradient: CanvasGradient; srcX: number; srcY: number; tgtX: number; tgtY: number }>
+  >(new Map());
+
+  // Observe container size
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setDimensions({ width: Math.floor(width), height: Math.floor(height) });
     });
-  }, [data.nodes]);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
-  // Edges for selected node
+  // Hover glow animation: rAF pulse on 2s sine wave
+  useEffect(() => {
+    if (!hoveredNode) {
+      hoverPhaseRef.current = 0;
+      return;
+    }
+    let running = true;
+    let lastTime = performance.now();
+    function animate(now: number) {
+      if (!running) return;
+      const dt = (now - lastTime) / 1000; // seconds
+      lastTime = now;
+      // 2s cycle → frequency = π/s
+      hoverPhaseRef.current += dt * Math.PI;
+      // Trigger re-render on the force graph by tickling it
+      const fg = fgRef.current;
+      if (fg) {
+        // Force a repaint by calling .refresh() if available (newer versions)
+        // or just call d3ReheatSimulation with tiny alpha
+        try {
+          if (typeof fg.refresh === "function") {
+            fg.refresh();
+          }
+        } catch {
+          // noop — graph will repaint on next interaction
+        }
+      }
+      hoverAnimFrameRef.current = requestAnimationFrame(animate);
+    }
+    hoverAnimFrameRef.current = requestAnimationFrame(animate);
+    return () => {
+      running = false;
+      cancelAnimationFrame(hoverAnimFrameRef.current);
+    };
+  }, [hoveredNode]);
+
+  // After data loads: configure forces + manual zoom-to-fill
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+
+    fg.d3Force("charge")?.strength(-4000).distanceMax(2000);
+    fg.d3Force("link")?.distance(350).strength(0.15);
+    fg.d3Force("center")?.strength(0.005);
+    fg.d3ReheatSimulation();
+
+    // Manual zoom-to-fill: calculate bounding box and zoom to cover viewport
+    function fitToScreen() {
+      const fg2 = fgRef.current;
+      if (!fg2) return;
+      const gd = fg2.graphData();
+      if (!gd?.nodes?.length) return;
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const n of gd.nodes) {
+        if (n.x != null && n.y != null) {
+          if (n.x < minX) minX = n.x;
+          if (n.x > maxX) maxX = n.x;
+          if (n.y < minY) minY = n.y;
+          if (n.y > maxY) maxY = n.y;
+        }
+      }
+      if (!isFinite(minX)) return;
+
+      const graphW = (maxX - minX) || 1;
+      const graphH = (maxY - minY) || 1;
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      // 0.85 factor so nodes don't touch the very edge
+      const zoom = 0.85 * Math.min(
+        dimensions.width / graphW,
+        dimensions.height / graphH,
+      );
+      fg2.centerAt(cx, cy, 400);
+      fg2.zoom(zoom, 400);
+    }
+
+    const t1 = setTimeout(fitToScreen, 2500);
+    const t2 = setTimeout(fitToScreen, 5000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [data, dimensions]);
+
+  // Click outside popup to close
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        // Don't close if clicking a canvas node (handled by onNodeClick)
+        const canvas = containerRef.current?.querySelector("canvas");
+        if (canvas && canvas.contains(e.target as Node)) return;
+        setSelectedNode(null);
+        setPopupPos(null);
+      }
+    }
+    if (selectedNode) {
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }
+  }, [selectedNode]);
+
+  // Convert data — place nodes in a large initial circle so simulation
+  // starts spread out rather than all at origin
+  const graphData = useMemo(() => {
+    const count = data.nodes.length || 1;
+    const initRadius = Math.max(count * 40, 400);
+    const nodes: FGNode[] = data.nodes.map((n, i) => {
+      const angle = (2 * Math.PI * i) / count;
+      return {
+        id: n.id,
+        type: n.type,
+        label: n.label,
+        metadata: n.metadata,
+        x: Math.cos(angle) * initRadius,
+        y: Math.sin(angle) * initRadius,
+      };
+    });
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    const links: FGLink[] = data.edges
+      .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, type: e.type }));
+    return { nodes, links };
+  }, [data]);
+
+  const nodeMap = useMemo(() => {
+    const m = new Map<string, FGNode>();
+    for (const n of graphData.nodes) m.set(n.id, n);
+    return m;
+  }, [graphData.nodes]);
+
   const selectedEdges = useMemo(() => {
     if (!selectedNode) return [];
-    return data.edges.filter(e => e.source === selectedNode || e.target === selectedNode);
+    return data.edges.filter(
+      (e) => e.source === selectedNode.id || e.target === selectedNode.id
+    );
   }, [selectedNode, data.edges]);
 
-  // Node lookup
-  const nodeMap = useMemo(() => {
-    const m = new Map<string, GraphNode>();
-    for (const n of data.nodes) m.set(n.id, n);
-    return m;
-  }, [data.nodes]);
+  // ---- Renderers ----
 
-  const toggleGroup = (type: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
-      return next;
-    });
-  };
+  const paintNode = useCallback(
+    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const n = node as FGNode;
+      const r = getNodeRadius(n);
+      const color = getColor(n.type);
+      const isSelected = selectedNode?.id === n.id;
+      const isHovered = hoveredNode?.id === n.id;
+      const x = n.x || 0;
+      const y = n.y || 0;
 
-  return (
-    <div className="flex h-full">
-      {/* Left: Node groups */}
-      <div className="w-[360px] border-r border-zinc-800/50 overflow-y-auto">
-        {grouped.map(([type, nodes]) => {
-          const config = NODE_TYPE_CONFIG[type] || DEFAULT_CONFIG;
-          const Icon = config.icon;
-          const expanded = expandedGroups.has(type);
+      ctx.save();
 
-          return (
-            <div key={type}>
-              <button
-                onClick={() => toggleGroup(type)}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-zinc-800/30 transition-colors"
-              >
-                {expanded
-                  ? <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
-                  : <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
-                }
-                <Icon className={clsx("w-4 h-4", config.color)} />
-                <span className="font-medium text-zinc-300">{config.label}</span>
-                <span className="ml-auto text-xs text-zinc-600">{nodes.length}</span>
-              </button>
+      // --- Step 1: Outer glow ---
+      if (isSelected) {
+        // Selected: large white + colored glow
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = color + "55"; // ~33% opacity
+        ctx.beginPath();
+        ctx.arc(x, y, r * 1.2, 0, 2 * Math.PI);
+        ctx.fillStyle = color + "18"; // ~10% fill
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (isHovered) {
+        // Hovered: animated pulsing glow
+        const phase = hoverPhaseRef.current;
+        // Sine wave: 0→1→0 over 2s cycle. Map to glow intensity 15→25.
+        const pulse = (Math.sin(phase) + 1) / 2; // 0..1
+        const glowIntensity = 15 + pulse * 10;
+        // Alpha range: 15% (~0x26) to 30% (~0x4d)
+        const alphaHex = Math.round((0.15 + pulse * 0.15) * 255)
+          .toString(16)
+          .padStart(2, "0");
+        ctx.shadowBlur = glowIntensity;
+        ctx.shadowColor = color + alphaHex;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 1.2, 0, 2 * Math.PI);
+        ctx.fillStyle = color + "12";
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else {
+        // Default: subtle glow
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = color + "26"; // ~15% opacity
+        ctx.beginPath();
+        ctx.arc(x, y, r * 1.2, 0, 2 * Math.PI);
+        ctx.fillStyle = color + "0a"; // ~4% fill
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
 
-              {expanded && (
-                <div className="pb-1">
-                  {nodes.map(node => (
-                    <button
-                      key={node.id}
-                      onClick={() => setSelectedNode(node.id === selectedNode ? null : node.id)}
-                      className={clsx(
-                        "w-full flex items-center gap-2 px-8 py-1.5 text-sm transition-colors text-left",
-                        node.id === selectedNode
-                          ? "bg-zinc-800 text-zinc-100"
-                          : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30"
-                      )}
-                    >
-                      <span className={clsx("w-2 h-2 rounded-full flex-shrink-0", config.bg, config.color.replace('text-', 'bg-'))} />
-                      <span className="truncate">{node.label}</span>
-                    </button>
+      // --- Step 2: Clear shadow for subsequent draws ---
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = "transparent";
+
+      // --- Step 3: Dark filled circle (node body) ---
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = "#0a0a0b";
+      ctx.fill();
+
+      // --- Step 4: Colored border (or white for selected) ---
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+      if (isSelected) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2.5;
+        // Re-add glow for selected border
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = color + "55";
+      } else {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = "transparent";
+
+      // --- Step 5: Draw icon inside node ---
+      drawNodeIcon(ctx, x, y, r, n.type, color);
+
+      // --- Step 6: Label (node name) below ---
+      const fontSize = Math.min(Math.max(12 / globalScale, 3), 14);
+      ctx.font = `${isSelected || isHovered ? "600 " : "400 "}${fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      // Text shadow for readability
+      ctx.fillStyle = "#050505";
+      ctx.fillText(n.label, x + 0.5, y + r + 5.5);
+      ctx.fillStyle = isSelected || isHovered ? "#ffffff" : "#f4f4f5"; // text-primary, brighter on interact
+      ctx.fillText(n.label, x, y + r + 5);
+
+      // --- Step 7: Type label below name ---
+      const typeFontSize = Math.min(Math.max(8 / globalScale, 2.5), 9);
+      ctx.font = `500 ${typeFontSize}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      const typeLabel = (TYPE_LABELS[n.type] || n.type).toUpperCase();
+      ctx.fillStyle = color + "99"; // ~60% opacity
+      ctx.fillText(typeLabel, x, y + r + 5 + fontSize + 2);
+
+      ctx.restore();
+    },
+    [selectedNode, hoveredNode]
+  );
+
+  const paintLink = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const src = link.source as FGNode;
+      const tgt = link.target as FGNode;
+      if (!src.x || !src.y || !tgt.x || !tgt.y) return;
+
+      const srcColor = getColor(src.type);
+      const tgtColor = getColor(tgt.type);
+
+      const isConnectedToSelected =
+        selectedNode &&
+        (src.id === selectedNode.id || tgt.id === selectedNode.id);
+
+      const isEdgeHovered =
+        hoveredEdge &&
+        ((hoveredEdge.source as FGNode).id === src.id && (hoveredEdge.target as FGNode).id === tgt.id);
+
+      // Determine if we should fade (there is a selection but this edge is NOT connected)
+      const shouldFade = selectedNode && !isConnectedToSelected;
+
+      ctx.save();
+
+      // --- Gradient caching ---
+      const cacheKey = `${src.id}->${tgt.id}`;
+      let gradient: CanvasGradient;
+      const cached = edgeGradientCache.current.get(cacheKey);
+      const dx = cached ? Math.abs(cached.srcX - src.x) + Math.abs(cached.srcY - src.y) +
+                          Math.abs(cached.tgtX - tgt.x) + Math.abs(cached.tgtY - tgt.y) : Infinity;
+
+      if (cached && dx < 5) {
+        gradient = cached.gradient;
+      } else {
+        gradient = ctx.createLinearGradient(src.x, src.y, tgt.x, tgt.y);
+        gradient.addColorStop(0, srcColor + "66"); // ~40% opacity
+        gradient.addColorStop(1, tgtColor + "66"); // ~40% opacity
+        edgeGradientCache.current.set(cacheKey, {
+          gradient,
+          srcX: src.x,
+          srcY: src.y,
+          tgtX: tgt.x,
+          tgtY: tgt.y,
+        });
+      }
+
+      // --- Choose styles based on state ---
+      if (shouldFade) {
+        ctx.globalAlpha = 0.2;
+      } else if (isConnectedToSelected) {
+        // Amber glow for connected edges
+        ctx.globalAlpha = 1.0;
+      } else if (isEdgeHovered) {
+        ctx.globalAlpha = 1.0;
+      }
+
+      // --- First pass: glow line ---
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      if (isConnectedToSelected) {
+        // Amber glow for selected connections
+        ctx.strokeStyle = "#f59e0b4d"; // accent at ~30%
+        ctx.lineWidth = 5;
+      } else {
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 4;
+        if (!shouldFade && !isEdgeHovered) {
+          ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.3;
+        }
+      }
+      ctx.stroke();
+
+      // --- Second pass: sharp line ---
+      // Reset alpha for sharp pass
+      if (shouldFade) {
+        ctx.globalAlpha = 0.2;
+      } else {
+        ctx.globalAlpha = isEdgeHovered ? 1.0 : 0.8;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      if (isConnectedToSelected) {
+        ctx.strokeStyle = "#f59e0bcc"; // accent at ~80%
+        ctx.lineWidth = 2;
+      } else {
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 1.5;
+      }
+      ctx.stroke();
+
+      // --- Arrowhead ---
+      const angle = Math.atan2(tgt.y - src.y, tgt.x - src.x);
+      const arrowLen = isConnectedToSelected ? 10 : 7;
+      const tgtR = getNodeRadius(tgt);
+      const ax = tgt.x - Math.cos(angle) * (tgtR + 4);
+      const ay = tgt.y - Math.sin(angle) * (tgtR + 4);
+
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(
+        ax - arrowLen * Math.cos(angle - Math.PI / 7),
+        ay - arrowLen * Math.sin(angle - Math.PI / 7)
+      );
+      ctx.lineTo(
+        ax - arrowLen * Math.cos(angle + Math.PI / 7),
+        ay - arrowLen * Math.sin(angle + Math.PI / 7)
+      );
+      ctx.closePath();
+      if (isConnectedToSelected) {
+        ctx.fillStyle = "#f59e0bcc";
+      } else {
+        ctx.fillStyle = tgtColor + (shouldFade ? "33" : "99");
+      }
+      ctx.fill();
+
+      // --- Midpoint label pill (for highlighted or hovered edges) ---
+      if (isConnectedToSelected || isEdgeHovered) {
+        ctx.globalAlpha = 1.0;
+        const mx = (src.x + tgt.x) / 2;
+        const my = (src.y + tgt.y) / 2;
+        const fontSize = Math.min(Math.max(10 / globalScale, 3), 12);
+        ctx.font = `500 ${fontSize}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = "center";
+        const text = EDGE_LABELS[link.type] || link.type;
+        const tw = ctx.measureText(text).width;
+
+        // Glass-like pill background
+        ctx.fillStyle = "#18181bee"; // bg-surface with high alpha
+        ctx.beginPath();
+        ctx.roundRect(mx - tw / 2 - 5, my - fontSize / 2 - 3, tw + 10, fontSize + 6, 4);
+        ctx.fill();
+        // Border
+        ctx.strokeStyle = "#27272a";
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        // Text
+        ctx.fillStyle = isConnectedToSelected ? "#f59e0b" : "#a1a1aa"; // accent or text-secondary
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, mx, my);
+      }
+
+      ctx.restore();
+    },
+    [selectedNode, hoveredEdge]
+  );
+
+  // ---- Popup follows selected node via rAF (no state in onZoom) ----
+
+  const selectedNodeRef = useRef<FGNode | null>(null);
+  const dimensionsRef = useRef(dimensions);
+  dimensionsRef.current = dimensions;
+
+  // rAF loop: reads transform + node coords → updates popupPos
+  useEffect(() => {
+    if (!selectedNode) {
+      selectedNodeRef.current = null;
+      return;
+    }
+    selectedNodeRef.current = selectedNode;
+    let raf: number;
+    let lastX = -1, lastY = -1;
+
+    function tick() {
+      const n = selectedNodeRef.current;
+      const dim = dimensionsRef.current;
+      const fg = fgRef.current;
+      if (n && n.x != null && n.y != null) {
+        let sx: number, sy: number;
+        // Prefer graph2ScreenCoords (accounts for actual canvas transform)
+        if (fg && typeof fg.graph2ScreenCoords === "function") {
+          try {
+            const s = fg.graph2ScreenCoords(n.x, n.y);
+            sx = s.x; sy = s.y;
+          } catch {
+            const t = transformRef.current;
+            sx = n.x * t.k + t.x; sy = n.y * t.k + t.y;
+          }
+        } else {
+          const t = transformRef.current;
+          sx = n.x * t.k + t.x; sy = n.y * t.k + t.y;
+        }
+        const rx = Math.round(sx);
+        const ry = Math.round(sy);
+        if (rx !== lastX || ry !== lastY) {
+          lastX = rx;
+          lastY = ry;
+          const POPUP_W = 420;
+          const POPUP_H_MAX = dim.height * 0.7;
+          let px = sx + 24;
+          let py = sy - 40;
+          if (px + POPUP_W > dim.width) px = sx - POPUP_W - 24;
+          if (py + POPUP_H_MAX > dim.height) py = dim.height - POPUP_H_MAX - 12;
+          if (py < 12) py = 12;
+          if (px < 12) px = 12;
+          setPopupPos({ x: px, y: py });
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [selectedNode]);
+
+  // onZoom handler: just update the ref, NO state updates
+  const handleZoom = useCallback((t: any) => {
+    transformRef.current = { k: t.k, x: t.x, y: t.y };
+  }, []);
+
+  // ---- Node Click ----
+
+  const handleNodeClick = useCallback(
+    (node: any) => {
+      const n = node as FGNode;
+      if (selectedNode?.id === n.id) {
+        setSelectedNode(null);
+        setPopupPos(null);
+        return;
+      }
+      setSelectedNode(n);
+      // Try to get the actual current transform from the canvas
+      const fg = fgRef.current;
+      if (fg && typeof fg.graph2ScreenCoords === "function" && n.x != null && n.y != null) {
+        try {
+          const s = fg.graph2ScreenCoords(n.x, n.y);
+          if (s && isFinite(s.x) && isFinite(s.y)) {
+            const dim = dimensionsRef.current;
+            const POPUP_W = 420;
+            let px = s.x + 24, py = s.y - 40;
+            if (px + POPUP_W > dim.width) px = s.x - POPUP_W - 24;
+            if (py < 12) py = 12;
+            if (px < 12) px = 12;
+            setPopupPos({ x: px, y: py });
+          }
+        } catch {
+          // Fallback: center of viewport
+          const dim = dimensionsRef.current;
+          setPopupPos({ x: dim.width / 2 - 210, y: dim.height / 2 - 200 });
+        }
+      }
+    },
+    [selectedNode]
+  );
+
+  // Navigate to connected node
+  const navigateToNode = useCallback(
+    (nodeId: string) => {
+      const target = nodeMap.get(nodeId);
+      if (!target) return;
+      setSelectedNode(target);
+      if (fgRef.current) {
+        fgRef.current.centerAt(target.x, target.y, 400);
+      }
+    },
+    [nodeMap]
+  );
+
+  // ---- Build popup sections by node type ----
+
+  const popupSections = useMemo(() => {
+    if (!selectedNode) return null;
+    const meta = selectedNode.metadata || {};
+    const type = selectedNode.type;
+    const color = getColor(type);
+
+    // Group edges
+    const outgoing = selectedEdges.filter((e) => e.source === selectedNode.id);
+    const incoming = selectedEdges.filter((e) => e.target === selectedNode.id);
+
+    // Section builders per type
+    const sections: { title: string; icon: typeof Bot; content: React.ReactNode }[] = [];
+
+    if (type === "mate") {
+      // 人物介绍
+      sections.push({
+        title: "人物介绍",
+        icon: User,
+        content: (
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              {meta.description || "暂无介绍"}
+            </p>
+            {meta.domains && (
+              <div>
+                <span className="text-[11px] text-zinc-500 block mb-1">擅长领域</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(meta.domains as string[]).map((d) => (
+                    <span key={d} className="text-[11px] px-2 py-0.5 rounded-full border border-zinc-700/50 text-zinc-400 bg-zinc-800/50">
+                      {d}
+                    </span>
                   ))}
                 </div>
-              )}
+              </div>
+            )}
+            {meta.status && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-zinc-500">状态</span>
+                <span className="px-2 py-0.5 rounded text-zinc-300 bg-zinc-800">{meta.status}</span>
+              </div>
+            )}
+            {meta.can_lead !== undefined && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-zinc-500">可主导任务</span>
+                <span className="text-zinc-300">{meta.can_lead ? "是" : "否"}</span>
+              </div>
+            )}
+          </div>
+        ),
+      });
+      // 产出
+      const produced = outgoing.filter((e) => e.type === "produced");
+      const participated = outgoing.filter((e) => e.type === "participated" || e.type === "led");
+      if (produced.length > 0 || participated.length > 0) {
+        sections.push({
+          title: "产出 & 参与",
+          icon: FileText,
+          content: (
+            <div className="space-y-1">
+              {[...produced, ...participated].map((edge, i) => {
+                const other = nodeMap.get(edge.target);
+                return (
+                  <EdgeButton key={i} edge={edge} other={other} isOutgoing onClick={navigateToNode} />
+                );
+              })}
             </div>
-          );
-        })}
-
-        {grouped.length === 0 && (
-          <div className="flex items-center justify-center h-32 text-zinc-600 text-sm">
-            No data
+          ),
+        });
+      }
+    } else if (type === "mission") {
+      // 任务介绍
+      sections.push({
+        title: "任务介绍",
+        icon: Target,
+        content: (
+          <div className="space-y-3">
+            {meta.status && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-zinc-500">阶段</span>
+                <span
+                  className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                  style={{ color, backgroundColor: color + "15" }}
+                >
+                  {meta.status}
+                </span>
+              </div>
+            )}
+            {meta.lead_mate && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-zinc-500">主导</span>
+                <span className="text-zinc-300">{meta.lead_mate}</span>
+              </div>
+            )}
+            {meta.team_mates && (
+              <div>
+                <span className="text-[11px] text-zinc-500 block mb-1">团队成员</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(meta.team_mates as string[]).map((m) => (
+                    <span key={m} className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-800/50 text-emerald-400 bg-emerald-900/20">
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {meta.token_budget != null && (
+              <div className="text-xs text-zinc-500">
+                Token: {meta.tokens_used?.toLocaleString()} / {meta.token_budget?.toLocaleString()}
+                <div className="mt-1 w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, ((meta.tokens_used || 0) / meta.token_budget) * 100)}%`,
+                      backgroundColor: color,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        ),
+      });
+    } else {
+      // doc / code / skill / tool / pptx — 产出介绍
+      sections.push({
+        title: "产出介绍",
+        icon: TYPE_ICONS[type] || FileText,
+        content: (
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              {meta.description || "暂无描述"}
+            </p>
+            {meta.tags && meta.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {(meta.tags as string[]).map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[11px] px-2 py-0.5 rounded-full border border-zinc-700/50 text-zinc-400 bg-zinc-800/50"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+            {meta.reuse_count != null && meta.reuse_count > 0 && (
+              <div className="text-xs text-zinc-500">
+                被复用 <span className="text-zinc-300 font-medium">{meta.reuse_count}</span> 次
+              </div>
+            )}
+            {meta.created_by_mate && (
+              <div className="text-xs text-zinc-500">
+                创建者 <span className="text-zinc-300">{meta.created_by_mate}</span>
+              </div>
+            )}
+          </div>
+        ),
+      });
+    }
+
+    // 关联关系 — always show
+    if (selectedEdges.length > 0) {
+      sections.push({
+        title: "关联关系",
+        icon: GitBranch,
+        content: (
+          <div className="space-y-1">
+            {selectedEdges.map((edge, i) => {
+              const isOut = edge.source === selectedNode.id;
+              const otherId = isOut ? edge.target : edge.source;
+              const other = nodeMap.get(otherId);
+              return (
+                <EdgeButton key={i} edge={edge} other={other} isOutgoing={isOut} onClick={navigateToNode} />
+              );
+            })}
+          </div>
+        ),
+      });
+    }
+
+    return sections;
+  }, [selectedNode, selectedEdges, nodeMap, navigateToNode]);
+
+  return (
+    <div className="relative h-full bg-[#09090b]" ref={containerRef}>
+      {/* Force Graph */}
+      {dimensions.width > 0 && (
+        <ForceGraph2D
+          ref={fgRef}
+          graphData={graphData}
+          width={dimensions.width}
+          height={dimensions.height}
+          backgroundColor="#09090b"
+          nodeCanvasObject={paintNode}
+          nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+            const r = getNodeRadius(node as FGNode) + 4;
+            ctx.beginPath();
+            ctx.arc(node.x || 0, node.y || 0, r, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+          }}
+          onNodeClick={handleNodeClick}
+          onNodeHover={(node: any) => setHoveredNode(node as FGNode | null)}
+          onLinkHover={(link: any) => setHoveredEdge(link as FGLink | null)}
+          onZoom={(t: any) => handleZoom({ k: t.k, x: t.x, y: t.y })}
+          linkCanvasObject={paintLink}
+          linkDirectionalArrowLength={0}
+          // Slow decay → simulation runs longer → nodes spread further
+          d3AlphaMin={0.003}
+          d3AlphaDecay={0.006}
+          d3VelocityDecay={0.12}
+          cooldownTicks={500}
+          warmupTicks={100}
+          enableNodeDrag={true}
+          enableZoomInteraction={true}
+          minZoom={0.2}
+          maxZoom={10}
+        />
+      )}
+
+      {/* Legend */}
+      <div className="absolute bottom-4 left-4 flex flex-wrap gap-2 bg-zinc-900/80 backdrop-blur-sm rounded-lg p-3 border border-zinc-800/50">
+        {Object.entries(TYPE_COLORS).map(([type, color]) => (
+          <div key={type} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+            <span className="text-[11px] text-zinc-400">{TYPE_LABELS[type] || type}</span>
+          </div>
+        ))}
       </div>
 
-      {/* Right: Detail panel */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {selectedNode ? (
-          <NodeDetail
-            node={nodeMap.get(selectedNode)!}
-            edges={selectedEdges}
-            nodeMap={nodeMap}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-zinc-600">
-            <Network className="w-10 h-10" />
-            <p className="text-sm">Select a node to view details</p>
-          </div>
-        )}
+      {/* Stats */}
+      <div className="absolute top-4 left-4 text-xs text-zinc-500 bg-zinc-900/60 backdrop-blur-sm rounded px-2 py-1">
+        {data.nodes.length} nodes &middot; {data.edges.length} edges
       </div>
+
+      {/* ---- Floating Popup Card ---- */}
+      {selectedNode && popupPos && popupSections && (
+        <div
+          ref={popupRef}
+          className="absolute z-50 w-[420px] max-h-[70vh] overflow-hidden rounded-xl border border-zinc-700/50 bg-zinc-900/95 backdrop-blur-xl shadow-2xl shadow-black/50 flex flex-col"
+          style={{ left: popupPos.x, top: popupPos.y }}
+        >
+          {/* Popup header */}
+          <div
+            className="px-5 pt-4 pb-3 border-b border-zinc-800/50"
+            style={{ background: `linear-gradient(135deg, ${getColor(selectedNode.type)}08, transparent)` }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: getColor(selectedNode.type) + "18" }}
+                >
+                  {(() => {
+                    const Icon = TYPE_ICONS[selectedNode.type] || FileText;
+                    return <Icon className="w-5 h-5" style={{ color: getColor(selectedNode.type) }} />;
+                  })()}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-[15px] font-semibold text-zinc-100 leading-tight truncate">
+                    {selectedNode.label}
+                  </h2>
+                  <span
+                    className="text-[10px] font-medium uppercase tracking-widest mt-0.5 inline-block"
+                    style={{ color: getColor(selectedNode.type) }}
+                  >
+                    {TYPE_LABELS_ZH[selectedNode.type] || selectedNode.type}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => { setSelectedNode(null); setPopupPos(null); }}
+                className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Popup body — scrollable sections */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            {popupSections.map((section, i) => {
+              const SIcon = section.icon;
+              return (
+                <div key={i}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <SIcon className="w-3.5 h-3.5 text-zinc-500" />
+                    <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                      {section.title}
+                    </h3>
+                  </div>
+                  {section.content}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Node detail panel
+// Edge button — reusable for connection lists
 // ---------------------------------------------------------------------------
 
-function NodeDetail({
-  node,
-  edges,
-  nodeMap,
+function EdgeButton({
+  edge,
+  other,
+  isOutgoing,
+  onClick,
 }: {
-  node: GraphNode;
-  edges: GraphEdge[];
-  nodeMap: Map<string, GraphNode>;
+  edge: GraphEdge;
+  other: FGNode | undefined;
+  isOutgoing: boolean;
+  onClick: (id: string) => void;
 }) {
-  const config = NODE_TYPE_CONFIG[node.type] || DEFAULT_CONFIG;
-  const Icon = config.icon;
-
-  const outgoing = edges.filter(e => e.source === node.id);
-  const incoming = edges.filter(e => e.target === node.id);
+  const otherId = isOutgoing ? edge.target : edge.source;
+  const otherColor = other ? getColor(other.type) : DEFAULT_COLOR;
 
   return (
-    <div className="max-w-2xl space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", config.bg)}>
-          <Icon className={clsx("w-5 h-5", config.color)} />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-zinc-100">{node.label}</h2>
-          <p className="text-xs text-zinc-500">{node.type} · {node.id}</p>
-        </div>
+    <button
+      onClick={() => onClick(otherId)}
+      className="w-full flex items-center gap-2.5 text-xs py-2 px-3 rounded-lg hover:bg-zinc-800/60 transition-colors text-left group"
+    >
+      <span
+        className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-1 ring-white/10"
+        style={{ backgroundColor: otherColor }}
+      />
+      <div className="flex-1 min-w-0">
+        <span className="text-zinc-200 block truncate group-hover:text-zinc-100">
+          {other?.label || otherId}
+        </span>
+        <span className="text-zinc-600 text-[10px]">
+          {other ? TYPE_LABELS_ZH[other.type] || other.type : "unknown"}
+        </span>
       </div>
-
-      {/* Metadata */}
-      {node.metadata && Object.keys(node.metadata).length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-zinc-400">Metadata</h3>
-          <div className="bg-zinc-900 rounded-lg p-3 space-y-1.5">
-            {Object.entries(node.metadata).map(([key, value]) => (
-              <div key={key} className="flex gap-2 text-sm">
-                <span className="text-zinc-500 min-w-[120px]">{key}</span>
-                <span className="text-zinc-300 break-all">
-                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Outgoing edges */}
-      {outgoing.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-zinc-400">
-            Outgoing ({outgoing.length})
-          </h3>
-          <div className="space-y-1">
-            {outgoing.map((edge, i) => {
-              const target = nodeMap.get(edge.target);
-              const targetConfig = target ? (NODE_TYPE_CONFIG[target.type] || DEFAULT_CONFIG) : DEFAULT_CONFIG;
-              return (
-                <div key={i} className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-zinc-800/30">
-                  <span className="text-zinc-500">{EDGE_LABELS[edge.type] || edge.type}</span>
-                  <ArrowRight className="w-3 h-3 text-zinc-600" />
-                  <span className={clsx("w-2 h-2 rounded-full flex-shrink-0", targetConfig.color.replace('text-', 'bg-'))} />
-                  <span className="text-zinc-300">{target?.label || edge.target}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Incoming edges */}
-      {incoming.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-zinc-400">
-            Incoming ({incoming.length})
-          </h3>
-          <div className="space-y-1">
-            {incoming.map((edge, i) => {
-              const source = nodeMap.get(edge.source);
-              const sourceConfig = source ? (NODE_TYPE_CONFIG[source.type] || DEFAULT_CONFIG) : DEFAULT_CONFIG;
-              return (
-                <div key={i} className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-zinc-800/30">
-                  <span className={clsx("w-2 h-2 rounded-full flex-shrink-0", sourceConfig.color.replace('text-', 'bg-'))} />
-                  <span className="text-zinc-300">{source?.label || edge.source}</span>
-                  <ArrowRight className="w-3 h-3 text-zinc-600" />
-                  <span className="text-zinc-500">{EDGE_LABELS[edge.type] || edge.type}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {outgoing.length === 0 && incoming.length === 0 && (
-        <p className="text-sm text-zinc-600">No connections</p>
-      )}
-    </div>
+      <span className="text-zinc-500 flex-shrink-0 text-[10px] bg-zinc-800/80 px-2 py-0.5 rounded-full border border-zinc-700/30">
+        {isOutgoing ? "\u2192" : "\u2190"} {EDGE_LABELS[edge.type] || edge.type}
+      </span>
+      <ExternalLink className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+    </button>
   );
 }
