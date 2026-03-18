@@ -6,6 +6,7 @@ import { createKanbanSlice, type KanbanSlice } from './slices/kanbanSlice';
 import { createUISlice, type UISlice } from './slices/uiSlice';
 import { createChatSlice, type ChatSlice } from './slices/chatSlice';
 import { createI18nSlice, type I18nSlice } from './slices/i18nSlice';
+import { createArtifactSlice, type ArtifactSlice } from './slices/artifactSlice';
 
 // Legacy types for backward compatibility
 export interface Task {
@@ -100,7 +101,7 @@ interface LegacySlice {
   setAnalysisResult: (result: any) => void;
 }
 
-type PulseStore = ProjectSlice & AgentSlice & KanbanSlice & UISlice & ChatSlice & I18nSlice & LegacySlice;
+type PulseStore = ProjectSlice & AgentSlice & KanbanSlice & UISlice & ChatSlice & I18nSlice & ArtifactSlice & LegacySlice;
 
 export const usePulseStore = create<PulseStore>()(
   persist(
@@ -112,6 +113,7 @@ export const usePulseStore = create<PulseStore>()(
       ...createUISlice(set, get, api),
       ...createChatSlice(set, get, api),
       ...createI18nSlice(set, get, api),
+      ...createArtifactSlice(set, get, api),
 
       // Legacy state (backward compat)
       signals: [],
