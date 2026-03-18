@@ -95,15 +95,15 @@ export function DMDecisionPanel() {
   const confidencePercent = Math.round(decision.confidence * 100);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
+    <div className="flex flex-col h-full bg-[var(--bg-surface)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/50">
-        <h3 className="text-sm font-semibold text-zinc-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           {t("dm.title")}
         </h3>
         <button
           onClick={hideDmPanel}
-          className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -122,18 +122,18 @@ export function DMDecisionPanel() {
         </div>
 
         {/* Confidence */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
             {t("dm.confidence")}
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="flex-1 h-2 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-emerald-500 rounded-full transition-all"
                 style={{ width: `${confidencePercent}%` }}
               />
             </div>
-            <span className="text-sm font-mono text-zinc-300">
+            <span className="text-sm font-mono text-[var(--text-primary)]">
               {confidencePercent}%
             </span>
           </div>
@@ -156,38 +156,38 @@ export function DMDecisionPanel() {
         </div>
 
         {/* Summary */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
             {t("dm.summary")}
           </div>
-          <p className="text-xs text-zinc-400 leading-relaxed">
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
             {decision.summary}
           </p>
         </div>
 
         {/* Rationale */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
             {t("dm.rationale")}
           </div>
-          <p className="text-xs text-zinc-400 leading-relaxed">
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
             {decision.rationale}
           </p>
         </div>
 
         {/* Risk Factors */}
         {decision.risk_factors.length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-3">
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-3">
               {t("dm.riskFactors")}
             </div>
             <ul className="space-y-1.5">
               {decision.risk_factors.map((factor, i) => (
                 <li
                   key={i}
-                  className="flex items-start gap-2 text-xs text-zinc-400"
+                  className="flex items-start gap-2 text-xs text-[var(--text-secondary)]"
                 >
-                  <span className="text-zinc-600 mt-0.5">-</span>
+                  <span className="text-[var(--text-muted)] mt-0.5">-</span>
                   <span>{factor}</span>
                 </li>
               ))}
@@ -197,17 +197,17 @@ export function DMDecisionPanel() {
 
         {/* Recommended Actions */}
         {decision.recommended_actions.length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-3">
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-3">
               {t("dm.recommendedActions")}
             </div>
             <ul className="space-y-1.5">
               {decision.recommended_actions.map((action, i) => (
                 <li
                   key={i}
-                  className="flex items-start gap-2 text-xs text-zinc-400"
+                  className="flex items-start gap-2 text-xs text-[var(--text-secondary)]"
                 >
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-zinc-800 text-zinc-500 text-[10px] flex items-center justify-center font-mono">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-muted)] text-[10px] flex items-center justify-center font-mono">
                     {i + 1}
                   </span>
                   <span className="pt-0.5">{action}</span>
@@ -220,7 +220,7 @@ export function DMDecisionPanel() {
 
       {/* Footer */}
       {status === "pending" && (
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-zinc-800/50">
+        <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--border-subtle)]">
           <button
             onClick={handleApprove}
             disabled={isSubmitting}
@@ -232,7 +232,7 @@ export function DMDecisionPanel() {
           <button
             onClick={handleReject}
             disabled={isSubmitting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
             {t("dm.reject")}
@@ -241,7 +241,7 @@ export function DMDecisionPanel() {
       )}
 
       {status === "approved" && (
-        <div className="px-4 py-3 border-t border-zinc-800/50">
+        <div className="px-4 py-3 border-t border-[var(--border-subtle)]">
           <div className="flex items-center gap-2 text-sm text-emerald-400">
             <Loader2 className="w-4 h-4 animate-spin" />
             {t("dm.approved")}

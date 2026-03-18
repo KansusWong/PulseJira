@@ -62,15 +62,15 @@ export function ArchitectResumePanel() {
   if (!panel.visible) return null;
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
+    <div className="flex flex-col h-full bg-[var(--bg-surface)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/50">
-        <h3 className="text-sm font-semibold text-zinc-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           {t("architect.failedTitle")}
         </h3>
         <button
           onClick={hideArchitectPanel}
-          className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -94,28 +94,28 @@ export function ArchitectResumePanel() {
         </div>
 
         {/* Steps Completed */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
             {t("architect.stepsCompleted")}
           </div>
-          <div className="text-lg font-mono text-zinc-300">
+          <div className="text-lg font-mono text-[var(--text-primary)]">
             {panel.stepsCompleted}
           </div>
         </div>
 
         {/* Attempt */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
             {t("architect.attempt")}
           </div>
-          <div className="text-sm text-zinc-400">
+          <div className="text-sm text-[var(--text-secondary)]">
             {t("architect.attemptOf", { current: String(panel.attempt), max: "3" })}
           </div>
         </div>
 
         {/* Info */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-          <p className="text-xs text-zinc-500 leading-relaxed">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+          <p className="text-xs text-[var(--text-muted)] leading-relaxed">
             {panel.attempt >= 3
               ? t("architect.maxRetriesReached")
               : t("architect.resumeHint")}
@@ -124,7 +124,7 @@ export function ArchitectResumePanel() {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-zinc-800/50">
+      <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--border-subtle)]">
         {panel.attempt < 3 && (
           <button
             onClick={handleResume}
@@ -136,7 +136,7 @@ export function ArchitectResumePanel() {
         )}
         <button
           onClick={handleStartOver}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors"
         >
           <RotateCcw className="w-4 h-4" />
           {t("architect.startOver")}

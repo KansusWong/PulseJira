@@ -97,13 +97,13 @@ export function PlanPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
+    <div className="flex flex-col h-full bg-[var(--bg-surface)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/50">
-        <h3 className="text-sm font-semibold text-zinc-200">{t('plan.title')}</h3>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">{t('plan.title')}</h3>
         <button
           onClick={hidePlanPanel}
-          className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -123,10 +123,10 @@ export function PlanPanel() {
         </div>
 
         {/* Execution Mode */}
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
           <div className="flex items-center gap-2 mb-3">
             {modeIcons[assessment.execution_mode]}
-            <span className="text-sm font-medium text-zinc-200">
+            <span className="text-sm font-medium text-[var(--text-primary)]">
               {modeLabels[assessment.execution_mode] || assessment.execution_mode}
             </span>
           </div>
@@ -134,14 +134,14 @@ export function PlanPanel() {
           {/* Suggested Agents */}
           {assessment.suggested_agents.length > 0 && (
             <div className="mb-3">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
                 {t('plan.agents')}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {assessment.suggested_agents.map((agent) => (
                   <span
                     key={agent}
-                    className="px-2 py-0.5 text-[11px] rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/50"
+                    className="px-2 py-0.5 text-[11px] rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
                   >
                     {agent}
                   </span>
@@ -151,15 +151,15 @@ export function PlanPanel() {
           )}
 
           {/* Estimated Steps */}
-          <div className="text-xs text-zinc-500">
-            {t('plan.estimatedSteps')} <span className="text-zinc-300">{assessment.estimated_steps}</span>
+          <div className="text-xs text-[var(--text-muted)]">
+            {t('plan.estimatedSteps')} <span className="text-[var(--text-primary)]">{assessment.estimated_steps}</span>
           </div>
         </div>
 
         {/* Plan Outline */}
         {assessment.plan_outline.length > 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-3">
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-3">
               {t('plan.executionPlan')}
             </div>
             <div className="space-y-2">
@@ -171,16 +171,16 @@ export function PlanPanel() {
                     <div className="flex-1 min-w-0">
                       <span
                         className={clsx("text-xs pt-0.5 block", {
-                          "text-zinc-400": stepState === "pending",
+                          "text-[var(--text-secondary)]": stepState === "pending",
                           "text-blue-300 font-medium": stepState === "active",
                           "text-emerald-300/80 line-through": stepState === "completed",
-                          "text-zinc-600 line-through": stepState === "skipped",
+                          "text-[var(--text-muted)] line-through": stepState === "skipped",
                         })}
                       >
                         {step}
                       </span>
                       {(stepState === "completed" || stepState === "skipped") && stepStates[i]?.summary && (
-                        <span className="text-[10px] text-zinc-600 block mt-0.5">
+                        <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
                           {stepStates[i].summary}
                         </span>
                       )}
@@ -204,7 +204,7 @@ export function PlanPanel() {
 
       {/* Actions */}
       {status === "pending" && (
-        <div className="flex flex-col gap-2 px-4 py-3 border-t border-zinc-800/50">
+        <div className="flex flex-col gap-2 px-4 py-3 border-t border-[var(--border-subtle)]">
           <div className="flex items-center gap-2">
             <button
               onClick={handleApprove}
@@ -217,7 +217,7 @@ export function PlanPanel() {
             <button
               onClick={handleReject}
               disabled={isSubmitting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <XCircle className="w-4 h-4" />
               {t('plan.reject')}
@@ -237,7 +237,7 @@ export function PlanPanel() {
       )}
 
       {status === "approved" && (
-        <div className="px-4 py-3 border-t border-zinc-800/50">
+        <div className="px-4 py-3 border-t border-[var(--border-subtle)]">
           <div className="flex items-center gap-2 text-sm text-emerald-400">
             <Loader2 className="w-4 h-4 animate-spin" />
             {t('plan.approved')}
@@ -274,7 +274,7 @@ function StepIndicator({ index, status }: { index: number; status: PlanStepStatu
       );
     default:
       return (
-        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-zinc-800 text-zinc-500 text-[10px] flex items-center justify-center font-mono">
+        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-muted)] text-[10px] flex items-center justify-center font-mono">
           {index + 1}
         </span>
       );

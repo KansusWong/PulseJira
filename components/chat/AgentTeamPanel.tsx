@@ -47,24 +47,24 @@ export function AgentTeamPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
+    <div className="flex flex-col h-full bg-[var(--bg-surface)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-zinc-400" />
-          <h3 className="text-sm font-semibold text-zinc-200">{t('team.title')}</h3>
+          <Users className="w-4 h-4 text-[var(--text-secondary)]" />
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">{t('team.title')}</h3>
         </div>
         <button
           onClick={hideTeamPanel}
-          className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Agent List */}
-      <div className="px-4 py-3 border-b border-zinc-800/50">
-        <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+      <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
+        <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
           {t('team.members')}
         </div>
         <div className="space-y-2">
@@ -72,25 +72,25 @@ export function AgentTeamPanel() {
             teamPanel.agents.map((agent) => (
               <div
                 key={agent.name}
-                className="flex items-center justify-between px-3 py-2 rounded-lg bg-zinc-900/50 border border-zinc-800/50"
+                className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
               >
                 <div className="flex items-center gap-2">
                   <Circle
                     className={clsx("w-2.5 h-2.5 fill-current", statusColors[agent.status])}
                   />
-                  <span className="text-sm text-zinc-300">{agent.name}</span>
+                  <span className="text-sm text-[var(--text-primary)]">{agent.name}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-zinc-600 capitalize">
+                  <span className="text-[10px] text-[var(--text-muted)] capitalize">
                     {agent.status}
                   </span>
                   {agent.status === "working" && (
-                    <button className="p-1 text-zinc-600 hover:text-amber-400 transition-colors">
+                    <button className="p-1 text-[var(--text-muted)] hover:text-amber-400 transition-colors">
                       <Pause className="w-3 h-3" />
                     </button>
                   )}
                   {agent.status === "idle" && (
-                    <button className="p-1 text-zinc-600 hover:text-emerald-400 transition-colors">
+                    <button className="p-1 text-[var(--text-muted)] hover:text-emerald-400 transition-colors">
                       <Play className="w-3 h-3" />
                     </button>
                   )}
@@ -98,14 +98,14 @@ export function AgentTeamPanel() {
               </div>
             ))
           ) : (
-            <p className="text-xs text-zinc-600">{t('team.forming')}</p>
+            <p className="text-xs text-[var(--text-muted)]">{t('team.forming')}</p>
           )}
         </div>
       </div>
 
       {/* Communication Log */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+        <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
           {t('team.communications')}
         </div>
         <div className="space-y-2">
@@ -113,21 +113,21 @@ export function AgentTeamPanel() {
             teamPanel.communications.map((msg) => (
               <div
                 key={msg.id}
-                className="px-3 py-2 rounded-lg bg-zinc-900/30 border border-zinc-800/30"
+                className="px-3 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-subtle)]"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <MessageSquare className="w-3 h-3 text-zinc-600" />
-                  <span className="text-[11px] font-medium text-zinc-400">
+                  <MessageSquare className="w-3 h-3 text-[var(--text-muted)]" />
+                  <span className="text-[11px] font-medium text-[var(--text-secondary)]">
                     {msg.from_agent} → {msg.to_agent}
                   </span>
-                  <span className="text-[10px] text-zinc-700 ml-auto">
+                  <span className="text-[10px] text-[var(--text-muted)] ml-auto">
                     {new Date(msg.created_at).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
                   </span>
                 </div>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--text-muted)]">
                   {typeof msg.payload === "string"
                     ? msg.payload
                     : msg.payload?.message || msg.payload?.instruction || JSON.stringify(msg.payload).slice(0, 100)}
@@ -135,13 +135,13 @@ export function AgentTeamPanel() {
               </div>
             ))
           ) : (
-            <p className="text-xs text-zinc-600">{t('team.noCommunications')}</p>
+            <p className="text-xs text-[var(--text-muted)]">{t('team.noCommunications')}</p>
           )}
         </div>
       </div>
 
       {/* Intervention Input */}
-      <div className="px-4 py-3 border-t border-zinc-800/50">
+      <div className="px-4 py-3 border-t border-[var(--border-subtle)]">
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -151,12 +151,12 @@ export function AgentTeamPanel() {
               if (e.key === "Enter") handleIntervene();
             }}
             placeholder={t('team.sendInstruction')}
-            className="flex-1 bg-zinc-900/80 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
+            className="flex-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)]"
           />
           <button
             onClick={handleIntervene}
             disabled={!interventionText.trim()}
-            className="p-2 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 transition-colors"
+            className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors"
           >
             <Send className="w-4 h-4" />
           </button>

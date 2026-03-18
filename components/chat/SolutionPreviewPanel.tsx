@@ -70,18 +70,18 @@ export function SolutionPreviewPanel() {
   const selectedSolution = proposal.solutions.find((s) => s.id === selectedId);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
+    <div className="flex flex-col h-full bg-[var(--bg-surface)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
         <div>
-          <h3 className="text-sm font-semibold text-zinc-200">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
             {t('solution.title') || '方案选择'}
           </h3>
-          <p className="text-xs text-zinc-500 mt-0.5">{proposal.context}</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">{proposal.context}</p>
         </div>
         <button
           onClick={hideSolutionPanel}
-          className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -101,12 +101,12 @@ export function SolutionPreviewPanel() {
                 "rounded-xl border p-4 cursor-pointer transition-all",
                 isSelected
                   ? "border-emerald-500/50 bg-emerald-500/10 ring-1 ring-emerald-500/20"
-                  : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
+                  : "border-[var(--border-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--border-focus)]"
               )}
             >
               {/* Header */}
               <div className="flex items-start justify-between mb-2">
-                <h4 className="text-sm font-medium text-zinc-200 flex items-center gap-2">
+                <h4 className="text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
                   {solution.name}
                   {isRecommended && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -121,7 +121,7 @@ export function SolutionPreviewPanel() {
               </div>
 
               {/* Rationale */}
-              <p className="text-xs text-zinc-400 mb-3 leading-relaxed">{solution.rationale}</p>
+              <p className="text-xs text-[var(--text-secondary)] mb-3 leading-relaxed">{solution.rationale}</p>
 
               {/* Risk Level */}
               <div className={clsx("inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs mb-3", riskColors[solution.risk_level])}>
@@ -132,13 +132,13 @@ export function SolutionPreviewPanel() {
               {/* Trade-offs */}
               {solution.trade_offs.length > 0 && (
                 <div className="mb-3">
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
                     {t('solution.tradeOffs') || '权衡'}
                   </div>
                   <ul className="space-y-1">
                     {solution.trade_offs.map((trade, i) => (
-                      <li key={i} className="text-xs text-zinc-500 flex items-start gap-1.5">
-                        <span className="text-zinc-700 mt-0.5">•</span>
+                      <li key={i} className="text-xs text-[var(--text-muted)] flex items-start gap-1.5">
+                        <span className="text-[var(--text-muted)] mt-0.5">•</span>
                         <span>{trade}</span>
                       </li>
                     ))}
@@ -148,21 +148,21 @@ export function SolutionPreviewPanel() {
 
               {/* Files */}
               <div className="space-y-1.5">
-                <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
                   {t('solution.fileChanges') || '文件变更'} ({solution.files.length})
-                  <span className="text-zinc-700 ml-2">
+                  <span className="text-[var(--text-muted)] ml-2">
                     ~{solution.estimated_lines} {t('solution.lines') || 'lines'}
                   </span>
                 </div>
                 {solution.files.slice(0, 3).map((file, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 text-xs text-zinc-500 p-2 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
+                    className="flex items-center gap-2 text-xs text-[var(--text-muted)] p-2 rounded bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] transition-colors"
                   >
                     {actionIcons[file.action]}
-                    <span className="flex-1 font-mono truncate text-zinc-400">{file.path}</span>
+                    <span className="flex-1 font-mono truncate text-[var(--text-secondary)]">{file.path}</span>
                     {file.description && (
-                      <span className="text-[10px] text-zinc-600 hidden sm:inline">
+                      <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
                         {file.description}
                       </span>
                     )}
@@ -171,7 +171,7 @@ export function SolutionPreviewPanel() {
                         e.stopPropagation();
                         setPreviewFile({ solution, file });
                       }}
-                      className="p-1 hover:bg-zinc-700 rounded transition-colors"
+                      className="p-1 hover:bg-[var(--bg-hover)] rounded transition-colors"
                       title={t('solution.preview') || 'Preview'}
                     >
                       <Eye className="w-3 h-3" />
@@ -179,7 +179,7 @@ export function SolutionPreviewPanel() {
                   </div>
                 ))}
                 {solution.files.length > 3 && (
-                  <p className="text-[10px] text-zinc-600 ml-2">
+                  <p className="text-[10px] text-[var(--text-muted)] ml-2">
                     +{solution.files.length - 3} {t('solution.moreFiles') || 'more files'}
                   </p>
                 )}
@@ -191,7 +191,7 @@ export function SolutionPreviewPanel() {
 
       {/* Actions */}
       {status === "pending" && (
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-zinc-800/50">
+        <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--border-subtle)]">
           <button
             onClick={handleApprove}
             disabled={!selectedId || isSubmitting}
@@ -207,7 +207,7 @@ export function SolutionPreviewPanel() {
           <button
             onClick={handleReject}
             disabled={isSubmitting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
             {t('solution.reject') || '拒绝'}
@@ -216,7 +216,7 @@ export function SolutionPreviewPanel() {
       )}
 
       {status === "approved" && (
-        <div className="px-4 py-3 border-t border-zinc-800/50">
+        <div className="px-4 py-3 border-t border-[var(--border-subtle)]">
           <div className="flex items-center gap-2 text-sm text-emerald-400">
             <Loader2 className="w-4 h-4 animate-spin" />
             {t('solution.approved') || '方案已批准，执行中...'}
@@ -259,16 +259,16 @@ function FilePreviewModal({ file, onClose }: FilePreviewModalProps) {
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-zinc-900 rounded-xl border border-zinc-800 max-w-4xl w-full max-h-[80vh] flex flex-col shadow-2xl pointer-events-auto">
+        <div className="bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] max-w-4xl w-full max-h-[80vh] flex flex-col shadow-2xl pointer-events-auto">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
             <div className="flex items-center gap-2">
               {actionIcons[file.action]}
-              <h3 className="text-sm font-medium text-zinc-200 font-mono">{file.path}</h3>
+              <h3 className="text-sm font-medium text-[var(--text-primary)] font-mono">{file.path}</h3>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors"
+              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -276,15 +276,15 @@ function FilePreviewModal({ file, onClose }: FilePreviewModalProps) {
 
           {/* Description */}
           {file.description && (
-            <div className="px-4 py-2 border-b border-zinc-800/50 bg-zinc-900/50">
-              <p className="text-xs text-zinc-400">{file.description}</p>
+            <div className="px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+              <p className="text-xs text-[var(--text-secondary)]">{file.description}</p>
             </div>
           )}
 
           {/* Content */}
-          <div className="flex-1 overflow-auto p-4 bg-zinc-950">
+          <div className="flex-1 overflow-auto p-4 bg-[var(--bg-surface)]">
             {file.action === 'delete' ? (
-              <div className="flex items-center justify-center h-full text-zinc-600">
+              <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
                 <div className="text-center">
                   <Trash2 className="w-8 h-8 mx-auto mb-2 text-red-400/50" />
                   <p className="text-sm">{t('solution.fileWillBeDeleted') || 'This file will be deleted'}</p>
@@ -293,24 +293,24 @@ function FilePreviewModal({ file, onClose }: FilePreviewModalProps) {
             ) : file.action === 'edit' && file.original_content ? (
               <div className="grid grid-cols-2 gap-2 h-full">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
                     {t('solution.original') || 'Original'}
                   </div>
-                  <pre className="text-xs text-zinc-300 font-mono bg-zinc-900/50 p-3 rounded border border-zinc-800 overflow-auto max-h-full">
+                  <pre className="text-xs text-[var(--text-primary)] font-mono bg-[var(--bg-elevated)] p-3 rounded border border-[var(--border-subtle)] overflow-auto max-h-full">
                     {file.original_content}
                   </pre>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">
                     {t('solution.new') || 'New'}
                   </div>
-                  <pre className="text-xs text-zinc-300 font-mono bg-zinc-900/50 p-3 rounded border border-zinc-800 overflow-auto max-h-full">
+                  <pre className="text-xs text-[var(--text-primary)] font-mono bg-[var(--bg-elevated)] p-3 rounded border border-[var(--border-subtle)] overflow-auto max-h-full">
                     {file.content || ''}
                   </pre>
                 </div>
               </div>
             ) : (
-              <pre className="text-xs text-zinc-300 font-mono bg-zinc-900/50 p-3 rounded border border-zinc-800 overflow-auto">
+              <pre className="text-xs text-[var(--text-primary)] font-mono bg-[var(--bg-elevated)] p-3 rounded border border-[var(--border-subtle)] overflow-auto">
                 {file.content || t('solution.noContent') || '(No content)'}
               </pre>
             )}
