@@ -12,6 +12,8 @@ import {
   ChevronsLeft,
   Pencil,
   Sparkles,
+  SquarePen,
+  FolderOpen,
 } from "lucide-react";
 import clsx from "clsx";
 import { RebuilDLogo } from "@/components/ui/RebuilDLogo";
@@ -338,6 +340,21 @@ export function Sidebar({
           <Plus className="w-4 h-4" />
         </button>
 
+        {/* Projects icon button */}
+        <button
+          onClick={() => router.push("/projects")}
+          className={clsx(
+            "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none mt-2",
+            pathname === "/projects" || pathname.startsWith("/projects/")
+              ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+          )}
+          title={t("sidebar.projects")}
+          aria-label={t("sidebar.projects")}
+        >
+          <FolderOpen className="w-4 h-4" />
+        </button>
+
         {/* Spacer */}
         <div className="flex-1" />
 
@@ -400,25 +417,33 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* New Chat button */}
-      <div className="px-3 py-2">
+      {/* Action group: New Chat, Search, Projects */}
+      <div className="px-3 py-2 space-y-0.5">
         <button
           onClick={handleNewChat}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent-ghost)] transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
         >
-          <Plus className="w-4 h-4 flex-shrink-0" />
+          <SquarePen className="w-4 h-4 flex-shrink-0" />
           <span>{t("sidebar.newChat")}</span>
         </button>
-      </div>
-
-      {/* Search button — opens SearchModal */}
-      <div className="px-3 pb-2">
         <button
           onClick={() => setSearchModalOpen(true)}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-[var(--bg-hover)] border border-[var(--border-subtle)] rounded-lg transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
         >
-          <Search className="w-3.5 h-3.5" />
-          {t("sidebar.searchChats")}
+          <Search className="w-4 h-4 flex-shrink-0" />
+          <span>{t("sidebar.searchChats")}</span>
+        </button>
+        <button
+          onClick={() => { router.push("/projects"); onCloseMobileMenu?.(); }}
+          className={clsx(
+            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+            pathname === "/projects" || pathname.startsWith("/projects/")
+              ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          )}
+        >
+          <FolderOpen className="w-4 h-4 flex-shrink-0" />
+          <span>{t("sidebar.projects")}</span>
         </button>
       </div>
 
