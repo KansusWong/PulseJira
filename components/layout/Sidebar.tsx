@@ -286,8 +286,9 @@ export function Sidebar({
         {/* Logo: amber square — click to expand */}
         <button
           onClick={onToggleSidebar}
-          className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0 hover:bg-amber-400 transition-colors"
+          className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0 hover:bg-amber-400 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
           title={t("sidebar.openSidebar")}
+          aria-label={t("sidebar.openSidebar")}
         >
           <span className="text-black font-bold text-sm">R</span>
         </button>
@@ -295,8 +296,9 @@ export function Sidebar({
         {/* New Chat: 34px square "+" button */}
         <button
           onClick={handleNewChat}
-          className="w-[34px] h-[34px] rounded-lg border border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-ghost)] transition-colors flex-shrink-0 mt-2"
+          className="w-[34px] h-[34px] rounded-lg border border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-ghost)] transition-colors flex-shrink-0 mt-2 focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
           title={t("sidebar.newChat")}
+          aria-label={t("sidebar.newChat")}
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -329,24 +331,26 @@ export function Sidebar({
           <button
             onClick={() => router.push("/graph")}
             className={clsx(
-              "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors",
+              "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none",
               pathname === "/graph"
                 ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
                 : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
             )}
             title={t("sidebar.graph")}
+            aria-label={t("sidebar.graph")}
           >
             <Layers className="w-4 h-4" />
           </button>
           <button
             onClick={() => router.push("/settings")}
             className={clsx(
-              "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors",
+              "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none",
               pathname === "/settings"
                 ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
                 : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
             )}
             title={t("sidebar.settings")}
+            aria-label={t("sidebar.settings")}
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -373,8 +377,9 @@ export function Sidebar({
         </div>
         <button
           onClick={onToggleSidebar}
-          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
           title={t("sidebar.closeSidebar")}
+          aria-label={t("sidebar.closeSidebar")}
         >
           <ChevronsLeft className="w-4 h-4" />
         </button>

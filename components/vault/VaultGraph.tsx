@@ -314,6 +314,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
   const [filterType, setFilterType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [focusedNodeIndex, setFocusedNodeIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -493,6 +494,8 @@ export function VaultGraph({ data }: { data: GraphData }) {
       const color = getColor(n.type);
       const isSelected = selectedNode?.id === n.id;
       const isHovered = hoveredNode?.id === n.id;
+      const nodeIndex = graphData.nodes.findIndex(gn => gn.id === n.id);
+      const isFocused = focusedNodeIndex === nodeIndex && focusedNodeIndex >= 0;
       const x = n.x || 0;
       const y = n.y || 0;
 
@@ -507,6 +510,16 @@ export function VaultGraph({ data }: { data: GraphData }) {
         ctx.arc(x, y, r * 1.2, 0, 2 * Math.PI);
         ctx.fillStyle = color + "18"; // ~10% fill
         ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (isFocused) {
+        // Keyboard focused: blue ring for accessibility
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = "#3b82f680"; // blue-500 with 50% opacity
+        ctx.beginPath();
+        ctx.arc(x, y, r * 1.3, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 2;
+        ctx.stroke();
         ctx.shadowBlur = 0;
       } else if (isHovered) {
         // Hovered: animated pulsing glow
@@ -568,13 +581,13 @@ export function VaultGraph({ data }: { data: GraphData }) {
 
       // --- Step 6: Label (node name) below ---
       const fontSize = Math.min(Math.max(12 / globalScale, 3), 14);
-      ctx.font = `${isSelected || isHovered ? "600 " : "400 "}${fontSize}px Inter, system-ui, sans-serif`;
+      ctx.font = `${isSelected || isHovered || isFocused ? "600 " : "400 "}${fontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       // Text shadow for readability
       ctx.fillStyle = "#050505";
       ctx.fillText(n.label, x + 0.5, y + r + 5.5);
-      ctx.fillStyle = isSelected || isHovered ? "#ffffff" : "#f4f4f5"; // text-primary, brighter on interact
+      ctx.fillStyle = isSelected || isHovered || isFocused ? "#ffffff" : "#f4f4f5"; // text-primary, brighter on interact
       ctx.fillText(n.label, x, y + r + 5);
 
       // --- Step 7: Type label below name ---
@@ -588,7 +601,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
 
       ctx.restore();
     },
-    [selectedNode, hoveredNode]
+    [selectedNode, hoveredNode, focusedNodeIndex, graphData.nodes]
   );
 
   const paintLink = useCallback(
@@ -848,6 +861,67 @@ export function VaultGraph({ data }: { data: GraphData }) {
     [nodeMap]
   );
 
+  // ---- Keyboard Navigation ----
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const nodes = graphData.nodes;
+      if (nodes.length === 0) return;
+
+      // Escape: close popup
+      if (e.key === "Escape") {
+        if (selectedNode) {
+          e.preventDefault();
+          setSelectedNode(null);
+          setPopupPos(null);
+          setFocusedNodeIndex(-1);
+        }
+        return;
+      }
+
+      // Tab: cycle through nodes
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const nextIndex = e.shiftKey
+          ? (focusedNodeIndex - 1 + nodes.length) % nodes.length
+          : (focusedNodeIndex + 1) % nodes.length;
+        setFocusedNodeIndex(nextIndex);
+        const node = nodes[nextIndex];
+        if (node && fgRef.current) {
+          fgRef.current.centerAt(node.x, node.y, 200);
+        }
+        return;
+      }
+
+      // Enter: select focused node
+      if (e.key === "Enter") {
+        if (focusedNodeIndex >= 0 && focusedNodeIndex < nodes.length) {
+          e.preventDefault();
+          const node = nodes[focusedNodeIndex];
+          handleNodeClick(node);
+        }
+        return;
+      }
+
+      // Arrow keys: pan canvas
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+        e.preventDefault();
+        const fg = fgRef.current;
+        if (!fg) return;
+        const panStep = 50;
+        const t = transformRef.current;
+        let newX = t.x;
+        let newY = t.y;
+        if (e.key === "ArrowLeft") newX += panStep;
+        if (e.key === "ArrowRight") newX -= panStep;
+        if (e.key === "ArrowUp") newY += panStep;
+        if (e.key === "ArrowDown") newY -= panStep;
+        fg.centerAt((dimensions.width / 2 - newX) / t.k, (dimensions.height / 2 - newY) / t.k, 100);
+        return;
+      }
+    },
+    [graphData.nodes, focusedNodeIndex, selectedNode, handleNodeClick, dimensions]
+  );
+
   // ---- Build popup sections by node type ----
 
   const popupSections = useMemo(() => {
@@ -1040,7 +1114,13 @@ export function VaultGraph({ data }: { data: GraphData }) {
   };
 
   return (
-    <div className="relative h-full bg-[#050505]" ref={containerRef}>
+    <div
+      className="relative h-full bg-[#050505] focus-visible:outline-none"
+      ref={containerRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      aria-label="Knowledge Graph Canvas"
+    >
       {/* Loading state */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-base)] z-50">

@@ -353,22 +353,25 @@ export function ArtifactsPanel() {
         {/* Action buttons */}
         <button
           onClick={handleCopy}
-          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors"
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
           title="Copy content"
+          aria-label="Copy content"
         >
           <Copy className="w-4 h-4" />
         </button>
         <button
           onClick={handleDownload}
-          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors"
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
           title="Download file"
+          aria-label="Download file"
         >
           <Download className="w-4 h-4" />
         </button>
         <button
           onClick={closeAllArtifacts}
-          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors"
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
           title="Close panel"
+          aria-label="Close panel"
         >
           <X className="w-4 h-4" />
         </button>
@@ -376,7 +379,7 @@ export function ArtifactsPanel() {
 
       {/* ── Tab Bar ── */}
       {openArtifacts.length > 1 && (
-        <div className="flex items-center gap-0 overflow-x-auto border-b border-[var(--border-subtle)] flex-shrink-0 scrollbar-thin">
+        <div className="flex items-center gap-0 overflow-x-auto border-b border-[var(--border-subtle)] flex-shrink-0 scrollbar-thin" role="tablist">
           {openArtifacts.map((art) => {
             const isActive = art.id === activeArtifact.id;
             const TabIcon = typeIconMap[art.type] || File;
@@ -384,13 +387,22 @@ export function ArtifactsPanel() {
             return (
               <div
                 key={art.id}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
                 className={clsx(
-                  "group flex items-center gap-1.5 px-3 py-2 text-xs cursor-pointer border-b-2 transition-colors whitespace-nowrap",
+                  "group flex items-center gap-1.5 px-3 py-2 text-xs cursor-pointer border-b-2 transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none",
                   isActive
                     ? "border-[var(--accent)] text-[var(--text-primary)]"
                     : "border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                 )}
                 onClick={() => setActiveArtifact(art.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveArtifact(art.id);
+                  }
+                }}
               >
                 <TabIcon className="w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate max-w-[120px]">{art.filename}</span>
@@ -399,8 +411,9 @@ export function ArtifactsPanel() {
                     e.stopPropagation();
                     closeArtifact(art.id);
                   }}
-                  className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-white/[0.1] transition-all"
+                  className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-white/[0.1] transition-all focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none focus-visible:opacity-100"
                   title={`Close ${art.filename}`}
+                  aria-label={`Close ${art.filename}`}
                 >
                   <X className="w-3 h-3" />
                 </button>
