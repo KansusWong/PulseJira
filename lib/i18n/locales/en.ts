@@ -71,6 +71,14 @@ const en: TranslationDict = {
   'sidebar.graph': 'Knowledge Graph',
   'sidebar.settings': 'Settings',
 
+  // ── Projects Page ──
+  'projects.title': 'Projects',
+  'projects.newProject': 'New project',
+  'projects.searchPlaceholder': 'Search projects...',
+  'projects.sortByActivity': 'Activity',
+  'projects.sortBy': 'Sort by',
+  'projects.empty': 'No projects yet',
+
   // ── Graph Page ──
   'graph.title': 'Knowledge Graph',
   'graph.refresh': 'Refresh',

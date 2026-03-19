@@ -71,6 +71,14 @@ const zh: TranslationDict = {
   'sidebar.graph': '知识图谱',
   'sidebar.settings': '设置',
 
+  // ── 项目页 ──
+  'projects.title': '项目',
+  'projects.newProject': '新建项目',
+  'projects.searchPlaceholder': '搜索项目...',
+  'projects.sortByActivity': '最近活跃',
+  'projects.sortBy': '排序',
+  'projects.empty': '暂无项目',
+
   // ── Graph Page ──
   'graph.title': '知识图谱',
   'graph.refresh': '刷新',
