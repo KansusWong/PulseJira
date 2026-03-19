@@ -75,7 +75,7 @@ export function SolutionPreviewPanel() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
         <div>
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            {t('solution.title') || '方案选择'}
+            {t('solution.title')}
           </h3>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">{proposal.context}</p>
         </div>
@@ -111,7 +111,7 @@ export function SolutionPreviewPanel() {
                   {isRecommended && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
                       <Star className="w-3 h-3" />
-                      {t('solution.recommended') || '推荐'}
+                      {t('solution.recommended')}
                     </span>
                   )}
                 </h4>
@@ -133,7 +133,7 @@ export function SolutionPreviewPanel() {
               {solution.trade_offs.length > 0 && (
                 <div className="mb-3">
                   <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
-                    {t('solution.tradeOffs') || '权衡'}
+                    {t('solution.tradeOffs')}
                   </div>
                   <ul className="space-y-1">
                     {solution.trade_offs.map((trade, i) => (
@@ -149,7 +149,7 @@ export function SolutionPreviewPanel() {
               {/* Files */}
               <div className="space-y-1.5">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
-                  {t('solution.fileChanges') || '文件变更'} ({solution.files.length})
+                  {t('solution.fileChanges')} ({solution.files.length})
                   <span className="text-[var(--text-muted)] ml-2">
                     ~{solution.estimated_lines} {t('solution.lines') || 'lines'}
                   </span>
@@ -202,7 +202,7 @@ export function SolutionPreviewPanel() {
             ) : (
               <CheckCircle2 className="w-4 h-4" />
             )}
-            {t('solution.approve') || '批准方案'}
+            {t('solution.approve')}
           </button>
           <button
             onClick={handleReject}
@@ -210,7 +210,7 @@ export function SolutionPreviewPanel() {
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <XCircle className="w-4 h-4" />
-            {t('solution.reject') || '拒绝'}
+            {t('solution.reject')}
           </button>
         </div>
       )}
@@ -219,7 +219,7 @@ export function SolutionPreviewPanel() {
         <div className="px-4 py-3 border-t border-[var(--border-subtle)]">
           <div className="flex items-center gap-2 text-sm text-emerald-400">
             <Loader2 className="w-4 h-4 animate-spin" />
-            {t('solution.approved') || '方案已批准，执行中...'}
+            {t('solution.approved')}
           </div>
         </div>
       )}

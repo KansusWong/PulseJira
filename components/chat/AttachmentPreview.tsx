@@ -2,6 +2,7 @@
 
 import { X, FileText, Loader2 } from "lucide-react";
 import type { AttachmentMeta } from "@/lib/core/types";
+import { useTranslation } from "@/lib/i18n";
 
 interface AttachmentPreviewProps {
   files: AttachmentMeta[];
@@ -16,6 +17,7 @@ function formatSize(bytes: number): string {
 }
 
 export function AttachmentPreview({ files, uploading, onRemove }: AttachmentPreviewProps) {
+  const { t } = useTranslation();
   if (files.length === 0 && !uploading) return null;
 
   return (
@@ -47,7 +49,7 @@ export function AttachmentPreview({ files, uploading, onRemove }: AttachmentPrev
       {uploading && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg-glass)] border border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          <span>上传中...</span>
+          <span>{t('chat.uploading')}</span>
         </div>
       )}
     </div>

@@ -101,11 +101,11 @@ export function AgentConfigCard({ agent, localOverride, onChange, onSave, onAddS
             <Badge variant={agent.id}>{agent.runMode}</Badge>
             {agent.createdBy === 'subagent' && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30">
-                子Agent
+                {t('common.subAgent')}
               </span>
             )}
             {agent.projectId && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-200/10 text-zinc-300 border border-white/20">
                 {agent.projectId.slice(0, 8)}
               </span>
             )}

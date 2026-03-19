@@ -59,9 +59,9 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-function formatDate(s: string): string {
+function formatDate(s: string, locale: string = 'en'): string {
   const d = new Date(s);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: "short", day: "numeric" });
 }
 
 function formatCost(usd: number): string {
@@ -91,7 +91,7 @@ export function UsageSnapshotCard() {
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<"tokens" | "time" | "cost">("tokens");
 
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const AGENT_LABELS: Record<string, string> = {
     'signal-screener': t('usage.agent.signalScreener'),
@@ -146,12 +146,12 @@ export function UsageSnapshotCard() {
   const chartData =
     isTimeView
       ? data?.last7DaysTime?.byDay?.map((d) => ({
-          date: formatDate(d.date),
+          date: formatDate(d.date, locale),
           fullDate: d.date,
           value: d.totalDurationMs,
         })) ?? []
       : data?.last7Days?.byDay?.map((d) => ({
-          date: formatDate(d.date),
+          date: formatDate(d.date, locale),
           fullDate: d.date,
           value: d.totalTokens,
         })) ?? [];
@@ -165,7 +165,7 @@ export function UsageSnapshotCard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <BarChart3 className="w-6 h-6 text-cyan-400" />
+          <BarChart3 className="w-6 h-6 text-zinc-300" />
           <div>
             <h2 className="text-lg font-bold text-[var(--text-primary)]">{t('usage.title')}</h2>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">
@@ -176,7 +176,7 @@ export function UsageSnapshotCard() {
         <div className="flex items-center gap-3">
           {ago !== null && (
             <span className="text-xs text-[var(--text-muted)]">
-              Updated {ago}s ago
+              {t('common.updatedAgo', { ago: String(ago) })}
             </span>
           )}
           <button
@@ -456,7 +456,7 @@ export function UsageSnapshotCard() {
                           {chartData.map((entry) => (
                             <Cell
                               key={entry.fullDate}
-                              fill={entry.value > 0 ? "#22d3ee" : "#3f3f46"}
+                              fill={entry.value > 0 ? "#f4f4f5" : "#3f3f46"}
                               opacity={entry.value > 0 ? 0.9 : 0.5}
                             />
                           ))}
@@ -623,7 +623,7 @@ export function UsageSnapshotCard() {
                       {chartData.map((entry) => (
                         <Cell
                           key={entry.fullDate}
-                          fill={entry.value > 0 ? "#22d3ee" : "#3f3f46"}
+                          fill={entry.value > 0 ? "#f4f4f5" : "#3f3f46"}
                           opacity={entry.value > 0 ? 0.9 : 0.5}
                         />
                       ))}
@@ -635,9 +635,9 @@ export function UsageSnapshotCard() {
           </div>
 
           {/* Signal Intelligence Usage Detail */}
-          <div className="bg-[var(--bg-glass)] border border-amber-900/30 rounded-xl p-4">
+          <div className="bg-[var(--bg-glass)] border border-zinc-700/30 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
+              <div className="w-2 h-2 rounded-full bg-zinc-300" />
               <div className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
                 {t('usage.signalTokenDetail')}
               </div>
@@ -657,7 +657,7 @@ export function UsageSnapshotCard() {
                     className="flex items-center justify-between text-sm"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-amber-300/80 font-mono truncate max-w-[140px]">
+                      <span className="text-zinc-200/80 font-mono truncate max-w-[140px]">
                         {a.agentName}
                       </span>
                       {AGENT_LABELS[a.agentName] && (
@@ -675,7 +675,7 @@ export function UsageSnapshotCard() {
             )}
             <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex justify-between text-xs">
               <span className="text-[var(--text-muted)]">{t('usage.signalTotal30d')}</span>
-              <span className="text-amber-400 font-semibold">
+              <span className="text-zinc-300 font-semibold">
                 {formatTokens(data.signalUsage?.totalTokens30d ?? 0)}
               </span>
             </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslation } from "@/lib/i18n";
+
 interface ComparisonItem {
   dimension: string;
   [key: string]: string;
@@ -12,6 +14,7 @@ interface ComparisonData {
 }
 
 export function ChartComparison({ chart }: { chart: ComparisonData }) {
+  const { t } = useTranslation();
   // Extract column names from items (all keys except "dimension")
   const columns = chart.items.length > 0
     ? Object.keys(chart.items[0]).filter((k) => k !== "dimension")
@@ -29,7 +32,7 @@ export function ChartComparison({ chart }: { chart: ComparisonData }) {
           <thead>
             <tr className="border-b border-[var(--border-default)]">
               <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] whitespace-nowrap">
-                维度
+                {t('common.dimension')}
               </th>
               {columns.map((col, i) => (
                 <th

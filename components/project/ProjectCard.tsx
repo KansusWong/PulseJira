@@ -27,7 +27,7 @@ const statusVariants: Record<string, 'default' | 'success' | 'error' | 'warning'
 
 export function ProjectCard({ project, isActive, onClick }: ProjectCardProps) {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const statusLabels: Record<string, string> = {
     draft: t('project.status.draft'),
@@ -58,7 +58,7 @@ export function ProjectCard({ project, isActive, onClick }: ProjectCardProps) {
       <p className="text-xs text-zinc-500 line-clamp-2 mb-3">{project.description}</p>
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-zinc-600 font-mono">
-          {new Date(project.updated_at).toLocaleDateString()}
+          {new Date(project.updated_at).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US')}
         </span>
         <ArrowRight className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
       </div>

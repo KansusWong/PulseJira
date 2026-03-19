@@ -762,7 +762,7 @@ export function ChatView() {
 
 function EmptyState({ onSend, children }: { onSend: (text: string) => void; children?: React.ReactNode }) {
   const { t, locale } = useTranslation();
-  const fullText = locale === 'zh' ? '想法随聊' : "Welcome, I'm ready";
+  const fullText = t('chat.emptyWelcome');
   const [displayText, setDisplayText] = useState('');
 
   useEffect(() => {

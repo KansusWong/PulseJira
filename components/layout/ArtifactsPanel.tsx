@@ -15,6 +15,7 @@ import {
 import clsx from "clsx";
 import hljs from "highlight.js/lib/common";
 import { usePulseStore } from "@/store/usePulseStore.new";
+import { useTranslation } from "@/lib/i18n";
 import { MarkdownRenderer } from "../chat/MarkdownRenderer";
 import type { ArtifactRef } from "@/store/slices/artifactSlice";
 
@@ -304,6 +305,7 @@ function ArtifactBody({ artifact }: { artifact: ArtifactRef }) {
 // ── Main ArtifactsPanel ──
 
 export function ArtifactsPanel() {
+  const { t } = useTranslation();
   const openArtifacts = usePulseStore((s) => s.openArtifacts);
   const activeArtifactId = usePulseStore((s) => s.activeArtifactId);
   const setActiveArtifact = usePulseStore((s) => s.setActiveArtifact);
@@ -354,24 +356,24 @@ export function ArtifactsPanel() {
         <button
           onClick={handleCopy}
           className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
-          title="Copy content"
-          aria-label="Copy content"
+          title={t('common.copy')}
+          aria-label={t('common.copy')}
         >
           <Copy className="w-4 h-4" />
         </button>
         <button
           onClick={handleDownload}
           className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
-          title="Download file"
-          aria-label="Download file"
+          title={t('common.download')}
+          aria-label={t('common.download')}
         >
           <Download className="w-4 h-4" />
         </button>
         <button
           onClick={closeAllArtifacts}
           className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/[0.05] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
-          title="Close panel"
-          aria-label="Close panel"
+          title={t('common.closePanel')}
+          aria-label={t('common.closePanel')}
         >
           <X className="w-4 h-4" />
         </button>
@@ -412,8 +414,8 @@ export function ArtifactsPanel() {
                     closeArtifact(art.id);
                   }}
                   className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-white/[0.1] transition-all focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none focus-visible:opacity-100"
-                  title={`Close ${art.filename}`}
-                  aria-label={`Close ${art.filename}`}
+                  title={t('common.closeItem', { name: art.filename })}
+                  aria-label={t('common.closeItem', { name: art.filename })}
                 >
                   <X className="w-3 h-3" />
                 </button>

@@ -3,8 +3,10 @@
 import { Search } from "lucide-react";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { ContextWindowIndicator } from "@/components/chat/ContextWindowIndicator";
+import { useTranslation } from "@/lib/i18n";
 
 export function TopBar() {
+  const { t } = useTranslation();
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
   const conversations = usePulseStore((s) => s.conversations);
   const contextUsage = usePulseStore((s) => s.contextUsage);
@@ -47,7 +49,7 @@ export function TopBar() {
         <button
           type="button"
           className="p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-          aria-label="Search"
+          aria-label={t('common.search')}
         >
           <Search className="w-4 h-4" />
         </button>

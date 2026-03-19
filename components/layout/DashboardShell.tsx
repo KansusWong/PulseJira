@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import clsx from "clsx";
 import { Menu } from "lucide-react";
 import { usePulseStore } from "@/store/usePulseStore.new";
+import { useTranslation } from "@/lib/i18n";
 import { ArtifactsPanel } from "./ArtifactsPanel";
 
 interface DashboardShellProps {
@@ -31,6 +32,8 @@ export function DashboardShell({
   studioPanelOpen: _studioPanelOpen,
   onToggleSidebar,
 }: DashboardShellProps) {
+  const { t } = useTranslation();
+
   // ── Store selectors ──
   const artifactPanelOpen = usePulseStore((s) => s.artifactPanelOpen);
   const closeAllArtifacts = usePulseStore((s) => s.closeAllArtifacts);
@@ -142,7 +145,7 @@ export function DashboardShell({
       <button
         onClick={() => setMobileMenuOpen(true)}
         className="md:hidden fixed top-3 left-3 z-40 w-10 h-10 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-        aria-label="Open menu"
+        aria-label={t('common.openMenu')}
       >
         <Menu className="w-5 h-5" />
       </button>

@@ -91,7 +91,7 @@ export function AgentIdentityPanel({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-[11px] text-[var(--text-muted)] font-medium uppercase">
-              Model {modelChanged && <span className="text-amber-400 ml-1">({t('common.modified')})</span>}
+              Model {modelChanged && <span className="text-zinc-300 ml-1">({t('common.modified')})</span>}
             </label>
             {modelChanged && agent.id !== 'rebuild' && (
               <button onClick={() => onReset("model")} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-1">
@@ -103,7 +103,7 @@ export function AgentIdentityPanel({
             <div className="w-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg p-2.5 text-sm font-mono text-[var(--text-secondary)] flex items-center gap-2">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Auto
-              <span className="text-[10px] text-[var(--text-muted)] ml-auto">由 Chat 选择和业务复杂度决定</span>
+              <span className="text-[10px] text-[var(--text-muted)] ml-auto">{t('common.modelAutoHint')}</span>
             </div>
           ) : (
             <div className="relative">
@@ -133,7 +133,7 @@ export function AgentIdentityPanel({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-[11px] text-[var(--text-muted)] font-medium uppercase">
-                Max Loops {loopsChanged && <span className="text-amber-400 ml-1">({t('common.modified')})</span>}
+                Max Loops {loopsChanged && <span className="text-zinc-300 ml-1">({t('common.modified')})</span>}
               </label>
               {loopsChanged && (
                 <button onClick={() => onReset("maxLoops")} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-1">

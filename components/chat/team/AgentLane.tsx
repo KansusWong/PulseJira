@@ -18,7 +18,7 @@ const MAX_LANE_ITEMS = 4;
 
 const statusColors: Record<string, string> = {
   active: "text-emerald-400",
-  working: "text-cyan-400 animate-pulse",
+  working: "text-zinc-300 animate-pulse",
   idle: "text-[var(--text-muted)]",
   completed: "text-blue-400",
   failed: "text-red-400",
@@ -252,7 +252,7 @@ export function AgentLane({
                       success ? "text-[var(--text-muted)]" : "text-red-400/70"
                     } break-words`}
                   >
-                    └ {success ? item.resultStep!.resultPreview || "完成" : `失败: ${item.resultStep!.resultPreview || "?"}`}
+                    └ {success ? item.resultStep!.resultPreview || t('common.done') : `${t('common.failed')}: ${item.resultStep!.resultPreview || "?"}`}
                   </div>
                 )}
               </div>
@@ -318,7 +318,7 @@ export function AgentLane({
                 key={`comm-${comm.id}`}
                 className={`text-[11px] rounded px-2 py-1 ${
                   isSent
-                    ? 'bg-amber-500/5 border border-amber-500/10'
+                    ? 'bg-zinc-200/5 border border-white/10'
                     : 'bg-violet-500/5 border border-violet-500/10'
                 }`}
               >

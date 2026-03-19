@@ -123,14 +123,14 @@ export function AgentDetailView({
                 <h2 className="text-lg font-bold text-[var(--text-primary)]">{agent.displayName}</h2>
                 {agent.createdBy === 'subagent' && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30">
-                    子Agent
+                    {t('common.subAgent')}
                   </span>
                 )}
               </div>
               <p className="text-xs text-[var(--text-muted)]">
                 {agent.role}
                 {agent.createdBy && <span className="ml-1 text-violet-500/60">by {agent.createdBy}</span>}
-                {agent.projectId && <span className="ml-1 text-cyan-500/60">project: {agent.projectId.slice(0, 8)}</span>}
+                {agent.projectId && <span className="ml-1 text-zinc-400/60">project: {agent.projectId.slice(0, 8)}</span>}
               </p>
             </div>
           </div>
