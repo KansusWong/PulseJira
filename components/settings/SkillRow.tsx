@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "@/lib/i18n";
 
@@ -11,14 +11,16 @@ interface SkillRowProps {
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
   onRemove: () => void;
+  onEdit?: () => void;
 }
 
-export function SkillRow({ name, description, enabled, onToggle, onRemove }: SkillRowProps) {
+export function SkillRow({ name, description, enabled, onToggle, onRemove, onEdit }: SkillRowProps) {
   const { t } = useTranslation();
   const [toggling, setToggling] = useState(false);
   const [removing, setRemoving] = useState(false);
 
-  const handleToggle = async () => {
+  const handleToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setToggling(true);
     try {
       await onToggle(!enabled);
@@ -27,7 +29,8 @@ export function SkillRow({ name, description, enabled, onToggle, onRemove }: Ski
     }
   };
 
-  const handleRemove = async () => {
+  const handleRemove = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setRemoving(true);
     try {
       await onRemove();
@@ -37,10 +40,14 @@ export function SkillRow({ name, description, enabled, onToggle, onRemove }: Ski
   };
 
   return (
-    <div className={clsx(
-      "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors",
-      enabled ? "bg-[var(--bg-surface)]" : "bg-[var(--bg-surface)] opacity-60",
-    )}>
+    <div
+      className={clsx(
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors",
+        enabled ? "bg-[var(--bg-surface)]" : "bg-[var(--bg-surface)] opacity-60",
+        onEdit && "cursor-pointer hover:bg-[var(--bg-elevated)]"
+      )}
+      onClick={onEdit}
+    >
       <div className="flex-1 min-w-0">
         <code className="text-xs text-green-400 font-mono">{name}</code>
         {description && (
@@ -83,6 +90,11 @@ export function SkillRow({ name, description, enabled, onToggle, onRemove }: Ski
           <X className="w-3.5 h-3.5" />
         )}
       </button>
+
+      {/* Edit indicator */}
+      {onEdit && (
+        <ChevronRight className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
+      )}
     </div>
   );
 }

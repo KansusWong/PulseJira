@@ -16,6 +16,8 @@ import { LLMPoolCard } from "@/components/settings/LLMPoolCard";
 import { LanguageSwitcher } from "@/components/settings/LanguageSwitcher";
 import { SkillRow } from "@/components/settings/SkillRow";
 import { SkillUploadArea } from "@/components/settings/SkillUploadArea";
+import { SkillStudioPanel } from "@/components/studio/SkillStudioPanel";
+import { usePulseStore } from "@/store/usePulseStore.new";
 
 // Lazy-load recharts-heavy component — only loaded when "usage" tab is active
 const UsageSnapshotCard = dynamic(
@@ -105,6 +107,11 @@ export default function SettingsPage() {
   const [agents, setAgents] = useState<AgentEntry[]>([]);
   const [overrides, setOverrides] = useState<Record<string, AgentOverride>>({});
   const [loadingAgents, setLoadingAgents] = useState(false);
+
+  // Studio panel state (from zustand)
+  const openStudioTab = usePulseStore((s) => s.openStudioTab);
+  const studioVisible = usePulseStore((s) => s.studioPanel.visible);
+  const studioActiveTabId = usePulseStore((s) => s.studioPanel.activeTabId);
 
   // Fetch agents for the agent tab
   const fetchAgents = useCallback(async () => {
@@ -231,6 +238,14 @@ export default function SettingsPage() {
       fetchSkills();
     },
     [fetchSkills, t],
+  );
+
+  // Skill edit handler
+  const handleSkillEdit = useCallback(
+    (skillId: string) => {
+      openStudioTab(skillId, skillId);
+    },
+    [openStudioTab],
   );
 
   // Tab change handler
@@ -468,44 +483,52 @@ export default function SettingsPage() {
 
         {activeTab === "skills" && (
           <div className="flex flex-col gap-4">
-            <div className="space-y-4">
-              {/* Skills header */}
-              <div>
-                <h2 className="text-base font-semibold text-[var(--text-primary)] mb-1">
-                  {t("settings.skillsTitle") || "Skills"}
-                </h2>
-                <p className="text-xs text-[var(--text-muted)]">
-                  {t("settings.skillsDescription") || "Manage skills for your agents"}
-                </p>
+            {/* Show studio panel if visible and a skill is being edited */}
+            {studioVisible && studioActiveTabId ? (
+              <div className="h-[600px]">
+                <SkillStudioPanel />
               </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Skills header */}
+                <div>
+                  <h2 className="text-base font-semibold text-[var(--text-primary)] mb-1">
+                    {t("settings.skillsTitle") || "Skills"}
+                  </h2>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {t("settings.skillsDescription") || "Manage skills for your agents"}
+                  </p>
+                </div>
 
-              {/* Skill upload area */}
-              <SkillUploadArea onUploaded={handleSkillUploaded} />
+                {/* Skill upload area */}
+                <SkillUploadArea onUploaded={handleSkillUploaded} />
 
-              {/* Skills list */}
-              {loadingSkills ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="w-6 h-6 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
-                </div>
-              ) : skills.length === 0 ? (
-                <div className="text-center py-12 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
-                  {t("settings.noSkills") || "No skills available"}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {skills.map((skill) => (
-                    <SkillRow
-                      key={skill.id}
-                      name={skill.id}
-                      description={skill.description}
-                      enabled={skill.enabled}
-                      onToggle={(enabled) => handleSkillToggle(skill.id, enabled)}
-                      onRemove={() => handleSkillRemove(skill.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+                {/* Skills list */}
+                {loadingSkills ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
+                  </div>
+                ) : skills.length === 0 ? (
+                  <div className="text-center py-12 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
+                    {t("settings.noSkills") || "No skills available"}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {skills.map((skill) => (
+                      <SkillRow
+                        key={skill.id}
+                        name={skill.id}
+                        description={skill.description}
+                        enabled={skill.enabled}
+                        onToggle={(enabled) => handleSkillToggle(skill.id, enabled)}
+                        onRemove={() => handleSkillRemove(skill.id)}
+                        onEdit={() => handleSkillEdit(skill.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
