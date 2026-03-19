@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS projects (
   -- agent pipeline state
   agent_logs              jsonb,
   pipeline_checkpoint     jsonb,
+  execution_mode          text CHECK (execution_mode IN ('foreman', 'team')),
   -- multi-tenant columns
   org_id                  uuid,        -- FK added in multi-tenant section
   created_by              uuid,        -- FK added in multi-tenant section
