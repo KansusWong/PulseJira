@@ -250,13 +250,13 @@ export class ChatEngine {
     conversationId: string,
     message: string,
     attachments?: AttachmentMeta[],
-    options?: { thinking?: boolean; model?: string; orgId?: string; userId?: string },
+    options?: { thinking?: boolean; model?: string; orgId?: string; userId?: string; projectId?: string },
   ): AsyncGenerator<ChatEvent> {
     // 0. Reset stale plan-mode state from previous run (prevents "Already in plan mode" errors)
     clearPlanModeState(conversationId);
 
     // 1. Load or create conversation
-    const conversation = await this.getOrCreateConversation(conversationId, options?.orgId);
+    const conversation = await this.getOrCreateConversation(conversationId, options?.orgId, options?.projectId);
 
     // 2. Save user message (with attachment metadata if present)
     const msgMeta = attachments?.length ? { attachments } : undefined;
@@ -941,7 +941,7 @@ export class ChatEngine {
   // Database helpers
   // =========================================================================
 
-  async getOrCreateConversation(id?: string, orgId?: string): Promise<Conversation> {
+  async getOrCreateConversation(id?: string, orgId?: string, projectId?: string): Promise<Conversation> {
     if (id && supabaseConfigured) {
       const { data } = await supabase
         .from('conversations')
@@ -949,13 +949,22 @@ export class ChatEngine {
         .eq('id', id)
         .single();
 
-      if (data) return data as Conversation;
+      if (data) {
+        // If conversation exists but has no project_id and we're given one, link them
+        if (projectId && !data.project_id) {
+          console.log(`[ChatEngine] Linking conversation ${id} to project ${projectId}`);
+          await this.updateConversation(id, { project_id: projectId ?? null });
+          data.project_id = projectId;
+        }
+        return data as Conversation;
+      }
     }
 
     if (supabaseConfigured) {
       const insertPayload: Record<string, any> = { status: 'active' };
       if (id) insertPayload.id = id;
       if (orgId) insertPayload.org_id = orgId;
+      if (projectId) insertPayload.project_id = projectId;
       const { data, error } = await supabase
         .from('conversations')
         .upsert(insertPayload, { onConflict: 'id', ignoreDuplicates: true })
@@ -979,7 +988,7 @@ export class ChatEngine {
       id: id || crypto.randomUUID(),
       title: null,
       status: 'active',
-      project_id: null,
+      project_id: projectId || null,
       org_id: orgId || undefined,
       complexity_assessment: null,
       execution_mode: null,

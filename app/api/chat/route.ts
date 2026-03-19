@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { conversation_id, message, attachments, thinking, model } = body;
+  const { conversation_id, message, attachments, thinking, model, project_id } = body;
   const auth = getAuthContext();
 
   if (!message || typeof message !== 'string') {
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       model: model || undefined,
       orgId: auth.orgId || undefined,
       userId: auth.userId || undefined,
+      projectId: project_id || undefined,
     }),
     { signal: req.signal },
   );
