@@ -23,7 +23,7 @@ export function ChartFlowchart({ chart }: { chart: FlowchartData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
@@ -56,17 +56,17 @@ function FlowTree({
         className={`inline-flex flex-col rounded-lg border px-3 py-2 mb-2 ${
           depth === 0
             ? "border-blue-500/40 bg-blue-500/10"
-            : "border-zinc-700/60 bg-zinc-800/30"
+            : "border-[var(--border-default)] bg-[var(--bg-glass)]"
         }`}
       >
-        <span className="text-xs font-medium text-zinc-200">{node.label}</span>
+        <span className="text-xs font-medium text-[var(--text-primary)]">{node.label}</span>
         {node.description && (
-          <span className="text-[11px] text-zinc-500 mt-0.5">{node.description}</span>
+          <span className="text-[11px] text-[var(--text-muted)] mt-0.5">{node.description}</span>
         )}
       </div>
 
       {hasChildren && (
-        <div className="flex gap-3 ml-4 pl-3 border-l border-zinc-700/40">
+        <div className="flex gap-3 ml-4 pl-3 border-l border-[var(--border-default)]">
           {node.children!.map((childId) => (
             <FlowTree key={childId} nodeId={childId} nodeMap={nodeMap} depth={depth + 1} />
           ))}

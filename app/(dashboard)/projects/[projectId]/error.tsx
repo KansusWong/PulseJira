@@ -36,8 +36,8 @@ export default function ProjectDetailError({
   if (isChunkError && retryCount < MAX_RETRIES) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
-        <Loader2 className="w-6 h-6 text-zinc-500 animate-spin" />
-        <p className="text-sm text-zinc-500">
+        <Loader2 className="w-6 h-6 text-[var(--text-muted)] animate-spin" />
+        <p className="text-sm text-[var(--text-muted)]">
           {t('error.waitingCompile', { current: String(retryCount + 1), max: String(MAX_RETRIES) })}
         </p>
       </div>
@@ -46,13 +46,13 @@ export default function ProjectDetailError({
 
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4">
-      <p className="text-sm text-zinc-400">{t('error.pageLoadFailed')}</p>
+      <p className="text-sm text-[var(--text-secondary)]">{t('error.pageLoadFailed')}</p>
       <button
         onClick={() => {
           setRetryCount(0);
           reset();
         }}
-        className="px-4 py-2 text-sm rounded-md bg-zinc-800 text-zinc-200 hover:bg-zinc-700 transition-colors"
+        className="px-4 py-2 text-sm rounded-md bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
       >
         {t('common.retry')}
       </button>

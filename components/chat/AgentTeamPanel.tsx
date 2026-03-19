@@ -17,7 +17,7 @@ import { useTranslation } from '@/lib/i18n';
 const statusColors: Record<string, string> = {
   active: "text-emerald-400",
   working: "text-cyan-400 animate-pulse",
-  idle: "text-zinc-600",
+  idle: "text-[var(--text-muted)]",
   completed: "text-blue-400",
   failed: "text-red-400",
 };

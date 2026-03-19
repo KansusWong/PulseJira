@@ -269,7 +269,7 @@ function StepIndicator({ index, status }: { index: number; status: PlanStepStatu
     case "skipped":
       return (
         <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
-          <MinusCircle className="w-4 h-4 text-zinc-600" />
+          <MinusCircle className="w-4 h-4 text-[var(--text-muted)]" />
         </span>
       );
     default:

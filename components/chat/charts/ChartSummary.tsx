@@ -15,7 +15,7 @@ export function ChartSummary({ chart }: { chart: SummaryData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
@@ -23,7 +23,7 @@ export function ChartSummary({ chart }: { chart: SummaryData }) {
         {chart.insights.map((item, i) => (
           <div
             key={i}
-            className="flex gap-3 rounded-lg border border-zinc-800/60 bg-zinc-800/20 px-3 py-2.5"
+            className="flex gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-3 py-2.5"
           >
             <div className="flex-shrink-0 mt-0.5">
               <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center">
@@ -36,8 +36,8 @@ export function ChartSummary({ chart }: { chart: SummaryData }) {
               </div>
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-medium text-zinc-300">{item.title}</div>
-              <div className="text-[11px] text-zinc-500 mt-0.5">{item.description}</div>
+              <div className="text-xs font-medium text-[var(--text-primary)]">{item.title}</div>
+              <div className="text-[11px] text-[var(--text-muted)] mt-0.5">{item.description}</div>
             </div>
           </div>
         ))}

@@ -22,7 +22,7 @@ export function ChartBar({ chart }: { chart: BarData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
@@ -33,12 +33,12 @@ export function ChartBar({ chart }: { chart: BarData }) {
           return (
             <div key={i}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-zinc-400">{item.category}</span>
-                <span className="text-xs font-medium text-zinc-300">
+                <span className="text-xs text-[var(--text-secondary)]">{item.category}</span>
+                <span className="text-xs font-medium text-[var(--text-primary)]">
                   {item.value}
                 </span>
               </div>
-              <div className="h-5 w-full rounded-sm bg-zinc-800/60 overflow-hidden">
+              <div className="h-5 w-full rounded-sm bg-[var(--bg-glass)] overflow-hidden">
                 <div
                   className="h-full rounded-sm transition-all duration-500"
                   style={{

@@ -17,7 +17,7 @@ export function ChartMetrics({ chart }: { chart: MetricsData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
@@ -25,10 +25,10 @@ export function ChartMetrics({ chart }: { chart: MetricsData }) {
         {chart.data.map((item, i) => (
           <div
             key={i}
-            className="rounded-lg border border-zinc-800/60 bg-zinc-800/30 px-3 py-2.5"
+            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-glass)] px-3 py-2.5"
           >
-            <div className="text-[11px] text-zinc-500 mb-1">{item.label}</div>
-            <div className="text-lg font-semibold text-zinc-200">{item.value}</div>
+            <div className="text-[11px] text-[var(--text-muted)] mb-1">{item.label}</div>
+            <div className="text-lg font-semibold text-[var(--text-primary)]">{item.value}</div>
             {item.change && (
               <div className="flex items-center gap-1 mt-0.5">
                 {item.trend === "up" && (
@@ -47,7 +47,7 @@ export function ChartMetrics({ chart }: { chart: MetricsData }) {
                       ? "text-emerald-400"
                       : item.trend === "down"
                       ? "text-red-400"
-                      : "text-zinc-500"
+                      : "text-[var(--text-muted)]"
                   }`}
                 >
                   {item.change}

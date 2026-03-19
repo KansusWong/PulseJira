@@ -34,9 +34,9 @@ export default function GlobalError({
 
   if (isChunkError && retryCount < MAX_RETRIES) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-3 bg-zinc-950">
-        <div className="w-6 h-6 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
-        <p className="text-sm text-zinc-500">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-3 bg-[var(--bg-base)]">
+        <div className="w-6 h-6 border-2 border-[var(--text-muted)] border-t-[var(--text-primary)] rounded-full animate-spin" />
+        <p className="text-sm text-[var(--text-muted)]">
           {t('error.waitingCompileGlobal', { current: String(retryCount + 1), max: String(MAX_RETRIES) })}
         </p>
       </div>
@@ -44,14 +44,14 @@ export default function GlobalError({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-zinc-950">
-      <p className="text-sm text-zinc-400">{t('error.pageLoadFailedGlobal')}</p>
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-[var(--bg-base)]">
+      <p className="text-sm text-[var(--text-secondary)]">{t('error.pageLoadFailedGlobal')}</p>
       <button
         onClick={() => {
           setRetryCount(0);
           reset();
         }}
-        className="px-4 py-2 text-sm rounded-md bg-zinc-800 text-zinc-200 hover:bg-zinc-700 transition-colors"
+        className="px-4 py-2 text-sm rounded-md bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
       >
         {t('common.retry')}
       </button>

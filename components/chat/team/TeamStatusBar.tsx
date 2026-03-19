@@ -31,26 +31,26 @@ export function TeamStatusBar({ agents, collapsed, onToggle }: Props) {
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/60 border-b border-zinc-800/50 cursor-pointer select-none"
+      className="flex items-center gap-3 px-4 py-2.5 bg-[var(--bg-surface)]/60 border-b border-[var(--border-subtle)] cursor-pointer select-none"
       onClick={onToggle}
     >
-      <Users className="w-4 h-4 text-zinc-400 shrink-0" />
-      <span className="text-xs font-semibold text-zinc-200">
+      <Users className="w-4 h-4 text-[var(--text-secondary)] shrink-0" />
+      <span className="text-xs font-semibold text-[var(--text-primary)]">
         {t("team.collaboration.title")}
       </span>
 
-      <span className="text-[10px] text-zinc-500">|</span>
-      <span className="text-[10px] text-zinc-400">
+      <span className="text-[10px] text-[var(--text-muted)]">|</span>
+      <span className="text-[10px] text-[var(--text-secondary)]">
         {t("team.collaboration.agents").replace("{count}", String(agents.length))}
       </span>
 
-      <span className="text-[10px] text-zinc-500">|</span>
+      <span className="text-[10px] text-[var(--text-muted)]">|</span>
       <span className="text-[10px] text-cyan-400">
         {t("team.collaboration.working").replace("{count}", String(workingCount))}
       </span>
 
-      <span className="text-[10px] text-zinc-500">|</span>
-      <span className="text-[10px] text-zinc-400 tabular-nums">
+      <span className="text-[10px] text-[var(--text-muted)]">|</span>
+      <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">
         {formatDuration(elapsed)}
       </span>
 
@@ -65,7 +65,7 @@ export function TeamStatusBar({ agents, collapsed, onToggle }: Props) {
                 ? "bg-emerald-500"
                 : a.status === "failed"
                   ? "bg-red-500"
-                  : "bg-zinc-600";
+                  : "bg-[var(--text-muted)]";
           return (
             <span
               key={a.name}
@@ -78,7 +78,7 @@ export function TeamStatusBar({ agents, collapsed, onToggle }: Props) {
         })}
       </div>
 
-      <button className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors">
+      <button className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
         {collapsed ? (
           <ChevronDown className="w-3.5 h-3.5" />
         ) : (

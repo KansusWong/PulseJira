@@ -19,7 +19,7 @@ const MAX_LANE_ITEMS = 4;
 const statusColors: Record<string, string> = {
   active: "text-emerald-400",
   working: "text-cyan-400 animate-pulse",
-  idle: "text-zinc-600",
+  idle: "text-[var(--text-muted)]",
   completed: "text-blue-400",
   failed: "text-red-400",
 };
@@ -59,8 +59,8 @@ export function AgentLane({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const addMateChatMessage = usePulseStore((s) => s.addMateChatMessage);
   const ui = getAgentUI(agentName);
-  const borderColor = ui?.borderColor || "border-zinc-500";
-  const badgeClass = ui?.badgeClass || "bg-zinc-500/20 text-zinc-400";
+  const borderColor = ui?.borderColor || "border-[var(--text-muted)]";
+  const badgeClass = ui?.badgeClass || "bg-[var(--bg-glass)] text-[var(--text-secondary)]";
   const label = ui?.label || agentName;
 
   useEffect(() => {
@@ -114,19 +114,19 @@ export function AgentLane({
 
   return (
     <div
-      className={`flex flex-col min-h-0 border-l-2 ${borderColor} rounded-lg bg-zinc-900/50 border border-zinc-800/50 overflow-hidden ${
+      className={`flex flex-col min-h-0 border-l-2 ${borderColor} rounded-lg bg-[var(--bg-surface)]/50 border border-[var(--border-subtle)] overflow-hidden ${
         isCompleted ? "opacity-60" : ""
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800/30">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2">
           <span
             className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${badgeClass}`}
           >
             {label}
           </span>
-          <span className="text-xs text-zinc-400 truncate max-w-[120px]">
+          <span className="text-xs text-[var(--text-secondary)] truncate max-w-[120px]">
             {agentName}
           </span>
         </div>
@@ -138,12 +138,12 @@ export function AgentLane({
               className={`w-2 h-2 rounded-full ${
                 status === "working" || status === "active"
                   ? "bg-cyan-400 animate-pulse"
-                  : "bg-zinc-600"
+                  : "bg-[var(--text-muted)]"
               }`}
             />
           )}
           <span
-            className={`text-[10px] capitalize ${statusColors[status] || "text-zinc-600"}`}
+            className={`text-[10px] capitalize ${statusColors[status] || "text-[var(--text-muted)]"}`}
           >
             {status}
           </span>
@@ -153,7 +153,7 @@ export function AgentLane({
       {/* Steps body */}
       <div className="flex-shrink-0 max-h-[140px] overflow-y-auto px-3 py-2 space-y-1.5">
         {hiddenCount > 0 && (
-          <div className="text-[10px] text-zinc-600 mb-1">
+          <div className="text-[10px] text-[var(--text-muted)] mb-1">
             {t("team.collaboration.earlierSteps").replace(
               "{count}",
               String(hiddenCount),
@@ -162,8 +162,8 @@ export function AgentLane({
         )}
 
         {isIdle && visibleItems.length === 0 && (
-          <div className="flex items-center gap-2 text-xs text-zinc-600 py-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-pulse" />
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] py-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)] animate-pulse" />
             {t("team.collaboration.waitingForTask")}
           </div>
         )}
@@ -183,16 +183,16 @@ export function AgentLane({
             return (
               <div
                 key={item.step.id}
-                className="flex items-start gap-2 text-xs text-zinc-400"
+                className="flex items-start gap-2 text-xs text-[var(--text-secondary)]"
               >
                 <Bullet color="bg-blue-400" pulse />
                 <span className="flex-1 truncate">{item.step.message || "..."}</span>
                 {durationMs !== null && (
-                  <span className="shrink-0 text-[10px] text-zinc-500 tabular-nums">
+                  <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">
                     {formatDuration(durationMs)}
                   </span>
                 )}
-                <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-[var(--text-muted)] animate-spin" />
               </div>
             );
           }
@@ -201,14 +201,14 @@ export function AgentLane({
             return (
               <div
                 key={item.step.id}
-                className="flex items-start gap-2 text-xs text-zinc-300"
+                className="flex items-start gap-2 text-xs text-[var(--text-primary)]"
               >
-                <Bullet color="bg-zinc-500" />
+                <Bullet color="bg-[var(--text-muted)]" />
                 <span className="flex-1 min-w-0 line-clamp-2">
                   {item.step.message}
                 </span>
                 {isLast && (
-                  <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                  <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-[var(--text-muted)] animate-spin" />
                 )}
               </div>
             );
@@ -232,24 +232,24 @@ export function AgentLane({
 
             return (
               <div key={item.callStep.id} className="space-y-0.5">
-                <div className="flex items-start gap-2 text-xs text-zinc-300">
+                <div className="flex items-start gap-2 text-xs text-[var(--text-primary)]">
                   <Bullet color={bulletColor} pulse={!hasResult && isLast} />
                   <span className="flex-1 min-w-0 font-mono text-[11px] truncate">
                     {displayName}
                   </span>
                   {durationMs !== null && (
-                    <span className="shrink-0 text-[10px] text-zinc-600 tabular-nums">
+                    <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">
                       {formatDuration(durationMs)}
                     </span>
                   )}
                   {isLast && !hasResult && (
-                    <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-zinc-500 animate-spin" />
+                    <Loader2 className="w-3 h-3 shrink-0 mt-0.5 text-[var(--text-muted)] animate-spin" />
                   )}
                 </div>
                 {hasResult && (
                   <div
                     className={`ml-4 text-[10px] ${
-                      success ? "text-zinc-500" : "text-red-400/70"
+                      success ? "text-[var(--text-muted)]" : "text-red-400/70"
                     } break-words`}
                   >
                     └ {success ? item.resultStep!.resultPreview || "完成" : `失败: ${item.resultStep!.resultPreview || "?"}`}
@@ -273,7 +273,7 @@ export function AgentLane({
       </div>
 
       {/* Mini-chat area */}
-      <div className="flex-1 min-h-0 flex flex-col border-t border-zinc-800/30">
+      <div className="flex-1 min-h-0 flex flex-col border-t border-[var(--border-subtle)]">
         {/* Chat messages + inter-agent comms + streaming content */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
           {chatTimeline.map((item, i) => {
@@ -305,7 +305,7 @@ export function AgentLane({
             const otherAgent = isSent ? comm.to_agent : comm.from_agent;
             const otherUI = getAgentUI(otherAgent);
             const otherColor = otherUI?.badgeClass
-              ? otherUI.badgeClass.split(" ").find((c: string) => c.startsWith("text-")) || "text-zinc-400"
+              ? otherUI.badgeClass.split(" ").find((c: string) => c.startsWith("text-")) || "text-[var(--text-secondary)]"
               : "text-zinc-400";
             const payload =
               typeof comm.payload === "string"
@@ -322,13 +322,13 @@ export function AgentLane({
                     : 'bg-violet-500/5 border border-violet-500/10'
                 }`}
               >
-                <span className="text-[10px] text-zinc-500 mr-1">
+                <span className="text-[10px] text-[var(--text-muted)] mr-1">
                   {isSent ? '→' : '←'}
                 </span>
                 <span className={`text-[10px] font-medium ${otherColor} mr-1`}>
                   {otherAgent}
                 </span>
-                <span className="text-zinc-400 break-words whitespace-pre-wrap">
+                <span className="text-[var(--text-secondary)] break-words whitespace-pre-wrap">
                   {payload.length > 300 ? payload.slice(0, 300) + '...' : payload}
                 </span>
               </div>
@@ -339,12 +339,12 @@ export function AgentLane({
           {streamingContent && (
             <div className="relative lane-prose">
               <MarkdownRenderer content={streamingContent} isStreaming />
-              <span className="inline-block w-0.5 h-4 bg-zinc-500 animate-pulse ml-0.5 align-text-bottom" />
+              <span className="inline-block w-0.5 h-4 bg-[var(--text-muted)] animate-pulse ml-0.5 align-text-bottom" />
             </div>
           )}
 
           {!hasChatContent && (
-            <div className="text-[10px] text-zinc-600 py-1">
+            <div className="text-[10px] text-[var(--text-muted)] py-1">
               {currentTask || t("team.collaboration.waitingForTask")}
             </div>
           )}
@@ -353,7 +353,7 @@ export function AgentLane({
         </div>
 
         {/* Chat input */}
-        <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-zinc-800/20">
+        <div className="flex items-center gap-1.5 px-2 py-1.5 border-t border-[var(--border-subtle)]">
           <input
             type="text"
             value={chatInput}
@@ -365,12 +365,12 @@ export function AgentLane({
               }
             }}
             placeholder={t("team.collaboration.sendInstruction")}
-            className="flex-1 bg-zinc-900/80 border border-zinc-800 rounded px-2 py-1 text-[11px] text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-600"
+            className="flex-1 bg-[var(--bg-surface)]/80 border border-[var(--border-subtle)] rounded px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--border-focus)]"
           />
           <button
             onClick={handleSendChat}
             disabled={!chatInput.trim()}
-            className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-30 transition-colors"
+            className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-30 transition-colors"
           >
             <Send className="w-3.5 h-3.5" />
           </button>

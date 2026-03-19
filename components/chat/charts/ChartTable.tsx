@@ -11,18 +11,18 @@ export function ChartTable({ chart }: { chart: TableData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-zinc-700/60">
+            <tr className="border-b border-[var(--border-default)]">
               {chart.columns.map((col, i) => (
                 <th
                   key={i}
-                  className="px-4 py-2 text-left font-medium text-zinc-400 whitespace-nowrap"
+                  className="px-4 py-2 text-left font-medium text-[var(--text-secondary)] whitespace-nowrap"
                 >
                   {col}
                 </th>
@@ -33,13 +33,13 @@ export function ChartTable({ chart }: { chart: TableData }) {
             {chart.data.map((row, ri) => (
               <tr
                 key={ri}
-                className="border-b border-zinc-800/40 last:border-0 hover:bg-zinc-800/30 transition-colors"
+                className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors"
               >
                 {row.map((cell, ci) => (
                   <td
                     key={ci}
                     className={`px-4 py-2 whitespace-nowrap ${
-                      ci === 0 ? "text-zinc-300 font-medium" : "text-zinc-400"
+                      ci === 0 ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)]"
                     }`}
                   >
                     {cell}

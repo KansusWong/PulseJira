@@ -35,7 +35,7 @@ export function ChartPie({ chart }: { chart: PieData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
@@ -64,8 +64,8 @@ export function ChartPie({ chart }: { chart: PieData }) {
                 className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: s.color }}
               />
-              <span className="text-zinc-400 truncate">{s.category}</span>
-              <span className="text-zinc-500 ml-auto flex-shrink-0">
+              <span className="text-[var(--text-secondary)] truncate">{s.category}</span>
+              <span className="text-[var(--text-muted)] ml-auto flex-shrink-0">
                 {Math.round(s.pct * 100)}%
               </span>
             </div>

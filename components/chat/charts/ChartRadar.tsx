@@ -46,7 +46,7 @@ export function ChartRadar({ chart }: { chart: RadarData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
@@ -119,7 +119,7 @@ export function ChartRadar({ chart }: { chart: RadarData }) {
                 y={p.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="text-[10px] fill-zinc-400"
+                className="text-[10px] fill-[var(--text-secondary)]"
               >
                 {dim}
               </text>
@@ -136,7 +136,7 @@ export function ChartRadar({ chart }: { chart: RadarData }) {
                   className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                   style={{ backgroundColor: RADAR_COLORS[si % RADAR_COLORS.length] }}
                 />
-                <span className="text-zinc-400 truncate">{s.name}</span>
+                <span className="text-[var(--text-secondary)] truncate">{s.name}</span>
               </div>
             ))}
           </div>

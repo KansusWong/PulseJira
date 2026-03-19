@@ -28,23 +28,23 @@ export function TeamCommunicationBar({ communications }: Props) {
   const visibleMessages = communications.slice(-MAX_MESSAGES);
 
   return (
-    <div className="border-t border-zinc-800/50">
+    <div className="border-t border-[var(--border-subtle)]">
       {/* Toggle header */}
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-zinc-800/20 transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
       >
-        <MessageSquare className="w-3.5 h-3.5 text-zinc-500" />
-        <span className="text-[11px] text-zinc-400">
+        <MessageSquare className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+        <span className="text-[11px] text-[var(--text-secondary)]">
           {t("team.collaboration.comms").replace(
             "{count}",
             String(communications.length),
           )}
         </span>
         {open ? (
-          <ChevronUp className="w-3 h-3 text-zinc-600 ml-auto" />
+          <ChevronUp className="w-3 h-3 text-[var(--text-muted)] ml-auto" />
         ) : (
-          <ChevronDown className="w-3 h-3 text-zinc-600 ml-auto" />
+          <ChevronDown className="w-3 h-3 text-[var(--text-muted)] ml-auto" />
         )}
       </button>
 
@@ -52,7 +52,7 @@ export function TeamCommunicationBar({ communications }: Props) {
       {open && (
         <div className="max-h-[160px] overflow-y-auto px-4 pb-2 space-y-1.5">
           {visibleMessages.length === 0 ? (
-            <p className="text-[10px] text-zinc-600 py-1">
+            <p className="text-[10px] text-[var(--text-muted)] py-1">
               {t("team.collaboration.noComms")}
             </p>
           ) : (
@@ -61,12 +61,12 @@ export function TeamCommunicationBar({ communications }: Props) {
               const toUI = getAgentUI(msg.to_agent);
               const fromColor = fromUI?.badgeClass
                 ? fromUI.badgeClass.split(" ").find((c) => c.startsWith("text-")) ||
-                  "text-zinc-400"
-                : "text-zinc-400";
+                  "text-[var(--text-secondary)]"
+                : "text-[var(--text-secondary)]";
               const toColor = toUI?.badgeClass
                 ? toUI.badgeClass.split(" ").find((c) => c.startsWith("text-")) ||
-                  "text-zinc-400"
-                : "text-zinc-400";
+                  "text-[var(--text-secondary)]"
+                : "text-[var(--text-secondary)]";
 
               const payload =
                 typeof msg.payload === "string"
@@ -80,12 +80,12 @@ export function TeamCommunicationBar({ communications }: Props) {
                   <span className={`font-medium shrink-0 ${fromColor}`}>
                     {msg.from_agent}
                   </span>
-                  <span className="text-zinc-600 shrink-0">&rarr;</span>
+                  <span className="text-[var(--text-muted)] shrink-0">&rarr;</span>
                   <span className={`font-medium shrink-0 ${toColor}`}>
                     {msg.to_agent}
                   </span>
-                  <span className="text-zinc-500 truncate">{payload}</span>
-                  <span className="text-[9px] text-zinc-700 shrink-0 ml-auto tabular-nums">
+                  <span className="text-[var(--text-muted)] truncate">{payload}</span>
+                  <span className="text-[9px] text-[var(--text-disabled)] shrink-0 ml-auto tabular-nums">
                     {new Date(msg.created_at).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",

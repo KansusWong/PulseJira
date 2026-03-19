@@ -95,21 +95,21 @@ export function AgentLaneGrid({
 
       {/* Pagination bar */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 px-4 py-2 border-t border-zinc-800/30">
+        <div className="flex items-center justify-center gap-3 px-4 py-2 border-t border-[var(--border-subtle)]">
           <button
             onClick={() => onPageChange(safePage - 1)}
             disabled={safePage === 0}
-            className="p-1 text-zinc-400 hover:text-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-[11px] text-zinc-500 tabular-nums">
+          <span className="text-[11px] text-[var(--text-muted)] tabular-nums">
             {safePage + 1} / {totalPages}
           </span>
           <button
             onClick={() => onPageChange(safePage + 1)}
             disabled={safePage >= totalPages - 1}
-            className="p-1 text-zinc-400 hover:text-zinc-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>

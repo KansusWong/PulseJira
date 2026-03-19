@@ -34,7 +34,7 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
               href={`/api/chat/uploads/${img.relativePath.replace("uploads/", "")}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-lg overflow-hidden border border-zinc-700/50 hover:border-zinc-500 transition-colors"
+              className="block rounded-lg overflow-hidden border border-[var(--border-default)] hover:border-[var(--border-focus)] transition-colors"
             >
               <img
                 src={`/api/chat/uploads/${img.relativePath.replace("uploads/", "")}`}
@@ -54,11 +54,11 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
             return (
               <div
                 key={doc.id}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/60 border border-zinc-700/40 text-xs"
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[var(--bg-glass)] border border-[var(--border-default)] text-xs"
               >
-                <Icon className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                <span className="text-zinc-400 truncate max-w-[150px]">{doc.name}</span>
-                <span className="text-zinc-600">{formatSize(doc.size)}</span>
+                <Icon className="w-3.5 h-3.5 text-[var(--text-muted)] flex-shrink-0" />
+                <span className="text-[var(--text-secondary)] truncate max-w-[150px]">{doc.name}</span>
+                <span className="text-[var(--text-muted)]">{formatSize(doc.size)}</span>
               </div>
             );
           })}

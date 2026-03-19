@@ -93,7 +93,7 @@ export default function DeliverablePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-zinc-500">{t("deliverable.loading")}</div>
+        <div className="animate-pulse text-[var(--text-muted)]">{t("deliverable.loading")}</div>
       </div>
     );
   }
@@ -101,7 +101,7 @@ export default function DeliverablePage() {
   if (error || !data) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500">{error || t("deliverable.notFound")}</div>
+        <div className="text-[var(--text-muted)]">{error || t("deliverable.notFound")}</div>
       </div>
     );
   }
@@ -112,18 +112,18 @@ export default function DeliverablePage() {
       <div className="flex items-start gap-4 mb-6">
         <button
           onClick={() => router.back()}
-          className="mt-1 p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+          className="mt-1 p-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2.5">
-            <FileText className="w-5 h-5 text-zinc-400 flex-shrink-0" />
-            <h1 className="text-lg font-semibold text-zinc-100 truncate">
+            <FileText className="w-5 h-5 text-[var(--text-secondary)] flex-shrink-0" />
+            <h1 className="text-lg font-semibold text-[var(--text-primary)] truncate">
               {data.project.name}
             </h1>
           </div>
-          <div className="mt-1.5 flex items-center gap-4 text-xs text-zinc-500">
+          <div className="mt-1.5 flex items-center gap-4 text-xs text-[var(--text-muted)]">
             <span>
               {t("deliverable.createdAt")}{" "}
               {new Date(data.project.created_at).toLocaleDateString()}
@@ -131,7 +131,7 @@ export default function DeliverablePage() {
             {data.project.conversation_id && (
               <button
                 onClick={handleOpenConversation}
-                className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
                 {t("deliverable.openConversation")}
@@ -144,11 +144,11 @@ export default function DeliverablePage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto mb-6">
         {data.content ? (
-          <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm text-zinc-300 leading-relaxed">
+          <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm text-[var(--text-primary)] leading-relaxed">
             {data.content}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-40 text-zinc-600">
+          <div className="flex items-center justify-center h-40 text-[var(--text-muted)]">
             {t("deliverable.noContent")}
           </div>
         )}
@@ -156,14 +156,14 @@ export default function DeliverablePage() {
 
       {/* Action Bar */}
       {data.content && (
-        <div className="flex items-center gap-3 pt-4 border-t border-zinc-800">
+        <div className="flex items-center gap-3 pt-4 border-t border-[var(--border-subtle)]">
           <button
             onClick={handleCopy}
             className={clsx(
               "flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors",
               copied
                 ? "bg-emerald-500/10 text-emerald-400"
-                : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+                : "bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             )}
           >
             {copied ? (
@@ -175,14 +175,14 @@ export default function DeliverablePage() {
           </button>
           <button
             onClick={() => handleExport("md")}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
           >
             <Download className="w-4 h-4" />
             {t("deliverable.exportMarkdown")}
           </button>
           <button
             onClick={() => handleExport("txt")}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
           >
             <Download className="w-4 h-4" />
             {t("deliverable.exportText")}

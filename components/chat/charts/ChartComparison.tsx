@@ -20,15 +20,15 @@ export function ChartComparison({ chart }: { chart: ComparisonData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-zinc-700/60">
-              <th className="px-4 py-2 text-left font-medium text-zinc-500 whitespace-nowrap">
+            <tr className="border-b border-[var(--border-default)]">
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] whitespace-nowrap">
                 维度
               </th>
               {columns.map((col, i) => (
@@ -45,13 +45,13 @@ export function ChartComparison({ chart }: { chart: ComparisonData }) {
             {chart.items.map((item, ri) => (
               <tr
                 key={ri}
-                className="border-b border-zinc-800/40 last:border-0 hover:bg-zinc-800/30 transition-colors"
+                className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors"
               >
-                <td className="px-4 py-2 text-zinc-300 font-medium whitespace-nowrap">
+                <td className="px-4 py-2 text-[var(--text-primary)] font-medium whitespace-nowrap">
                   {item.dimension}
                 </td>
                 {columns.map((col, ci) => (
-                  <td key={ci} className="px-4 py-2 text-zinc-400 whitespace-nowrap">
+                  <td key={ci} className="px-4 py-2 text-[var(--text-secondary)] whitespace-nowrap">
                     {item[col] ?? "—"}
                   </td>
                 ))}

@@ -37,14 +37,14 @@ export default function GraphPage() {
   }, [fetchGraph]);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100">
+    <div className="flex flex-col h-full bg-[var(--bg-base)] text-[var(--text-primary)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/50">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-3">
-          <Network className="w-5 h-5 text-zinc-400" />
+          <Network className="w-5 h-5 text-[var(--text-secondary)]" />
           <h1 className="text-lg font-semibold">{t('graph.title')}</h1>
           {data && (
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-[var(--text-muted)]">
               {data.nodes.length} nodes · {data.edges.length} edges
             </span>
           )}
@@ -54,7 +54,7 @@ export default function GraphPage() {
           disabled={loading}
           className={clsx(
             "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors",
-            "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50",
+            "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]",
             loading && "opacity-50 cursor-not-allowed"
           )}
         >
@@ -67,11 +67,11 @@ export default function GraphPage() {
       <div className="flex-1 overflow-auto">
         {loading && !data ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+            <Loader2 className="w-6 h-6 animate-spin text-[var(--text-muted)]" />
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
-            <p className="text-zinc-400 text-sm">{error}</p>
+            <p className="text-[var(--text-secondary)] text-sm">{error}</p>
             <button
               onClick={fetchGraph}
               className="text-sm text-blue-400 hover:text-blue-300"
@@ -81,8 +81,8 @@ export default function GraphPage() {
           </div>
         ) : data && data.nodes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
-            <Network className="w-12 h-12 text-zinc-700" />
-            <p className="text-zinc-500 text-sm">{t('graph.empty')}</p>
+            <Network className="w-12 h-12 text-[var(--text-disabled)]" />
+            <p className="text-[var(--text-muted)] text-sm">{t('graph.empty')}</p>
           </div>
         ) : data ? (
           <VaultGraph data={data} />

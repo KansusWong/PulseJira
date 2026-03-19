@@ -130,9 +130,9 @@ export function ContextWindowIndicator({ ratio, estimated, max }: Props) {
       </svg>
 
       {/* Tooltip on hover */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded-md text-[10px] text-zinc-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md text-[10px] text-[var(--text-primary)] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
         <div>{t("chat.contextUsage").replace("{percent}", String(percent))}</div>
-        {tokenLabel && <div className="text-zinc-500">{tokenLabel}</div>}
+        {tokenLabel && <div className="text-[var(--text-muted)]">{tokenLabel}</div>}
       </div>
     </div>
   );

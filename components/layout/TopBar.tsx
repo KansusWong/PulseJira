@@ -46,7 +46,7 @@ export function TopBar() {
         {/* Search button */}
         <button
           type="button"
-          className="p-1 text-zinc-600 hover:text-zinc-400 transition-colors"
+          className="p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
           aria-label="Search"
         >
           <Search className="w-4 h-4" />

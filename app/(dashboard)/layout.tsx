@@ -98,7 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!hasMounted || authStatus === 'loading') {
     return (
       <div className="flex h-screen w-screen bg-background text-foreground items-center justify-center">
-        <div className="animate-pulse text-zinc-600">{t('dashboard.loading')}</div>
+        <div className="animate-pulse text-[var(--text-muted)]">{t('dashboard.loading')}</div>
       </div>
     );
   }

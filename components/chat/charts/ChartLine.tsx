@@ -48,7 +48,7 @@ export function ChartLine({ chart }: { chart: LineData }) {
   return (
     <div>
       {chart.title && (
-        <div className="px-4 pt-3 pb-2 text-sm font-medium text-zinc-300">
+        <div className="px-4 pt-3 pb-2 text-sm font-medium text-[var(--text-primary)]">
           {chart.title}
         </div>
       )}
@@ -69,7 +69,7 @@ export function ChartLine({ chart }: { chart: LineData }) {
                 x={PX - 6}
                 y={tick.y + 3}
                 textAnchor="end"
-                className="text-[10px] fill-zinc-500"
+                className="text-[10px] fill-[var(--text-muted)]"
               >
                 {Number.isInteger(tick.val) ? tick.val : tick.val.toFixed(1)}
               </text>
@@ -85,7 +85,7 @@ export function ChartLine({ chart }: { chart: LineData }) {
                 x={x}
                 y={H + 5}
                 textAnchor="middle"
-                className="text-[10px] fill-zinc-500"
+                className="text-[10px] fill-[var(--text-muted)]"
               >
                 {label}
               </text>
@@ -124,7 +124,7 @@ export function ChartLine({ chart }: { chart: LineData }) {
                   className="w-3 h-0.5 rounded-full"
                   style={{ backgroundColor: LINE_COLORS[si % LINE_COLORS.length] }}
                 />
-                <span className="text-zinc-400">{s.name}</span>
+                <span className="text-[var(--text-secondary)]">{s.name}</span>
               </div>
             ))}
           </div>

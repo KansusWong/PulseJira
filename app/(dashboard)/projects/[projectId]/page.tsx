@@ -496,12 +496,12 @@ export default function ProjectDetailPage() {
     if (fetchStatus === "fetching" || (fetchStatus === "idle" && !projectId.startsWith("local-"))) {
       return (
         <div className="flex items-center justify-center h-full">
-          <Loader2 className="w-5 h-5 text-zinc-600 animate-spin" />
+          <Loader2 className="w-5 h-5 text-[var(--text-muted)] animate-spin" />
         </div>
       );
     }
     return (
-      <div className="flex items-center justify-center h-full text-zinc-500">
+      <div className="flex items-center justify-center h-full text-[var(--text-muted)]">
         Project not found
       </div>
     );
@@ -568,19 +568,19 @@ export default function ProjectDetailPage() {
           {/* Running indicator */}
           {isRunning && !isImplementStage && agentLogs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12">
-              <div className="p-4 rounded-full bg-zinc-900 border border-zinc-800 animate-pulse mb-4">
+              <div className="p-4 rounded-full bg-[var(--bg-surface)] border border-[var(--border-subtle)] animate-pulse mb-4">
                 <BrainCircuit className="w-8 h-8 text-blue-500" />
               </div>
-              <p className="text-zinc-400 animate-pulse">Processing...</p>
+              <p className="text-[var(--text-secondary)] animate-pulse">Processing...</p>
             </div>
           )}
 
           {/* Empty state */}
           {!isRunning && !implementResult && agentLogs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <BrainCircuit className="w-12 h-12 text-zinc-800 mb-4" />
-              <h2 className="text-lg font-bold text-zinc-400 mb-2">{project.name}</h2>
-              <p className="text-sm text-zinc-600 mb-6">{project.description}</p>
+              <BrainCircuit className="w-12 h-12 text-[var(--text-disabled)] mb-4" />
+              <h2 className="text-lg font-bold text-[var(--text-secondary)] mb-2">{project.name}</h2>
+              <p className="text-sm text-[var(--text-muted)] mb-6">{project.description}</p>
             </div>
           )}
         </div>

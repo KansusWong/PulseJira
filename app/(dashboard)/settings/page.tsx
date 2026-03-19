@@ -25,7 +25,7 @@ const UsageSnapshotCard = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex justify-center py-16">
-        <div className="w-8 h-8 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[var(--text-muted)] border-t-cyan-400 rounded-full animate-spin" />
       </div>
     ),
   },
@@ -455,7 +455,7 @@ export default function SettingsPage() {
                 ))}
               </div>
             ) : agents.length === 0 ? (
-              <div className="text-center py-20 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
+              <div className="text-center py-20 text-[var(--text-muted)] text-sm border border-dashed border-[var(--border-default)] rounded-lg">
                 {t("agent.noAgents") || "No agents available"}
               </div>
             ) : (
@@ -519,7 +519,7 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 ) : skills.length === 0 ? (
-                  <div className="text-center py-12 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
+                  <div className="text-center py-12 text-[var(--text-muted)] text-sm border border-dashed border-[var(--border-default)] rounded-lg">
                     {t("settings.noSkills") || "No skills available"}
                   </div>
                 ) : (

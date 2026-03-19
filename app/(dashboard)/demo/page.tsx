@@ -824,19 +824,19 @@ export default function DemoPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-800/50">
+      <div className="px-4 py-3 border-b border-[var(--border-subtle)]">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-sm font-medium text-zinc-300">
+            <h1 className="text-sm font-medium text-[var(--text-primary)]">
               团队协作演示
             </h1>
-            <p className="text-xs text-zinc-600 mt-0.5">
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
               Team Lead 分配任务，Mate Agent 并行执行 — 自动播放中
             </p>
           </div>
           <button
             onClick={handleReset}
-            className="text-xs px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             重新播放
           </button>
@@ -855,7 +855,7 @@ export default function DemoPage() {
       {/* Team collaboration view — fills remaining viewport */}
       {teamActive && agents.length > 0 && (
         <div className="flex-1 min-h-0 flex flex-col px-3 pb-2">
-          <div className="flex flex-col flex-1 min-h-0 border border-zinc-800/50 rounded-2xl bg-zinc-900/40 overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0 border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-surface)]/40 overflow-hidden">
             <TeamStatusBar
               agents={agents}
               collapsed={collapsed}
@@ -878,7 +878,7 @@ export default function DemoPage() {
       )}
 
       {/* Input */}
-      <div className="border-t border-zinc-800/50 bg-zinc-950/80 backdrop-blur-sm">
+      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-base)]/80 backdrop-blur-sm">
         <ChatInput
           onSubmit={handleSend}
           onStop={handleStop}

@@ -20,8 +20,8 @@ export default function KanbanPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="h-12 border-b border-border flex items-center px-4 bg-paper/50">
-        <span className="text-xs font-mono font-bold tracking-wider text-zinc-400 uppercase">
+      <div className="h-12 border-b border-[var(--border-subtle)] flex items-center px-4 bg-paper/50">
+        <span className="text-xs font-mono font-bold tracking-wider text-[var(--text-secondary)] uppercase">
           Full Kanban Board
         </span>
       </div>

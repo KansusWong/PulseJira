@@ -25,14 +25,14 @@ export function TeamCollaborationView() {
 
   if (collapsed) {
     return (
-      <div className="border border-zinc-800/50 rounded-2xl bg-zinc-900/40 overflow-hidden">
+      <div className="border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-surface)]/40 overflow-hidden">
         <TeamStatusBar agents={agents} collapsed onToggle={handleToggle} />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full border border-zinc-800/50 rounded-2xl bg-zinc-900/40 overflow-hidden">
+    <div className="flex flex-col h-full border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-surface)]/40 overflow-hidden">
       <TeamStatusBar agents={agents} collapsed={false} onToggle={handleToggle} />
       <AgentLaneGrid
         agents={agents}

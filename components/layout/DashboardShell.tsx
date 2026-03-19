@@ -152,7 +152,7 @@ export function DashboardShell({
         {/* Desktop sidebar (hidden on mobile, 52px collapsed on tablet 768-1024px, full width on desktop) */}
         <aside
           className={clsx(
-            "flex-shrink-0 border-r border-border bg-[var(--bg-surface)] hidden md:flex flex-col transition-all duration-200 ease-out overflow-hidden",
+            "flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] hidden md:flex flex-col transition-all duration-200 ease-out overflow-hidden",
             sidebarOpen ? "md:w-[52px] lg:w-[220px]" : "w-[52px]"
           )}
         >
@@ -225,7 +225,7 @@ export function DashboardShell({
 
         {/* Right Panel (SSE agent panels -- takes priority over artifacts) */}
         {showRightPanel && (
-          <aside className="w-[420px] flex-shrink-0 border-l border-border bg-black hidden lg:flex flex-col">
+          <aside className="w-[420px] flex-shrink-0 border-l border-[var(--border-subtle)] bg-black hidden lg:flex flex-col">
             {rightPanel}
           </aside>
         )}
@@ -233,7 +233,7 @@ export function DashboardShell({
 
       {/* Bottom Bar */}
       {bottomBar && (
-        <div className="border-t border-border bg-paper/50 backdrop-blur-sm">
+        <div className="border-t border-[var(--border-subtle)] bg-paper/50 backdrop-blur-sm">
           {bottomBar}
         </div>
       )}
