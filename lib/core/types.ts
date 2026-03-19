@@ -422,6 +422,7 @@ export type ChatEventType =
   | 'questionnaire'
   | 'compaction_upgrade_required'
   | 'compaction_upgrade_resolved'
+  | 'project_upgrade_suggested'
   | 'team_upgrade'
   | 'token'
   | 'reasoning_token'
