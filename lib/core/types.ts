@@ -323,6 +323,7 @@ export interface Conversation {
   architect_result?: ArchitectResult | null;
   created_at: string;
   updated_at: string;
+  highlighted: boolean;
 }
 
 /** Chat message roles. */

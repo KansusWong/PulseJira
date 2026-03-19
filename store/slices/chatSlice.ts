@@ -143,7 +143,7 @@ export interface ChatSlice {
 
   // Thinking mode toggle (user-facing model selector)
   thinkingMode: boolean;
-  /** Selected fast model ID (e.g. 'glm-4-flash', 'claude-3-7-sonnet-latest'). Empty = env default. */
+  /** Selected fast model ID (e.g. 'glm-4-flash', 'claude-sonnet-4-5-20250929'). Empty = env default. */
   selectedFastModel: string;
 
   // Studio panel state (global, not per-conversation)
@@ -163,6 +163,7 @@ export interface ChatSlice {
   setActiveConversationId: (id: string | null) => void;
   removeConversation: (id: string) => void;
   updateConversation: (id: string, updates: Partial<Conversation>) => void;
+  toggleHighlight: (conversationId: string) => void;
 
   setMessages: (conversationId: string, messages: ChatMessage[]) => void;
   addMessage: (conversationId: string, message: ChatMessage) => void;
@@ -340,7 +341,7 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
   questionnaireData: null,
 
   thinkingMode: false,
-  selectedFastModel: 'claude-3-7-sonnet-latest',
+  selectedFastModel: 'claude-sonnet-4-5-20250929',
 
   studioPanel: {
     visible: false,
@@ -439,6 +440,24 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         c.id === id ? { ...c, ...updates } : c
       ),
     })),
+
+  toggleHighlight: (conversationId) =>
+    set((state) => {
+      const conv = state.conversations.find((c) => c.id === conversationId);
+      if (!conv) return state;
+      const next = !conv.highlighted;
+      // Persist to backend (fire-and-forget)
+      fetch(`/api/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ highlighted: next }),
+      }).catch(() => {});
+      return {
+        conversations: state.conversations.map((c) =>
+          c.id === conversationId ? { ...c, highlighted: next } : c
+        ),
+      };
+    }),
 
   setMessages: (conversationId, messages) =>
     set((state) => ({

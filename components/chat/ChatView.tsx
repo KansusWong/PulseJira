@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { RebuilDLogo } from "@/components/ui/RebuilDLogo";
 import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
@@ -13,6 +14,7 @@ import { StreamingBubble } from "./StreamingBubble";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
 import { QuestionnaireInline } from "./QuestionnaireInline";
 import { CompactionUpgradeCard } from "./CompactionUpgradeCard";
+import { TopBar } from "@/components/layout/TopBar";
 
 /** Build tool usage summary from streaming steps for message metadata. */
 function buildToolUsageSummary(steps: StructuredAgentStep[]): ToolStepSummary[] {
@@ -305,6 +307,7 @@ export function ChatView() {
           execution_mode: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          highlighted: false,
         });
         setActiveConversationId(conversationId);
       }
@@ -664,131 +667,140 @@ export function ChatView() {
   );
 
   const teamFullscreen = teamCollaborationActive && isStreaming;
+  const isEmpty = !loadingMessages && messages.length === 0;
+
+  const chatInputProps = { onSubmit: handleSend, onStop: handleStop, streaming: isStreaming, thinkingMode, onThinkingModeChange: setThinkingMode, selectedFastModel, onFastModelChange: setSelectedFastModel, conversationId: activeConversationId ?? undefined };
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-base)]">
-      {/* Messages area — shrinks when team is fullscreen */}
-      <div ref={scrollContainerRef} className={`${teamFullscreen ? 'flex-shrink-0 max-h-[15vh]' : 'flex-1'} overflow-y-auto`}>
-        {loadingMessages ? (
-          <div className="max-w-[680px] mx-auto px-4 pt-6 space-y-4">
-            {/* User message skeleton */}
-            <div className="ml-auto max-w-[65%]">
-              <div className="h-[48px] rounded-2xl shimmer" />
-            </div>
-            {/* Assistant message skeleton */}
-            <div className="mr-auto max-w-[85%] flex gap-3">
-              <div className="w-7 h-7 rounded-full shimmer flex-shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-[80px] rounded-2xl shimmer" />
+      <TopBar />
+      {isEmpty ? (
+        /* Portal layout — ChatGPT / Gemini style */
+        <EmptyState onSend={handleSend}>
+          <ChatInput {...chatInputProps} portalMode />
+        </EmptyState>
+      ) : (
+        <>
+          {/* Messages area — shrinks when team is fullscreen */}
+          <div ref={scrollContainerRef} className={`${teamFullscreen ? 'flex-shrink-0 max-h-[15vh]' : 'flex-1'} overflow-y-auto`}>
+            {loadingMessages ? (
+              <div className="max-w-[680px] mx-auto px-4 pt-6 space-y-4">
+                <div className="ml-auto max-w-[65%]">
+                  <div className="h-[48px] rounded-2xl shimmer" />
+                </div>
+                <div className="mr-auto max-w-[85%] flex gap-3">
+                  <div className="w-7 h-7 rounded-full shimmer flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-[80px] rounded-2xl shimmer" />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        ) : messages.length === 0 ? (
-          <EmptyState onSend={handleSend} />
-        ) : (
-          <>
-            {/* Messages — constrained width for readability */}
-            <div className="max-w-[680px] mx-auto px-4 pt-6 space-y-4">
-              {messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
-              ))}
-            </div>
+            ) : (
+              <>
+                <div className="max-w-[680px] mx-auto px-4 pt-6 space-y-4">
+                  {messages.map((msg) => (
+                    <MessageBubble key={msg.id} message={msg} />
+                  ))}
+                </div>
 
-            {/* Post-team content — constrained width */}
-            {!teamFullscreen && (
-              <div className="max-w-[680px] mx-auto px-4 pb-6 space-y-4">
-                {/* Inline streaming bubble — text + tool calls interleaved */}
-                {isStreaming && streamingSections.length > 0 && (
-                  <StreamingBubble sections={streamingSections} />
-                )}
+                {!teamFullscreen && (
+                  <div className="max-w-[680px] mx-auto px-4 pb-6 space-y-4">
+                    {isStreaming && streamingSections.length > 0 && (
+                      <StreamingBubble sections={streamingSections} />
+                    )}
 
-                {/* Thinking indicator — only before first token arrives */}
-                {isStreaming && streamingSections.length === 0 && (
-                  <div className="mr-auto max-w-[85%] px-1 py-1">
-                    <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>{t('streaming.thinking')}</span>
-                    </div>
+                    {isStreaming && streamingSections.length === 0 && (
+                      <div className="mr-auto max-w-[85%] px-1 py-1">
+                        <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>{t('streaming.thinking')}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {compactionUpgradePanel.visible && compactionUpgradePanel.upgradeId && activeConversationId && (
+                      <CompactionUpgradeCard
+                        upgradeId={compactionUpgradePanel.upgradeId}
+                        tokenUsage={compactionUpgradePanel.tokenUsage!}
+                        timeoutAt={compactionUpgradePanel.timeoutAt!}
+                        conversationId={activeConversationId}
+                        onResolved={(approved) => {
+                          hideCompactionUpgrade();
+                        }}
+                      />
+                    )}
+
+                    {questionnaireData && !isStreaming && !compactionUpgradePanel.visible && (
+                      <QuestionnaireInline
+                        data={questionnaireData}
+                        onSubmit={(text) => { clearQuestionnaireData(); handleSend(text); }}
+                        onDismiss={clearQuestionnaireData}
+                      />
+                    )}
+
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
-
-                {/* Compaction upgrade card — takes priority over questionnaire */}
-                {compactionUpgradePanel.visible && compactionUpgradePanel.upgradeId && activeConversationId && (
-                  <CompactionUpgradeCard
-                    upgradeId={compactionUpgradePanel.upgradeId}
-                    tokenUsage={compactionUpgradePanel.tokenUsage!}
-                    timeoutAt={compactionUpgradePanel.timeoutAt!}
-                    conversationId={activeConversationId}
-                    onResolved={(approved) => {
-                      hideCompactionUpgrade();
-                    }}
-                  />
-                )}
-
-                {/* Normal questionnaire — only when no upgrade card visible */}
-                {questionnaireData && !isStreaming && !compactionUpgradePanel.visible && (
-                  <QuestionnaireInline
-                    data={questionnaireData}
-                    onSubmit={(text) => { clearQuestionnaireData(); handleSend(text); }}
-                    onDismiss={clearQuestionnaireData}
-                  />
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
+              </>
             )}
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* Team collaboration view — fills remaining viewport outside scroll area */}
-      {teamFullscreen && (
-        <div className="flex-1 min-h-0 flex flex-col px-3 pb-2">
-          <TeamCollaborationView />
-        </div>
+          {teamFullscreen && (
+            <div className="flex-1 min-h-0 flex flex-col px-3 pb-2">
+              <TeamCollaborationView />
+            </div>
+          )}
+
+          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+            <ChatInput {...chatInputProps} />
+          </div>
+        </>
       )}
-
-      {/* Input */}
-      <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
-        <ChatInput onSubmit={handleSend} onStop={handleStop} streaming={isStreaming} thinkingMode={thinkingMode} onThinkingModeChange={setThinkingMode} selectedFastModel={selectedFastModel} onFastModelChange={setSelectedFastModel} conversationId={activeConversationId ?? undefined} />
-      </div>
     </div>
   );
 }
 
-function EmptyState({ onSend }: { onSend: (text: string) => void }) {
-  const { t } = useTranslation();
+function EmptyState({ onSend, children }: { onSend: (text: string) => void; children?: React.ReactNode }) {
+  const { t, locale } = useTranslation();
+  const fullText = locale === 'zh' ? '想法随聊' : "Welcome, I'm ready";
+  const [displayText, setDisplayText] = useState('');
+
+  useEffect(() => {
+    let index = 0;
+    setDisplayText('');
+    const timer = setInterval(() => {
+      index++;
+      if (index <= fullText.length) {
+        setDisplayText(fullText.slice(0, index));
+      } else {
+        clearInterval(timer);
+      }
+    }, 120);
+    return () => clearInterval(timer);
+  }, [fullText]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full px-4">
-      <div className="flex flex-col items-center max-w-[680px] text-center">
-        {/* RebuilD logo - 64px amber square */}
-        <div className="w-16 h-16 rounded-2xl bg-[var(--accent)] flex items-center justify-center mb-4">
-          <Sparkles className="w-8 h-8 text-black" />
+    <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
+      <div className="flex flex-col max-w-[780px] w-full">
+        {/* Logo + typing text */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--accent)] flex items-center justify-center flex-shrink-0">
+            <RebuilDLogo className="w-7 h-7 text-black" />
+          </div>
+          <span className="text-xl font-medium text-[var(--text-primary)]">
+            {displayText}
+            <span className="inline-block w-[2px] h-[1.2em] bg-[rgba(255,255,255,0.55)] ml-0.5 align-text-bottom animate-ds-blink" />
+          </span>
         </div>
-        <p className="text-sm text-[var(--text-muted)] mb-8">
-          {t('chat.emptyDescription') || 'Start a new conversation'}
-        </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-          {[
-            { label: t('chat.quickQuestion'), example: t('chat.quickQuestionExample') },
-            { label: t('chat.smallTask'), example: t('chat.smallTaskExample') },
-            { label: t('chat.featureBuild'), example: t('chat.featureBuildExample') },
-            { label: t('chat.systemDesign'), example: t('chat.systemDesignExample') },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => onSend(item.example)}
-              className="text-left px-4 py-3 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] hover:border-[var(--border-focus)] transition-all group cursor-pointer"
-            >
-              <div className="text-xs font-medium text-[var(--text-secondary)] mb-1">{item.label}</div>
-              <div className="text-xs text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors line-clamp-2">
-                {item.example}
-              </div>
-            </button>
-          ))}
-        </div>
+        {/* Chat input — portal style, directly below logo */}
+        {children && (
+          <div className="w-full mb-6">
+            {children}
+          </div>
+        )}
+
+        {/* Suggestion cards — temporarily hidden */}
       </div>
     </div>
   );

@@ -98,7 +98,7 @@ interface ChatContext {
   attachments?: AttachmentMeta[];
   /** User-selected thinking mode: true = primary model (GLM-5), false/undefined = fast model. */
   thinking?: boolean;
-  /** Explicit model override from user selection (e.g. 'claude-3-7-sonnet-latest'). */
+  /** Explicit model override from user selection (e.g. 'claude-sonnet-4-5-20250929'). */
   model?: string;
   orgId?: string;
   userId?: string;
@@ -987,6 +987,7 @@ export class ChatEngine {
       clarification_context: undefined,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      highlighted: false,
     };
   }
 
