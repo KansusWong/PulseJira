@@ -42,6 +42,8 @@ const en: TranslationDict = {
   'common.modelAutoHint': 'Determined by chat routing and task complexity',
   'common.done': 'Done',
   'common.failed': 'Failed',
+  'common.deleted': 'Deleted',
+  'common.deleteFailed': 'Failed to delete',
   'common.dimension': 'Dimension',
 
   // ── Sidebar ──
@@ -120,6 +122,25 @@ const en: TranslationDict = {
   'graph.tooltip.reusedTimes': 'Reused {count} times',
   'graph.tooltip.createdBy': 'Created by {name}',
   'graph.tooltip.relationships': 'Relationships',
+  // ── Settings Page ──
+  'settings.title': 'Settings',
+  'settings.subtitle': 'Configure your workspace, agents, and integrations',
+  'settings.tabs.agent': 'Agent',
+  'settings.tabs.llmPool': 'LLM Pool',
+  'settings.tabs.skills': 'Skills',
+  'settings.tabs.preferences': 'Preferences',
+  'settings.tabs.advanced': 'Advanced',
+  'settings.agentLoadFailed': 'Failed to load agents',
+  'settings.skillLoadFailed': 'Failed to load skills',
+  'settings.skillToggled': 'Saved',
+  'settings.skillRemoved': 'Removed',
+  'settings.skillUploaded': 'Skill uploaded',
+  'settings.skillBound': 'Skill bound to: {list}',
+  'settings.addSuccess': 'Added successfully',
+  'settings.skillsTitle': 'Skills',
+  'settings.skillsDescription': 'Manage skills for your agents',
+  'settings.noSkills': 'No skills available',
+
   'sidebar.settings.initialConfig': 'Initial Config',
   'sidebar.settings.initSetup': 'Initial Setup',
   'sidebar.settings.advancedConfig': 'Advanced Config',
@@ -777,10 +798,6 @@ const en: TranslationDict = {
   // ── LLM Pool (remaining) ──
   'llm.noModelSet': 'No model set',
   'llm.providerGlm': 'GLM (Zhipu)',
-
-  // ── Settings page (remaining) ──
-  'settings.skillBound': 'Bound: {list}',
-  'settings.addSuccess': 'Added successfully',
 
   // ── Tool Approval ──
   'toolApproval.title': 'Tool Execution Approval',

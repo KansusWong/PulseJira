@@ -42,6 +42,8 @@ const zh: TranslationDict = {
   'common.modelAutoHint': '由 Chat 选择和业务复杂度决定',
   'common.done': '完成',
   'common.failed': '失败',
+  'common.deleted': '已删除',
+  'common.deleteFailed': '删除失败',
   'common.dimension': '维度',
 
   // ── Sidebar ──
@@ -120,6 +122,25 @@ const zh: TranslationDict = {
   'graph.tooltip.reusedTimes': '被复用 {count} 次',
   'graph.tooltip.createdBy': '创建者 {name}',
   'graph.tooltip.relationships': '关联关系',
+  // ── Settings Page ──
+  'settings.title': '设置',
+  'settings.subtitle': '配置工作区、智能体和集成',
+  'settings.tabs.agent': '智能体',
+  'settings.tabs.llmPool': 'LLM 账户池',
+  'settings.tabs.skills': '技能',
+  'settings.tabs.preferences': '偏好设置',
+  'settings.tabs.advanced': '高级',
+  'settings.agentLoadFailed': '加载智能体失败',
+  'settings.skillLoadFailed': '加载技能失败',
+  'settings.skillToggled': '已保存',
+  'settings.skillRemoved': '已移除',
+  'settings.skillUploaded': '技能已上传',
+  'settings.skillBound': '技能已绑定到：{list}',
+  'settings.addSuccess': '添加成功',
+  'settings.skillsTitle': '技能',
+  'settings.skillsDescription': '管理智能体的技能',
+  'settings.noSkills': '暂无可用技能',
+
   'sidebar.settings.initialConfig': '初始配置',
   'sidebar.settings.initSetup': '初始化配置',
   'sidebar.settings.advancedConfig': '高级配置',
@@ -777,10 +798,6 @@ const zh: TranslationDict = {
   // ── LLM Pool (remaining) ──
   'llm.noModelSet': '未设置模型',
   'llm.providerGlm': 'GLM (智谱)',
-
-  // ── Settings page (remaining) ──
-  'settings.skillBound': '已绑定: {list}',
-  'settings.addSuccess': '添加成功',
 
   // ── Tool Approval ──
   'toolApproval.title': '工具执行审批',
