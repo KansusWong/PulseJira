@@ -14,6 +14,7 @@ import {
   Presentation,
   Target,
   Bot,
+  Loader2,
 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 
@@ -311,6 +312,8 @@ export function VaultGraph({ data }: { data: GraphData }) {
   const [hoveredNode, setHoveredNode] = useState<FGNode | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
@@ -382,6 +385,7 @@ export function VaultGraph({ data }: { data: GraphData }) {
     const fg = fgRef.current;
     if (!fg) return;
 
+    setLoading(false);
     fg.d3Force("charge")?.strength(-4000).distanceMax(2000);
     fg.d3Force("link")?.distance(350).strength(0.15);
     fg.d3Force("center")?.strength(0.005);
@@ -1028,8 +1032,47 @@ export function VaultGraph({ data }: { data: GraphData }) {
     return sections;
   }, [selectedNode, selectedEdges, nodeMap, navigateToNode]);
 
+  const handleRetry = () => {
+    setError(null);
+    setLoading(true);
+    // Trigger re-render by updating a state that forces graph reload
+    window.location.reload();
+  };
+
   return (
     <div className="relative h-full bg-[#050505]" ref={containerRef}>
+      {/* Loading state */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-base)] z-50">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin" />
+            <span className="text-sm text-[var(--text-muted)]">{t('graph.loading') || 'Loading graph...'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-base)] z-50">
+          <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+            <div className="w-14 h-14 rounded-xl bg-[rgba(239,68,68,0.08)] flex items-center justify-center">
+              <X className="w-7 h-7 text-[#ef4444]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">
+                {t('graph.loadFailed') || 'Failed to load graph'}
+              </h3>
+              <p className="text-xs text-[var(--text-muted)]">{error}</p>
+            </div>
+            <button
+              onClick={handleRetry}
+              className="px-4 py-2 rounded-lg bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-hover)] transition-colors"
+            >
+              {t('common.retry') || 'Retry'}
+            </button>
+          </div>
+        </div>
+      )}
       {/* Ambient glow overlays */}
       <div className="absolute inset-0 pointer-events-none">
         <div

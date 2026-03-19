@@ -200,6 +200,7 @@ export function Sidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
   const contextMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const [loadingConversations, setLoadingConversations] = useState(false);
 
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -400,15 +401,24 @@ export function Sidebar({
 
       {/* Conversation list with time groups */}
       <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-thin">
-        {groups.length === 0 && (
+        {loadingConversations ? (
+          <div className="space-y-2 px-2">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className="h-[36px] rounded-md shimmer"
+              />
+            ))}
+          </div>
+        ) : groups.length === 0 ? (
           <div className="px-3 py-6 text-center">
             <p className="text-xs text-[var(--text-muted)]">
               {searchQuery ? t("sidebar.noMatches") : t("sidebar.newConversation")}
             </p>
           </div>
-        )}
+        ) : null}
 
-        {groups.map((group) => (
+        {!loadingConversations && groups.map((group) => (
           <div key={group.label} className="mb-2">
             {/* Group header */}
             <div

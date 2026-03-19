@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2 } from "lucide-react";
 import { useTranslation } from '@/lib/i18n';
@@ -124,6 +124,7 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Abort active stream if conversation changes or is deleted
   useEffect(() => {
@@ -139,6 +140,7 @@ export function ChatView() {
     if (fetchedRef.current === activeConversationId) return;
     fetchedRef.current = activeConversationId;
 
+    setLoadingMessages(true);
     fetch(`/api/conversations/${activeConversationId}/messages?limit=200`)
       .then((r) => r.json())
       .then((json) => {
@@ -146,7 +148,8 @@ export function ChatView() {
           setMessages(activeConversationId, json.data);
         }
       })
-      .catch((err) => console.error('[ChatView] Failed to load messages:', err));
+      .catch((err) => console.error('[ChatView] Failed to load messages:', err))
+      .finally(() => setLoadingMessages(false));
 
   }, [activeConversationId, setMessages]);
 
@@ -666,7 +669,21 @@ export function ChatView() {
     <div className="flex flex-col h-full bg-[var(--bg-base)]">
       {/* Messages area — shrinks when team is fullscreen */}
       <div ref={scrollContainerRef} className={`${teamFullscreen ? 'flex-shrink-0 max-h-[15vh]' : 'flex-1'} overflow-y-auto`}>
-        {messages.length === 0 ? (
+        {loadingMessages ? (
+          <div className="max-w-[680px] mx-auto px-4 pt-6 space-y-4">
+            {/* User message skeleton */}
+            <div className="ml-auto max-w-[65%]">
+              <div className="h-[48px] rounded-2xl shimmer" />
+            </div>
+            {/* Assistant message skeleton */}
+            <div className="mr-auto max-w-[85%] flex gap-3">
+              <div className="w-7 h-7 rounded-full shimmer flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-[80px] rounded-2xl shimmer" />
+              </div>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <EmptyState onSend={handleSend} />
         ) : (
           <>

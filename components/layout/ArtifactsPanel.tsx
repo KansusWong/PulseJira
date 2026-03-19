@@ -186,6 +186,56 @@ function DownloadPrompt({ artifact }: { artifact: ArtifactRef }) {
   );
 }
 
+// ── Error state component ──
+
+function ArtifactErrorState({ artifact, onRetry, onClose }: { artifact: ArtifactRef; onRetry: () => void; onClose: () => void }) {
+  const Icon = typeIconMap[artifact.type] || File;
+
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.2)] max-w-sm">
+        <div className="w-14 h-14 rounded-xl bg-[rgba(239,68,68,0.08)] flex items-center justify-center">
+          <Icon className="w-7 h-7 text-[#ef4444]" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-[var(--text-primary)]">Failed to load</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">{artifact.filename}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onRetry}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] text-black text-sm font-medium hover:bg-[var(--accent-hover)] transition-colors"
+          >
+            Retry
+          </button>
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Loading skeleton component ──
+
+function ArtifactLoadingSkeleton() {
+  return (
+    <div className="flex-1 overflow-auto font-mono text-sm leading-6 p-4 space-y-2">
+      {[100, 85, 95, 90, 80, 100, 85, 95].map((width, i) => (
+        <div
+          key={i}
+          className="h-5 rounded shimmer"
+          style={{ width: `${width}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ── Body renderer ──
 
 function ArtifactBody({ artifact }: { artifact: ArtifactRef }) {

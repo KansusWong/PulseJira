@@ -446,8 +446,14 @@ export default function SettingsPage() {
         {activeTab === "agent" && (
           <div className="flex flex-col gap-4">
             {loadingAgents ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="w-6 h-6 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
+              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="glass-1 rounded-xl p-4 space-y-3">
+                    <div className="h-6 w-32 rounded shimmer" />
+                    <div className="h-4 w-full rounded shimmer" />
+                    <div className="h-4 w-3/4 rounded shimmer" />
+                  </div>
+                ))}
               </div>
             ) : agents.length === 0 ? (
               <div className="text-center py-20 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
@@ -505,8 +511,13 @@ export default function SettingsPage() {
 
                 {/* Skills list */}
                 {loadingSkills ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="w-6 h-6 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
+                  <div className="space-y-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="glass-1 rounded-lg p-4 space-y-2">
+                        <div className="h-5 w-48 rounded shimmer" />
+                        <div className="h-4 w-full rounded shimmer" />
+                      </div>
+                    ))}
                   </div>
                 ) : skills.length === 0 ? (
                   <div className="text-center py-12 text-zinc-500 text-sm border border-dashed border-zinc-700 rounded-lg">
