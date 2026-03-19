@@ -239,6 +239,13 @@ const zh: TranslationDict = {
   'compactionUpgrade.reject': '继续当前模式（压缩上下文）',
   'compactionUpgrade.countdown': '{seconds}秒后自动拒绝',
 
+  // ── Project Upgrade ──
+  'projectUpgrade.title': '这看起来是一个项目',
+  'projectUpgrade.description': '这个任务比较复杂，建议转为项目处理，产出物将常驻工作空间，支持团队协作。',
+  'projectUpgrade.approve': '转为项目',
+  'projectUpgrade.reject': '继续聊天',
+  'projectUpgrade.converted': '已转为项目 **{name}**。[打开项目](/projects/{id})',
+
   // ── Plan Panel ──
   'plan.title': '执行计划',
   'plan.complexity': '{level} 复杂度',

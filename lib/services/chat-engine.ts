@@ -109,7 +109,7 @@ interface ChatContext {
 // ---------------------------------------------------------------------------
 
 interface StructuredMarker {
-  type: 'plan_mode_enter' | 'plan_review' | 'question_data' | 'team_upgrade';
+  type: 'plan_mode_enter' | 'plan_review' | 'question_data' | 'team_upgrade' | 'project_upgrade';
   data: any;
 }
 
@@ -124,6 +124,7 @@ function parseStructuredMarkers(text: string): StructuredMarker[] {
     { regex: /\[\[PLAN_REVIEW\]\]([\s\S]*?)\[\[\/PLAN_REVIEW\]\]/g, type: 'plan_review' },
     { regex: /\[\[QUESTION_DATA\]\]([\s\S]*?)\[\[\/QUESTION_DATA\]\]/g, type: 'question_data' },
     { regex: /\[\[TEAM_UPGRADE\]\]([\s\S]*?)\[\[\/TEAM_UPGRADE\]\]/g, type: 'team_upgrade' },
+    { regex: /\[\[PROJECT_UPGRADE\]\]([\s\S]*?)\[\[\/PROJECT_UPGRADE\]\]/g, type: 'project_upgrade' },
   ];
 
   for (const { regex, type } of patterns) {
@@ -150,6 +151,7 @@ function stripMarkers(text: string): string {
     .replace(/\[\[PLAN_REVIEW\]\][\s\S]*?\[\[\/PLAN_REVIEW\]\]/g, '')
     .replace(/\[\[QUESTION_DATA\]\][\s\S]*?\[\[\/QUESTION_DATA\]\]/g, '')
     .replace(/\[\[TEAM_UPGRADE\]\][\s\S]*?\[\[\/TEAM_UPGRADE\]\]/g, '')
+    .replace(/\[\[PROJECT_UPGRADE\]\][\s\S]*?\[\[\/PROJECT_UPGRADE\]\]/g, '')
     .replace(/\[\[WAITING_FOR_INPUT\]\]/g, '')
     .replace(/\[\[TOOL_ERROR\]\][\s\S]*?\[\[\/TOOL_ERROR\]\]/g, '')
     .trim();
@@ -561,6 +563,8 @@ export class ChatEngine {
               channel.push({ type: 'plan_mode_enter' as any, data: marker.data });
             } else if (marker.type === 'team_upgrade') {
               channel.push({ type: 'team_upgrade', data: marker.data });
+            } else if (marker.type === 'project_upgrade') {
+              channel.push({ type: 'project_upgrade_suggested', data: marker.data });
             }
           }
 

@@ -239,6 +239,13 @@ const en: TranslationDict = {
   'compactionUpgrade.reject': 'Continue (compress context)',
   'compactionUpgrade.countdown': 'Auto-declining in {seconds}s',
 
+  // ── Project Upgrade ──
+  'projectUpgrade.title': 'This looks like a project',
+  'projectUpgrade.description': 'This task seems complex enough to benefit from a dedicated project workspace with persistent files and team collaboration.',
+  'projectUpgrade.approve': 'Convert to Project',
+  'projectUpgrade.reject': 'Continue chatting',
+  'projectUpgrade.converted': 'Converted to project **{name}**. [Open project](/projects/{id})',
+
   // ── Plan Panel ──
   'plan.title': 'Execution Plan',
   'plan.complexity': '{level} Complexity',

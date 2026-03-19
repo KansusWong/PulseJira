@@ -14,6 +14,7 @@ import { StreamingBubble } from "./StreamingBubble";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
 import { QuestionnaireInline } from "./QuestionnaireInline";
 import { CompactionUpgradeCard } from "./CompactionUpgradeCard";
+import { ProjectUpgradeCard } from "./ProjectUpgradeCard";
 import { TopBar } from "@/components/layout/TopBar";
 
 /** Build tool usage summary from streaming steps for message metadata. */
@@ -100,6 +101,10 @@ export function ChatView({ projectId }: ChatViewProps) {
   const hideCompactionUpgrade = usePulseStore((s) => s.hideCompactionUpgrade);
   const setPendingTeamUpgrade = usePulseStore((s) => s.setPendingTeamUpgrade);
   const clearPendingTeamUpgrade = usePulseStore((s) => s.clearPendingTeamUpgrade);
+
+  const projectUpgradePanel = usePulseStore((s) => s.projectUpgradePanel);
+  const showProjectUpgrade = usePulseStore((s) => s.showProjectUpgrade);
+  const hideProjectUpgrade = usePulseStore((s) => s.hideProjectUpgrade);
 
   // Streaming sections state (inline bubble)
   const streamingSections = usePulseStore((s) => s.streamingSections);
@@ -613,6 +618,11 @@ export function ChatView({ projectId }: ChatViewProps) {
           break;
         }
 
+        case "project_upgrade_suggested": {
+          showProjectUpgrade(conversationId);
+          break;
+        }
+
         case "step_start": {
           // New ReAct step starting — streaming will follow
           break;
@@ -678,7 +688,7 @@ export function ChatView({ projectId }: ChatViewProps) {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, showProjectUpgrade, t]
   );
 
   const teamFullscreen = teamCollaborationActive && isStreaming;
@@ -754,6 +764,15 @@ export function ChatView({ projectId }: ChatViewProps) {
                         conversationId={activeConversationId}
                         onResolved={(approved) => {
                           hideCompactionUpgrade();
+                        }}
+                      />
+                    )}
+
+                    {projectUpgradePanel.visible && projectUpgradePanel.conversationId && activeConversationId && !projectId && (
+                      <ProjectUpgradeCard
+                        conversationId={activeConversationId}
+                        onResolved={() => {
+                          hideProjectUpgrade();
                         }}
                       />
                     )}
