@@ -65,59 +65,6 @@ interface SidebarProps {
   onCloseMobileMenu?: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Time-based conversation grouping
-// ---------------------------------------------------------------------------
-
-interface ConversationGroup {
-  label: string;
-  conversations: Array<{ id: string; title: string | null; updated_at: string; status: string }>;
-}
-
-function groupConversationsByTime(
-  conversations: Array<{ id: string; title: string | null; updated_at: string; status: string }>,
-  t: (key: string) => string,
-): ConversationGroup[] {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
-
-  const today: typeof conversations = [];
-  const yesterday: typeof conversations = [];
-  const earlier: typeof conversations = [];
-
-  for (const conv of conversations) {
-    const d = new Date(conv.updated_at);
-    if (d >= todayStart) {
-      today.push(conv);
-    } else if (d >= yesterdayStart) {
-      yesterday.push(conv);
-    } else {
-      earlier.push(conv);
-    }
-  }
-
-  const groups: ConversationGroup[] = [];
-  if (today.length > 0) groups.push({ label: t("time.today"), conversations: today });
-  if (yesterday.length > 0) groups.push({ label: t("time.yesterday"), conversations: yesterday });
-  if (earlier.length > 0) groups.push({ label: t("time.earlier"), conversations: earlier });
-  return groups;
-}
-
-// ---------------------------------------------------------------------------
-// Format relative time (e.g. "2m", "3h", "5d")
-// ---------------------------------------------------------------------------
-
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
-}
 
 // ---------------------------------------------------------------------------
 // Context menu for conversation items
@@ -328,9 +275,6 @@ export function Sidebar({
             <div className="truncate text-xs text-[var(--text-primary)]">
               {conv.title || t("sidebar.newConversation")}
             </div>
-            <div className="text-[9.5px] text-[var(--text-muted)] mt-0.5">
-              {relativeTime(conv.updated_at)}
-            </div>
           </button>
         )}
 
@@ -394,28 +338,8 @@ export function Sidebar({
           <Plus className="w-4 h-4" />
         </button>
 
-        {/* Conversation first-letter avatars */}
-        <div className="flex-1 overflow-y-auto mt-2 w-full flex flex-col items-center gap-0.5 scrollbar-thin">
-          {conversations.slice(0, 30).map((conv) => {
-            const firstChar = (conv.title || "?")[0].toUpperCase();
-            const isActive = activeConversationId === conv.id;
-            return (
-              <button
-                key={conv.id}
-                onClick={() => handleSelectConversation(conv.id)}
-                className={clsx(
-                  "w-[34px] h-[34px] rounded-lg flex items-center justify-center text-xs font-medium transition-colors relative flex-shrink-0",
-                  isActive
-                    ? "bg-[var(--accent-ghost)] text-[var(--text-primary)] border-l-2 border-[var(--accent)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
-                )}
-                title={conv.title || t("sidebar.newConversation")}
-              >
-                {firstChar}
-              </button>
-            );
-          })}
-        </div>
+        {/* Spacer */}
+        <div className="flex-1" />
 
         {/* Bottom nav: icon-only */}
         <div className="flex flex-col items-center gap-1 mt-auto pt-2 border-t border-[var(--border-subtle)] w-full">
