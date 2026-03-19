@@ -11,10 +11,13 @@ import {
   MoreHorizontal,
   ChevronsLeft,
   Pencil,
+  Sparkles,
 } from "lucide-react";
 import clsx from "clsx";
+import { RebuilDLogo } from "@/components/ui/RebuilDLogo";
 import { useTranslation } from "@/lib/i18n";
 import { usePulseStore } from "@/store/usePulseStore.new";
+import { SearchModal } from "./SearchModal";
 
 // ---------------------------------------------------------------------------
 // Legacy type exports (kept for backward compat — layout.tsx imports AssetsData)
@@ -53,7 +56,7 @@ interface SidebarProps {
   onToggleSidebar: () => void;
   /** @deprecated assets prop is no longer used — sidebar reads from store */
   assets?: unknown;
-  conversations?: Array<{ id: string; title: string | null; updated_at: string; status: string }>;
+  conversations?: Array<{ id: string; title: string | null; updated_at: string; status: string; highlighted?: boolean }>;
   activeConversationId?: string | null;
   onSelectConversation?: (id: string | null) => void;
   onDeleteConversation?: (id: string) => void;
@@ -122,12 +125,16 @@ function relativeTime(dateStr: string): string {
 
 function ConversationContextMenu({
   conversationId,
+  isHighlighted,
+  onToggleHighlight,
   onRename,
   onDelete,
   onClose,
   anchorRef,
 }: {
   conversationId: string;
+  isHighlighted: boolean;
+  onToggleHighlight: (id: string) => void;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -156,6 +163,16 @@ function ConversationContextMenu({
       ref={menuRef}
       className="absolute right-0 top-full mt-1 z-50 min-w-[120px] rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-lg py-1"
     >
+      <button
+        onClick={() => {
+          onToggleHighlight(conversationId);
+          onClose();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+      >
+        <Sparkles className="w-3 h-3" />
+        {isHighlighted ? t("common.unhighlight") : t("common.highlight")}
+      </button>
       <button
         onClick={() => {
           onRename(conversationId);
@@ -201,7 +218,7 @@ export function Sidebar({
   // On mobile overlay, always show expanded. On tablet (768-1024), always collapsed. On desktop, use store state.
   const expanded = !isSidebarCollapsed;
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
   const contextMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [loadingConversations, setLoadingConversations] = useState(false);
@@ -211,6 +228,7 @@ export function Sidebar({
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const updateConversation = usePulseStore((s) => s.updateConversation);
+  const toggleHighlight = usePulseStore((s) => s.toggleHighlight);
 
   useEffect(() => {
     if (renamingId && renameInputRef.current) {
@@ -219,19 +237,21 @@ export function Sidebar({
     }
   }, [renamingId]);
 
-  // Filter conversations by search query
-  const filteredConversations = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter(
-      (c) => c.title && c.title.toLowerCase().includes(q),
-    );
-  }, [conversations, searchQuery]);
+  // Highlighted conversations (user-pinned), sorted by most recent
+  const highlightedConversations = useMemo(
+    () => conversations.filter((c) => c.highlighted).sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    ),
+    [conversations]
+  );
 
-  // Group conversations by time
-  const groups = useMemo(
-    () => groupConversationsByTime(filteredConversations, t),
-    [filteredConversations, t],
+  // Recent conversations (non-highlighted), top 5 by updated_at
+  const recentConversations = useMemo(
+    () => conversations
+      .filter((c) => !c.highlighted)
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      .slice(0, 5),
+    [conversations]
   );
 
   const handleNewChat = () => {
@@ -276,6 +296,77 @@ export function Sidebar({
     }
   };
 
+  // ---- Helper: render a single conversation item (reused in Highlights & Recents) ----
+  const renderConversationItem = (conv: { id: string; title: string | null; updated_at: string; status: string; highlighted?: boolean }) => {
+    const isActive = activeConversationId === conv.id;
+    const isRenaming = renamingId === conv.id;
+
+    return (
+      <div
+        key={conv.id}
+        className={clsx(
+          "group/conv relative flex items-center rounded-lg transition-colors",
+          isActive
+            ? "border-l-2 border-[var(--accent)] bg-[var(--accent-ghost)]"
+            : "border-l-2 border-transparent hover:bg-[var(--bg-hover)]",
+        )}
+      >
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={handleCommitRename}
+            onKeyDown={handleRenameKeyDown}
+            className="flex-1 px-2 py-1.5 text-xs bg-transparent text-[var(--text-primary)] outline-none border border-[var(--accent)] rounded"
+          />
+        ) : (
+          <button
+            onClick={() => handleSelectConversation(conv.id)}
+            className="flex-1 text-left px-2 py-1.5 min-w-0"
+          >
+            <div className="truncate text-xs text-[var(--text-primary)]">
+              {conv.title || t("sidebar.newConversation")}
+            </div>
+            <div className="text-[9.5px] text-[var(--text-muted)] mt-0.5">
+              {relativeTime(conv.updated_at)}
+            </div>
+          </button>
+        )}
+
+        {/* Context menu dots — visible on hover */}
+        {!isRenaming && (
+          <div className="relative flex-shrink-0 pr-1">
+            <button
+              ref={contextMenuId === conv.id ? contextMenuAnchorRef : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                setContextMenuId(
+                  contextMenuId === conv.id ? null : conv.id,
+                );
+              }}
+              className="p-1 rounded opacity-0 group-hover/conv:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+
+            {contextMenuId === conv.id && (
+              <ConversationContextMenu
+                conversationId={conv.id}
+                isHighlighted={!!conv.highlighted}
+                onToggleHighlight={toggleHighlight}
+                onRename={handleStartRename}
+                onDelete={(id) => onDeleteConversation?.(id)}
+                onClose={() => setContextMenuId(null)}
+                anchorRef={contextMenuAnchorRef}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ---- COLLAPSED STATE ----
   if (!expanded) {
     return (
@@ -283,14 +374,14 @@ export function Sidebar({
         className="flex flex-col h-full bg-[var(--bg-surface)] items-center py-2 gap-1"
         aria-expanded="false"
       >
-        {/* Logo: amber square — click to expand */}
+        {/* Logo: cyan square — click to expand */}
         <button
           onClick={onToggleSidebar}
-          className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0 hover:bg-amber-400 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
+          className="w-8 h-8 rounded-lg bg-zinc-200 flex items-center justify-center flex-shrink-0 hover:bg-zinc-300 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none"
           title={t("sidebar.openSidebar")}
           aria-label={t("sidebar.openSidebar")}
         >
-          <span className="text-black font-bold text-sm">R</span>
+          <RebuilDLogo className="w-4 h-4 text-black" />
         </button>
 
         {/* New Chat: 34px square "+" button */}
@@ -368,8 +459,8 @@ export function Sidebar({
       {/* Logo bar */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-amber-500 flex items-center justify-center flex-shrink-0">
-            <span className="text-black font-bold text-xs">R</span>
+          <div className="w-7 h-7 rounded-md bg-zinc-200 flex items-center justify-center flex-shrink-0">
+            <RebuilDLogo className="w-3.5 h-3.5 text-black" />
           </div>
           <span className="text-sm font-semibold text-[var(--text-primary)]">
             RebuilD
@@ -396,21 +487,18 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Search bar */}
+      {/* Search button — opens SearchModal */}
       <div className="px-3 pb-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t("sidebar.searchChats")}
-            className="w-full bg-[var(--bg-hover)] border border-[var(--border-subtle)] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
-          />
-        </div>
+        <button
+          onClick={() => setSearchModalOpen(true)}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] bg-[var(--bg-hover)] border border-[var(--border-subtle)] rounded-lg transition-colors"
+        >
+          <Search className="w-3.5 h-3.5" />
+          {t("sidebar.searchChats")}
+        </button>
       </div>
 
-      {/* Conversation list with time groups */}
+      {/* Conversation list: Highlights + Recents */}
       <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-thin">
         {loadingConversations ? (
           <div className="space-y-2 px-2">
@@ -421,96 +509,39 @@ export function Sidebar({
               />
             ))}
           </div>
-        ) : groups.length === 0 ? (
-          <div className="px-3 py-6 text-center">
-            <p className="text-xs text-[var(--text-muted)]">
-              {searchQuery ? t("sidebar.noMatches") : t("sidebar.newConversation")}
-            </p>
-          </div>
-        ) : null}
+        ) : (
+          <>
+            {/* Highlights */}
+            {highlightedConversations.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2 pt-3 pb-1 text-[9px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none">
+                  {t("sidebar.highlights")}
+                </div>
+                <div className="space-y-0.5">
+                  {highlightedConversations.map((conv) => renderConversationItem(conv))}
+                </div>
+              </div>
+            )}
 
-        {!loadingConversations && groups.map((group) => (
-          <div key={group.label} className="mb-2">
-            {/* Group header */}
-            <div
-              className="px-2 pt-3 pb-1 text-[9px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none"
-              style={{ fontSize: "var(--text-label, 9px)" }}
-            >
-              {group.label}
-            </div>
+            {/* Recents */}
+            {recentConversations.length > 0 && (
+              <div className="mb-2">
+                <div className="px-2 pt-3 pb-1 text-[9px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none">
+                  {t("sidebar.recents")}
+                </div>
+                <div className="space-y-0.5">
+                  {recentConversations.map((conv) => renderConversationItem(conv))}
+                </div>
+              </div>
+            )}
 
-            {/* Conversation items */}
-            <div className="space-y-0.5">
-              {group.conversations.map((conv) => {
-                const isActive = activeConversationId === conv.id;
-                const isRenaming = renamingId === conv.id;
-
-                return (
-                  <div
-                    key={conv.id}
-                    className={clsx(
-                      "group/conv relative flex items-center rounded-lg transition-colors",
-                      isActive
-                        ? "border-l-2 border-[var(--accent)] bg-[var(--accent-ghost)]"
-                        : "border-l-2 border-transparent hover:bg-[var(--bg-hover)]",
-                    )}
-                  >
-                    {isRenaming ? (
-                      <input
-                        ref={renameInputRef}
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onBlur={handleCommitRename}
-                        onKeyDown={handleRenameKeyDown}
-                        className="flex-1 px-2 py-1.5 text-xs bg-transparent text-[var(--text-primary)] outline-none border border-[var(--accent)] rounded"
-                      />
-                    ) : (
-                      <button
-                        onClick={() => handleSelectConversation(conv.id)}
-                        className="flex-1 text-left px-2 py-1.5 min-w-0"
-                      >
-                        <div className="truncate text-xs text-[var(--text-primary)]">
-                          {conv.title || t("sidebar.newConversation")}
-                        </div>
-                        <div className="text-[9.5px] text-[var(--text-muted)] mt-0.5">
-                          {relativeTime(conv.updated_at)}
-                        </div>
-                      </button>
-                    )}
-
-                    {/* Context menu dots — visible on hover */}
-                    {!isRenaming && (
-                      <div className="relative flex-shrink-0 pr-1">
-                        <button
-                          ref={contextMenuId === conv.id ? contextMenuAnchorRef : undefined}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setContextMenuId(
-                              contextMenuId === conv.id ? null : conv.id,
-                            );
-                          }}
-                          className="p-1 rounded opacity-0 group-hover/conv:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] transition-all"
-                        >
-                          <MoreHorizontal className="w-3.5 h-3.5" />
-                        </button>
-
-                        {contextMenuId === conv.id && (
-                          <ConversationContextMenu
-                            conversationId={conv.id}
-                            onRename={handleStartRename}
-                            onDelete={(id) => onDeleteConversation?.(id)}
-                            onClose={() => setContextMenuId(null)}
-                            anchorRef={contextMenuAnchorRef}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+            {highlightedConversations.length === 0 && recentConversations.length === 0 && (
+              <div className="px-3 py-6 text-center">
+                <p className="text-xs text-[var(--text-muted)]">{t("sidebar.newConversation")}</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Bottom nav: Knowledge Graph + Settings */}
@@ -540,6 +571,16 @@ export function Sidebar({
           <span>{t("sidebar.settings")}</span>
         </button>
       </div>
+
+      {/* Search modal */}
+      {searchModalOpen && (
+        <SearchModal
+          conversations={conversations}
+          onSelectConversation={handleSelectConversation}
+          onNewChat={handleNewChat}
+          onClose={() => setSearchModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
