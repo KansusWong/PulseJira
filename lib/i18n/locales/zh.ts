@@ -698,17 +698,6 @@ const zh: TranslationDict = {
   'error.waitingCompile': '正在等待编译完成... ({current}/{max})',
   'error.pageLoadFailed': '页面加载失败',
 
-  // ── Signals Page ──
-  'signals.collecting': '正在从已配置平台采集信号...',
-  'signals.collectingHint': '首次采集可能需要 1–2 分钟（调用外部 API + 生成向量嵌入），新信号会自动出现在下方',
-  'signals.demoNotice': '当前展示的是 Demo 信号（样例数据），不会混入真实业务数据。',
-  'signals.back': '返回',
-  'signals.rejectedSignals': '已拒绝的信号',
-  'signals.noRejected': '没有被拒绝的信号',
-  'signals.allPassedOrPending': '所有信号均已通过筛选或尚未处理。',
-  'signals.collectingWait': '采集中，请稍候...',
-  'signals.collectingDesc': '系统正在从外部平台收集信号，新信号会在采集过程中陆续出现',
-
   // ── Project Detail Page ──
   'projectDetail.connectionLost': '连接中断，实现流程未完成。请重新启动。',
   'projectDetail.startingPreview': '正在启动本地预览...',

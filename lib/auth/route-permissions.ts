@@ -64,17 +64,6 @@ const ROUTE_PERMISSIONS: RoutePermission[] = [
   { pattern: "/api/projects/*/promote", method: "POST", permission: "developer" },
   { pattern: "/api/projects/reconcile", method: "POST", permission: "developer" },
 
-  // ── Developer: signal CRUD ────────────────────────────────────────
-  { pattern: "/api/signals", method: "POST", permission: "developer" },
-  { pattern: "/api/signals/*", method: "PATCH", permission: "developer" },
-  { pattern: "/api/signals/*", method: "DELETE", permission: "developer" },
-  { pattern: "/api/signals/*/convert", method: "POST", permission: "developer" },
-  { pattern: "/api/signals/*/quick-discuss", method: "POST", permission: "developer" },
-  { pattern: "/api/signals/sources", method: "POST", permission: "developer" },
-  { pattern: "/api/signals/sources/*", method: "PATCH", permission: "developer" },
-  { pattern: "/api/signals/sources/*", method: "DELETE", permission: "developer" },
-  { pattern: "/api/signals/sources/test", method: "POST", permission: "developer" },
-
   // ── Developer: project mutations ──────────────────────────────────
   { pattern: "/api/projects", method: "POST", permission: "developer" },
   { pattern: "/api/projects/*", method: "PATCH", permission: "developer" },

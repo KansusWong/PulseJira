@@ -4,8 +4,6 @@
  * Pattern: in-memory Map remains the primary store; this service provides
  * hydrate (lazy load from DB) and persistAll (batch fire-and-forget upsert).
  * When Supabase is not configured, all DB operations silently skip.
- *
- * Reference: lib/services/preferences-store.ts (cached upsert pattern)
  */
 
 import { supabase, supabaseConfigured } from '@/lib/db/client';

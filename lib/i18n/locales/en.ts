@@ -698,17 +698,6 @@ const en: TranslationDict = {
   'error.waitingCompile': 'Waiting for compilation... ({current}/{max})',
   'error.pageLoadFailed': 'Page failed to load',
 
-  // ── Signals Page ──
-  'signals.collecting': 'Collecting signals from configured platforms...',
-  'signals.collectingHint': 'First collection may take 1-2 minutes (external APIs + vector embeddings). New signals will appear below automatically.',
-  'signals.demoNotice': 'Showing demo signals (sample data). These will not mix with real business data.',
-  'signals.back': 'Back',
-  'signals.rejectedSignals': 'Rejected Signals',
-  'signals.noRejected': 'No rejected signals',
-  'signals.allPassedOrPending': 'All signals have passed screening or are pending.',
-  'signals.collectingWait': 'Collecting, please wait...',
-  'signals.collectingDesc': 'Collecting signals from external platforms. New signals will appear as they arrive.',
-
   // ── Project Detail Page ──
   'projectDetail.connectionLost': 'Connection lost, implementation incomplete. Please restart.',
   'projectDetail.startingPreview': 'Starting local preview...',

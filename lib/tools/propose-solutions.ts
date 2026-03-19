@@ -1,8 +1,9 @@
 import { BaseTool } from '@/lib/core/base-tool';
 import { z } from 'zod';
 import type { CodeSolutionProposal } from '@/lib/core/types';
-import type { TrustLevel } from '@/lib/services/preferences-store';
 import type { Blackboard } from '@/lib/blackboard/blackboard';
+
+export type TrustLevel = 'auto' | 'standard' | 'collaborative';
 
 const fileChangeSchema = z.object({
   path: z.string().describe('File path relative to workspace root (e.g., "src/auth/jwt.ts")'),

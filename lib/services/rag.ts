@@ -38,26 +38,6 @@ export async function generateEmbedding(text: string) {
   }
 }
 
-export async function storeSignal(sourceUrl: string, content: string) {
-  const embedding = await generateEmbedding(content);
-  
-    const { data, error } = await supabase
-    .from('signals')
-    .insert({
-      source_url: sourceUrl,
-      content,
-      embedding: embedding.length > 0 ? embedding : null,
-      status: 'DRAFT'
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to store signal: ${error.message}`);
-  }
-  return data;
-}
-
 export async function retrieveContext(query: string) {
   const embedding = await generateEmbedding(query);
   if (embedding.length === 0) return { visionContext: "", pastDecisions: "" };
@@ -88,23 +68,6 @@ export async function retrieveContext(query: string) {
   };
 }
 
-// Helper to store decision after processing
-export async function storeDecision(signalId: string, context: string, rationale: string, result: any) {
-  const embedding = await generateEmbedding(context + " " + rationale);
-  
-  const { error } = await supabase.from('decisions').insert({
-    signal_id: signalId,
-    input_context: context,
-    decision_rationale: rationale,
-    result_action: result,
-    embedding: embedding.length > 0 ? embedding : null
-  });
-
-  if (error) {
-    console.error("Failed to store decision:", error);
-    // We don't throw here to avoid failing the whole request just because history storage failed
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Code Artifact Embedding

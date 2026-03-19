@@ -15,7 +15,6 @@ import fs from 'fs';
 import path from 'path';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { generateJSON } from '@/lib/core/llm';
-import { getPreferences } from '@/lib/services/preferences-store';
 import { messageBus } from '@/connectors/bus/message-bus';
 import { createProject, getProject, updateProject } from '@/projects/project-service';
 import { EventChannel } from '@/lib/utils/event-channel';
@@ -325,19 +324,9 @@ export class ChatEngine {
 
       // --- 2. Build RebuilD agent ---
 
-      // Read trust level for approval gate
-      let trustLevel: 'auto' | 'standard' | 'collaborative' = 'standard';
-      try {
-        const prefs = context.userId && context.orgId
-          ? await getPreferences(context.userId, context.orgId)
-          : await getPreferences();
-        trustLevel = prefs.trustLevel || 'standard';
-      } catch { /* default standard */ }
-
-      // Tool approval callback — provided for standard & collaborative modes.
-      // In auto mode, set to undefined so all approvals are skipped.
+      // Tool approval callback for standard mode (default behavior).
       // The actual per-tool decision (based on riskLevel) is handled in base-agent.ts.
-      const onApprovalRequired = trustLevel === 'auto' ? undefined : async (params: {
+      const onApprovalRequired = async (params: {
         toolName: string;
         toolArgs: Record<string, any>;
         agentName: string;
@@ -544,7 +533,6 @@ export class ChatEngine {
         {
           projectId: projectId || undefined,
           logger: channelLogger,
-          trustLevel,
           onApprovalRequired,
           onCompactionUpgradeRequired,
           onToken,
@@ -602,7 +590,6 @@ export class ChatEngine {
               {
                 projectId,
                 logger: channelLogger,
-                trustLevel,
                 onApprovalRequired,
                 workspacePath: workspaceRef.path,
               },

@@ -8,7 +8,6 @@ import { useTranslation } from "@/lib/i18n";
 import { toast } from "@/components/ui/Toast";
 import { AgentConfigCard } from "@/components/settings/AgentConfigCard";
 import { MateAgentsCard } from "@/components/settings/MateAgentsCard";
-import { UserPreferencesCard } from "@/components/settings/UserPreferencesCard";
 import { AdvancedSettingsCard } from "@/components/settings/AdvancedSettingsCard";
 import { WebhookConfigCard } from "@/components/settings/WebhookConfigCard";
 import { SetupCard } from "@/components/settings/SetupCard";
@@ -545,7 +544,6 @@ export default function SettingsPage() {
 
         {activeTab === "preferences" && (
           <div className="flex flex-col gap-4">
-            <UserPreferencesCard view="topics" />
             <SetupCard />
             <LanguageSwitcher />
           </div>
