@@ -355,24 +355,26 @@ export function Sidebar({
           <FolderOpen className="w-4 h-4" />
         </button>
 
+        {/* Knowledge Graph icon button */}
+        <button
+          onClick={() => router.push("/graph")}
+          className={clsx(
+            "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none mt-1",
+            pathname === "/graph"
+              ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
+          )}
+          title={t("sidebar.graph")}
+          aria-label={t("sidebar.graph")}
+        >
+          <Layers className="w-4 h-4" />
+        </button>
+
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Bottom nav: icon-only */}
+        {/* Bottom nav: Settings only */}
         <div className="flex flex-col items-center gap-1 mt-auto pt-2 border-t border-[var(--border-subtle)] w-full">
-          <button
-            onClick={() => router.push("/graph")}
-            className={clsx(
-              "w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-[var(--border-accent)] focus-visible:outline-none",
-              pathname === "/graph"
-                ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
-                : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]",
-            )}
-            title={t("sidebar.graph")}
-            aria-label={t("sidebar.graph")}
-          >
-            <Layers className="w-4 h-4" />
-          </button>
           <button
             onClick={() => router.push("/settings")}
             className={clsx(
@@ -445,6 +447,18 @@ export function Sidebar({
           <FolderOpen className="w-4 h-4 flex-shrink-0" />
           <span>{t("sidebar.projects")}</span>
         </button>
+        <button
+          onClick={() => router.push("/graph")}
+          className={clsx(
+            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+            pathname === "/graph"
+              ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+          )}
+        >
+          <Layers className="w-4 h-4 flex-shrink-0" />
+          <span>{t("sidebar.graph")}</span>
+        </button>
       </div>
 
       {/* Conversation list: Highlights + Recents */}
@@ -493,20 +507,8 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Bottom nav: Knowledge Graph + Settings */}
+      {/* Bottom nav: Settings */}
       <div className="border-t border-[var(--border-subtle)] px-2 py-2 space-y-0.5">
-        <button
-          onClick={() => router.push("/graph")}
-          className={clsx(
-            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
-            pathname === "/graph"
-              ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
-              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
-          )}
-        >
-          <Layers className="w-4 h-4 flex-shrink-0" />
-          <span>{t("sidebar.graph")}</span>
-        </button>
         <button
           onClick={() => router.push("/settings")}
           className={clsx(
