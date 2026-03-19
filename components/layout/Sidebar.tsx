@@ -272,9 +272,9 @@ export function Sidebar({
         ) : (
           <button
             onClick={() => handleSelectConversation(conv.id)}
-            className="flex-1 text-left px-2 py-1.5 min-w-0"
+            className="flex-1 text-left px-3 py-2 min-w-0"
           >
-            <div className="truncate text-xs text-[var(--text-primary)]">
+            <div className="truncate text-[13px] text-[var(--text-primary)]">
               {conv.title || t("sidebar.newConversation")}
             </div>
           </button>
@@ -400,12 +400,12 @@ export function Sidebar({
       aria-expanded="true"
     >
       {/* Logo bar */}
-      <div className="flex items-center justify-between px-3 pt-3 pb-1">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-zinc-200 flex items-center justify-center flex-shrink-0">
-            <RebuilDLogo className="w-3.5 h-3.5 text-black" />
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-zinc-200 flex items-center justify-center flex-shrink-0">
+            <RebuilDLogo className="w-4 h-4 text-black" />
           </div>
-          <span className="text-sm font-semibold text-[var(--text-primary)]">
+          <span className="text-[15px] font-semibold text-[var(--text-primary)]">
             RebuilD
           </span>
         </div>
@@ -419,50 +419,50 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* Action group: New Chat, Search, Projects */}
-      <div className="px-3 py-2 space-y-0.5">
+      {/* Action group: New Chat, Search, Projects, Graph */}
+      <div className="px-3 pt-3 pb-1 space-y-1">
         <button
           onClick={handleNewChat}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2.5 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
         >
-          <SquarePen className="w-4 h-4 flex-shrink-0" />
+          <SquarePen className="w-[18px] h-[18px] flex-shrink-0" />
           <span>{t("sidebar.newChat")}</span>
         </button>
         <button
           onClick={() => setSearchModalOpen(true)}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2.5 text-[13px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
         >
-          <Search className="w-4 h-4 flex-shrink-0" />
+          <Search className="w-[18px] h-[18px] flex-shrink-0" />
           <span>{t("sidebar.searchChats")}</span>
         </button>
         <button
           onClick={() => { router.push("/projects"); onCloseMobileMenu?.(); }}
           className={clsx(
-            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2.5 text-[13px] rounded-lg transition-colors",
             pathname === "/projects" || pathname.startsWith("/projects/")
               ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
               : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           )}
         >
-          <FolderOpen className="w-4 h-4 flex-shrink-0" />
+          <FolderOpen className="w-[18px] h-[18px] flex-shrink-0" />
           <span>{t("sidebar.projects")}</span>
         </button>
         <button
           onClick={() => router.push("/graph")}
           className={clsx(
-            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2.5 text-[13px] rounded-lg transition-colors",
             pathname === "/graph"
               ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
               : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
           )}
         >
-          <Layers className="w-4 h-4 flex-shrink-0" />
+          <Layers className="w-[18px] h-[18px] flex-shrink-0" />
           <span>{t("sidebar.graph")}</span>
         </button>
       </div>
 
       {/* Conversation list: Highlights + Recents */}
-      <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-3 pb-2 scrollbar-thin">
         {loadingConversations ? (
           <div className="space-y-2 px-2">
             {[...Array(5)].map((_, i) => (
@@ -477,7 +477,7 @@ export function Sidebar({
             {/* Highlights */}
             {highlightedConversations.length > 0 && (
               <div className="mb-2">
-                <div className="px-2 pt-3 pb-1 text-[9px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none">
+                <div className="px-3 pt-4 pb-1.5 text-[10px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none">
                   {t("sidebar.highlights")}
                 </div>
                 <div className="space-y-0.5">
@@ -489,7 +489,7 @@ export function Sidebar({
             {/* Recents */}
             {recentConversations.length > 0 && (
               <div className="mb-2">
-                <div className="px-2 pt-3 pb-1 text-[9px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none">
+                <div className="px-3 pt-4 pb-1.5 text-[10px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none">
                   {t("sidebar.recents")}
                 </div>
                 <div className="space-y-0.5">
@@ -508,11 +508,11 @@ export function Sidebar({
       </div>
 
       {/* Bottom nav: Settings */}
-      <div className="border-t border-[var(--border-subtle)] px-2 py-2 space-y-0.5">
+      <div className="border-t border-[var(--border-subtle)] px-3 py-2.5">
         <button
           onClick={() => router.push("/settings")}
           className={clsx(
-            "w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors",
+            "w-full flex items-center gap-3 px-3 py-2.5 text-[13px] rounded-lg transition-colors",
             pathname === "/settings"
               ? "text-[var(--accent)] bg-[var(--accent-ghost)]"
               : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",

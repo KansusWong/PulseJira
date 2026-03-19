@@ -4,7 +4,6 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import clsx from "clsx";
 import { Menu } from "lucide-react";
 import { usePulseStore } from "@/store/usePulseStore.new";
-import { TopBar } from "./TopBar";
 import { ArtifactsPanel } from "./ArtifactsPanel";
 
 interface DashboardShellProps {
@@ -153,7 +152,7 @@ export function DashboardShell({
         <aside
           className={clsx(
             "flex-shrink-0 border-r border-[var(--border-subtle)] bg-[var(--bg-surface)] hidden md:flex flex-col transition-all duration-200 ease-out overflow-hidden",
-            sidebarOpen ? "md:w-[52px] lg:w-[220px]" : "w-[52px]"
+            sidebarOpen ? "md:w-[52px] lg:w-[260px]" : "w-[52px]"
           )}
         >
           {sidebar}
@@ -185,7 +184,6 @@ export function DashboardShell({
           className="min-w-[320px] flex flex-col overflow-hidden relative"
           style={{ flex: showArtifacts ? chatFlex : 1 }}
         >
-          <TopBar />
           <div className="flex-1 overflow-y-auto">
             {main}
           </div>
