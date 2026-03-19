@@ -102,8 +102,9 @@ The collapsed state (52px width) shows icon-only buttons:
 
 - Logo button (expand)
 - New Chat (+) button
-- Conversation first-letter avatars — show the **union** of highlighted + recents top 5 (same set as expanded view), not all 30 conversations
 - Bottom nav: Graph + Settings icons
+
+No conversation list or avatars in collapsed state.
 
 ## 8. i18n
 
