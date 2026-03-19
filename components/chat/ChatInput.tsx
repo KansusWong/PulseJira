@@ -11,7 +11,7 @@ const THINKING_MODEL_LABEL = process.env.NEXT_PUBLIC_THINKING_MODEL_LABEL || 'GL
 
 /** Available fast models — shown as selectable options when thinking mode is off. */
 const FAST_MODELS: { id: string; label: string; desc: string }[] = [
-  { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet', desc: 'chat.modelSonnetDesc' },
+  { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5', desc: 'chat.modelSonnetDesc' },
   { id: 'glm-4-flash', label: 'GLM-4-Flash', desc: 'chat.modelFastDesc' },
 ];
 
@@ -214,14 +214,20 @@ export function ChatInput({
                 className="flex-1 bg-transparent text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none resize-none min-h-[24px] max-h-[144px] leading-6"
               />
 
-              {/* Model selector dropdown - ghost button with border-subtle */}
+              {/* Model selector dropdown - ghost button with border-subtle
+                  On mobile (< 768px): icon only, no label
+                  On tablet/desktop: full label with dropdown icon
+              */}
               <div ref={modelMenuRef} className="relative flex-shrink-0">
                 <button
                   onClick={() => setShowModelMenu(!showModelMenu)}
                   className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 h-8 rounded-lg hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors"
                 >
-                  <span>{modelLabel}</span>
-                  <ChevronDown className={clsx("w-3 h-3 transition-transform", showModelMenu && "rotate-180")} />
+                  {/* Mobile: only show icon */}
+                  <Sparkles className="w-4 h-4 md:hidden" />
+                  {/* Desktop: show label + dropdown icon */}
+                  <span className="hidden md:inline">{modelLabel}</span>
+                  <ChevronDown className={clsx("w-3 h-3 hidden md:block transition-transform", showModelMenu && "rotate-180")} />
                 </button>
 
                 {/* Dropdown menu */}

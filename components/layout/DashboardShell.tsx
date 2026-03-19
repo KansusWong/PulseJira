@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import clsx from "clsx";
+import { Menu } from "lucide-react";
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { TopBar } from "./TopBar";
 import { ArtifactsPanel } from "./ArtifactsPanel";
@@ -36,6 +37,9 @@ export function DashboardShell({
   const closeAllArtifacts = usePulseStore((s) => s.closeAllArtifacts);
   const autoCollapseSidebar = usePulseStore((s) => s.autoCollapseSidebar);
   const autoExpandSidebar = usePulseStore((s) => s.autoExpandSidebar);
+
+  // ── Mobile sidebar overlay state ──
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // ── SSE right panel takes priority over artifacts ──
   const showRightPanel = rightPanel && rightPanelOpen;
@@ -135,16 +139,45 @@ export function DashboardShell({
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden">
+      {/* Mobile hamburger menu button (visible only < 768px) */}
+      <button
+        onClick={() => setMobileMenuOpen(true)}
+        className="md:hidden fixed top-3 left-3 z-40 w-10 h-10 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+        aria-label="Open menu"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
       <div className="flex flex-1 overflow-hidden relative" ref={containerRef}>
-        {/* Sidebar — always visible: 220px expanded / 52px collapsed */}
+        {/* Desktop sidebar (hidden on mobile, 52px collapsed on tablet 768-1024px, full width on desktop) */}
         <aside
           className={clsx(
             "flex-shrink-0 border-r border-border bg-[var(--bg-surface)] hidden md:flex flex-col transition-all duration-200 ease-out overflow-hidden",
-            sidebarOpen ? "w-[220px]" : "w-[52px]"
+            sidebarOpen ? "md:w-[52px] lg:w-[220px]" : "w-[52px]"
           )}
         >
           {sidebar}
         </aside>
+
+        {/* Mobile sidebar overlay (visible only < 768px when mobileMenuOpen) */}
+        {mobileMenuOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            {/* Sidebar panel — pass close handler via props injection pattern */}
+            <aside className="md:hidden fixed inset-y-0 left-0 w-[280px] z-50 bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] flex flex-col overflow-hidden shadow-2xl">
+              {sidebar && typeof sidebar === 'object' && 'type' in sidebar
+                ? {
+                    ...sidebar,
+                    props: { ...sidebar.props, onCloseMobileMenu: () => setMobileMenuOpen(false) }
+                  }
+                : sidebar}
+            </aside>
+          </>
+        )}
 
         {/* Main Content (Chat area) */}
         <main
@@ -158,24 +191,36 @@ export function DashboardShell({
           </div>
         </main>
 
-        {/* Drag handle between chat and artifacts */}
+        {/* Drag handle between chat and artifacts (desktop only) */}
         {showArtifacts && (
           <div
             onMouseDown={onDragStart}
-            className="w-[6px] flex-shrink-0 cursor-col-resize group flex items-center justify-center relative z-10"
+            className="hidden lg:block w-[6px] flex-shrink-0 cursor-col-resize group flex items-center justify-center relative z-10"
           >
             <div className="w-[3px] h-12 rounded-full bg-[var(--border-subtle)] group-hover:bg-[var(--accent)] transition-colors" />
           </div>
         )}
 
-        {/* Artifacts Panel */}
+        {/* Artifacts Panel — responsive behavior:
+            - Mobile (< 768px): hidden (artifacts open in full-screen modal instead)
+            - Tablet (768-1024px): overlay mode, slides in from right
+            - Desktop (>= 1024px): flex split with drag handle
+        */}
         {showArtifacts && (
-          <aside
-            className="min-w-[320px] flex flex-col overflow-hidden border-l border-[var(--border-subtle)]"
-            style={{ flex: artifactFlex }}
-          >
-            <ArtifactsPanel />
-          </aside>
+          <>
+            {/* Desktop: flex layout with resizable split */}
+            <aside
+              className="hidden lg:flex min-w-[320px] flex-col overflow-hidden border-l border-[var(--border-subtle)]"
+              style={{ flex: artifactFlex }}
+            >
+              <ArtifactsPanel />
+            </aside>
+
+            {/* Tablet: overlay mode (absolute positioned, slides in from right) */}
+            <aside className="hidden md:flex lg:hidden fixed inset-y-0 right-0 w-[420px] z-30 flex-col overflow-hidden border-l border-[var(--border-subtle)] shadow-2xl animate-slide-in-right">
+              <ArtifactsPanel />
+            </aside>
+          </>
         )}
 
         {/* Right Panel (SSE agent panels -- takes priority over artifacts) */}

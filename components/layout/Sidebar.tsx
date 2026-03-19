@@ -58,6 +58,8 @@ interface SidebarProps {
   onSelectConversation?: (id: string | null) => void;
   onDeleteConversation?: (id: string) => void;
   onNewChat?: () => void;
+  /** Callback to close mobile menu overlay (only used on mobile) */
+  onCloseMobileMenu?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,12 +191,14 @@ export function Sidebar({
   onSelectConversation,
   onDeleteConversation,
   onNewChat,
+  onCloseMobileMenu,
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
 
   const isSidebarCollapsed = usePulseStore((s) => s.isSidebarCollapsed);
+  // On mobile overlay, always show expanded. On tablet (768-1024), always collapsed. On desktop, use store state.
   const expanded = !isSidebarCollapsed;
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -234,11 +238,13 @@ export function Sidebar({
     onSelectConversation?.(null);
     onNewChat?.();
     router.push("/");
+    onCloseMobileMenu?.(); // Close mobile overlay on action
   };
 
   const handleSelectConversation = (id: string) => {
     onSelectConversation?.(id);
     router.push("/");
+    onCloseMobileMenu?.(); // Close mobile overlay on action
   };
 
   const handleStartRename = (id: string) => {

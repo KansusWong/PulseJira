@@ -342,7 +342,7 @@ export function ArtifactsPanel() {
   const lineCount = countLines(activeArtifact.content);
 
   return (
-    <div className="flex flex-col h-full animate-slide-in-right" style={{ background: "#080808" }}>
+    <div className="flex flex-col h-full animate-slide-in-right bg-[#080808]">
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-4 h-12 flex-shrink-0 border-b border-[var(--border-subtle)]">
         <ActiveIcon className="w-4 h-4 text-[var(--text-muted)]" />
