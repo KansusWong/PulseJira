@@ -354,100 +354,51 @@ export default function SettingsPage() {
     [fetchAgents, t],
   );
 
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="py-8 px-6 w-full max-w-[720px] mx-auto">
-        {/* Page header */}
-        <div className="mb-8">
-          <h1 className="text-[20px] font-semibold text-[var(--text-primary)] mb-1">
-            {t("settings.title") || "Settings"}
-          </h1>
-          <p className="text-[12.5px] text-[var(--text-muted)]">
-            {t("settings.subtitle") || "Configure your workspace, agents, and integrations"}
-          </p>
-        </div>
+  const tabs: { key: SettingsTab; label: string }[] = [
+    { key: "agent", label: t("settings.tabs.agent") || "Agent" },
+    { key: "llm-pool", label: t("settings.tabs.llmPool") || "LLM Pool" },
+    { key: "skills", label: t("settings.tabs.skills") || "Skills" },
+    { key: "preferences", label: t("settings.tabs.preferences") || "Preferences" },
+    { key: "advanced", label: t("settings.tabs.advanced") || "Advanced" },
+  ];
 
-        {/* Tab navigation */}
-        <div className="flex items-center gap-6 border-b border-[var(--border-subtle)] mb-6">
+  return (
+    <div className="h-full flex">
+      {/* Left: vertical tab navigation */}
+      <nav className="w-[200px] shrink-0 border-r border-[var(--border-subtle)] py-8 px-3 flex flex-col gap-1">
+        <h1 className="text-[20px] font-semibold text-[var(--text-primary)] px-3 mb-1">
+          {t("settings.title") || "Settings"}
+        </h1>
+        <p className="text-[12px] text-[var(--text-muted)] px-3 mb-6">
+          {t("settings.subtitle") || "Configure your workspace, agents, and integrations"}
+        </p>
+        {tabs.map((tab) => (
           <button
-            onClick={() => handleTabChange("agent")}
+            key={tab.key}
+            onClick={() => handleTabChange(tab.key)}
             className={clsx(
-              "pb-3 text-sm font-medium transition-colors relative",
-              activeTab === "agent"
-                ? "text-[var(--accent)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+              "text-left px-3 py-2 rounded-lg text-[13px] font-medium transition-colors",
+              activeTab === tab.key
+                ? "bg-[var(--accent-ghost)] text-[var(--accent)] border-l-2 border-[var(--accent)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]",
             )}
           >
-            {t("settings.tabs.agent") || "Agent"}
-            {activeTab === "agent" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
-            )}
+            {tab.label}
           </button>
-          <button
-            onClick={() => handleTabChange("llm-pool")}
-            className={clsx(
-              "pb-3 text-sm font-medium transition-colors relative",
-              activeTab === "llm-pool"
-                ? "text-[var(--accent)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-            )}
-          >
-            {t("settings.tabs.llmPool") || "LLM Pool"}
-            {activeTab === "llm-pool" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange("skills")}
-            className={clsx(
-              "pb-3 text-sm font-medium transition-colors relative",
-              activeTab === "skills"
-                ? "text-[var(--accent)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-            )}
-          >
-            {t("settings.tabs.skills") || "Skills"}
-            {activeTab === "skills" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange("preferences")}
-            className={clsx(
-              "pb-3 text-sm font-medium transition-colors relative",
-              activeTab === "preferences"
-                ? "text-[var(--accent)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-            )}
-          >
-            {t("settings.tabs.preferences") || "Preferences"}
-            {activeTab === "preferences" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange("advanced")}
-            className={clsx(
-              "pb-3 text-sm font-medium transition-colors relative",
-              activeTab === "advanced"
-                ? "text-[var(--accent)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-            )}
-          >
-            {t("settings.tabs.advanced") || "Advanced"}
-            {activeTab === "advanced" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)]" />
-            )}
-          </button>
-        </div>
+        ))}
+      </nav>
+
+      {/* Right: content area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="py-8 px-8 max-w-[960px]">
 
         {/* Tab content */}
         {activeTab === "agent" && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             {loadingAgents ? (
-              <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+              <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="glass-1 rounded-xl p-4 space-y-3">
+                  <div key={i} className="glass-1 rounded-xl p-5 space-y-3">
                     <div className="h-6 w-32 rounded shimmer" />
                     <div className="h-4 w-full rounded shimmer" />
                     <div className="h-4 w-3/4 rounded shimmer" />
@@ -460,8 +411,8 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div
-                className="grid gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
+                className="grid gap-5"
+                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}
               >
                 {agents.map((agent) => (
                   <AgentConfigCard
@@ -481,13 +432,13 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "llm-pool" && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             <LLMPoolCard />
           </div>
         )}
 
         {activeTab === "skills" && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             {/* Show studio panel if visible and a skill is being edited */}
             {studioVisible && studioActiveTabId ? (
               <div className="h-[600px]">
@@ -543,20 +494,21 @@ export default function SettingsPage() {
         )}
 
         {activeTab === "preferences" && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             <SetupCard />
             <LanguageSwitcher />
           </div>
         )}
 
         {activeTab === "advanced" && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             <AdvancedSettingsCard />
             <WebhookConfigCard />
             <UsageSnapshotCard />
             <SqlExportSection />
           </div>
         )}
+        </div>
       </div>
     </div>
   );
