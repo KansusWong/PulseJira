@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       const prefix = crypto.randomUUID().slice(0, 8);
       const safeName = file.name.replace(/[^a-zA-Z0-9._\-\u4e00-\u9fff]/g, '_');
       const filename = `${prefix}_${safeName}`;
+      /* turbopack-ignore */
       const absolutePath = path.join(convDir, filename);
 
       // Write file to disk

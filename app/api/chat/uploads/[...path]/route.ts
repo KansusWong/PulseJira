@@ -37,7 +37,9 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
     }
 
+    /* turbopack-ignore */
     const filePath = path.join(UPLOADS_DIR, ...segments);
+    /* turbopack-ignore */
     const resolved = path.resolve(filePath);
     if (!resolved.startsWith(UPLOADS_DIR)) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -49,6 +51,7 @@ export async function GET(
 
     const ext = path.extname(resolved).toLowerCase();
     const contentType = MIME_MAP[ext] || 'application/octet-stream';
+    /* turbopack-ignore */
     const buffer = fs.readFileSync(resolved);
 
     return new Response(buffer, {

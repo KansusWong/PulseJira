@@ -751,7 +751,7 @@ export function ChatView() {
             </div>
           )}
 
-          <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)]">
+          <div>
             <ChatInput {...chatInputProps} />
           </div>
         </>
