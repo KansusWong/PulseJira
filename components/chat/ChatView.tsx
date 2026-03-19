@@ -49,7 +49,12 @@ function buildToolUsageSummary(steps: StructuredAgentStep[]): ToolStepSummary[] 
   return result;
 }
 
-export function ChatView() {
+interface ChatViewProps {
+  /** When set, ChatView operates in project mode — conversations are linked to this project. */
+  projectId?: string;
+}
+
+export function ChatView({ projectId }: ChatViewProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
@@ -302,7 +307,7 @@ export function ChatView() {
           id: conversationId,
           title: text.slice(0, 80),
           status: "active",
-          project_id: null,
+          project_id: projectId || null,
           complexity_assessment: null,
           execution_mode: null,
           created_at: new Date().toISOString(),
@@ -336,6 +341,7 @@ export function ChatView() {
             attachments: attachments || undefined,
             thinking: currentThinkingMode || undefined,
             model: (!currentThinkingMode && currentFastModel) || undefined,
+            project_id: projectId || undefined,
           }),
           signal: abortController.signal,
         });
@@ -380,6 +386,7 @@ export function ChatView() {
                 message: `[TEAM_INIT] Create a team from the current session.`,
                 team_init: true,
                 state_summary: upgradeState.stateSummary,
+                project_id: projectId || undefined,
               }),
               signal: abortController.signal,
             });
@@ -437,7 +444,7 @@ export function ChatView() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData, hideCompactionUpgrade, clearPendingTeamUpgrade, resetStreamingState]
+    [activeConversationId, addMessage, setStreaming, setActiveConversationId, addConversation, showPlanPanel, showToolApproval, hideToolApproval, clearStreamingSteps, setTeamCollaborationActive, clearQuestionnaireData, hideCompactionUpgrade, clearPendingTeamUpgrade, resetStreamingState, projectId]
   );
 
   const handleSSEEvent = useCallback(
