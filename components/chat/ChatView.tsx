@@ -81,6 +81,11 @@ export function ChatView({ projectId }: ChatViewProps) {
   const teamCollaborationActive = usePulseStore((s) => s.teamCollaboration.active);
   const setTeamCollaborationActive = usePulseStore((s) => s.setTeamCollaborationActive);
 
+  // Project context (for project-embedded mode)
+  const projectForHeader = usePulseStore((s) =>
+    projectId ? s.projects.find((p) => p.id === projectId) : undefined
+  );
+
   const addMateChatMessage = usePulseStore((s) => s.addMateChatMessage);
   const appendMateStreamingToken = usePulseStore((s) => s.appendMateStreamingToken);
   const clearMateStreamingTokens = usePulseStore((s) => s.clearMateStreamingTokens);
@@ -517,6 +522,9 @@ export function ChatView({ projectId }: ChatViewProps) {
               updated_at: new Date().toISOString(),
             });
             setRunning(true, project_id);
+            // Sync conversation's project_id in store
+            const updateConversation = usePulseStore.getState().updateConversation;
+            updateConversation(conversationId, { project_id: project_id });
             // Don't navigate mid-stream — let the user decide when to visit the project
           }
           break;
@@ -680,12 +688,25 @@ export function ChatView({ projectId }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-base)]">
-      <TopBar />
+      {!projectId && <TopBar />}
       {isEmpty ? (
-        /* Portal layout — ChatGPT / Gemini style */
-        <EmptyState onSend={handleSend}>
-          <ChatInput {...chatInputProps} portalMode />
-        </EmptyState>
+        projectId ? (
+          /* Project mode: compact empty state with project context */
+          <div className="flex-1 flex flex-col">
+            <div className="flex-1" />
+            <div className="max-w-[680px] w-full mx-auto px-4 pb-4">
+              <p className="text-sm text-[var(--text-muted)] mb-4 text-center">
+                {t('project.chat.emptyHint')}
+              </p>
+              <ChatInput {...chatInputProps} portalMode />
+            </div>
+          </div>
+        ) : (
+          /* Standalone chat: Portal layout — ChatGPT / Gemini style */
+          <EmptyState onSend={handleSend}>
+            <ChatInput {...chatInputProps} portalMode />
+          </EmptyState>
+        )
       ) : (
         <>
           {/* Messages area — shrinks when team is fullscreen */}

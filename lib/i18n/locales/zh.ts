@@ -351,6 +351,20 @@ const zh: TranslationDict = {
   'project.status.active': '活跃',
   'project.status.archived': '已归档',
 
+  // ── Project Detail ──
+  'project.detail.allProjects': '所有项目',
+  'project.detail.chatHint': '开始对话以组织项目知识并复用',
+  'project.detail.files': '文件',
+  'project.detail.userUploads': '用户上传',
+  'project.detail.agentOutputs': 'Agent 产出',
+  'project.detail.uploadHint': '添加 PDF、文档或其他文件作为项目参考资料',
+  'project.detail.agentOutputHint': '执行任务时 Agent 产出的文件将显示在这里',
+  'project.detail.notFound': '项目未找到',
+  'project.detail.editDetails': '编辑',
+  'project.detail.editName': '项目名称',
+  'project.detail.editDescription': '项目描述',
+  'project.chat.emptyHint': '发送消息开始处理此项目。',
+
   // ── Project Header ──
   'project.header.updated': '更新于',
   'project.header.runAgents': '运行智能体',
@@ -372,14 +386,20 @@ const zh: TranslationDict = {
 
   // ── New Idea Form ──
   'newIdea.title': '新项目创意',
+  'newIdea.titleShort': '新项目',
   'newIdea.projectName': '项目名称（选填）',
+  'newIdea.projectNameRequired': '项目名称',
   'newIdea.projectNamePlaceholder': '例如：AI 金融应用',
   'newIdea.coreConcept': '核心概念 / 需求',
   'newIdea.coreConceptPlaceholder': '例如：一个通过游戏化存钱激励用户的个人理财应用...',
+  'newIdea.projectDescription': '项目描述（选填）',
+  'newIdea.projectDescriptionPlaceholder': '例如：核心概念、需求、目标用户、关键功能...',
   'newIdea.referenceUrls': '竞品 / 参考 URL（选填）',
   'newIdea.addAnotherUrl': '添加另一个 URL',
   'newIdea.fillConcept': '请填写核心概念 / 需求后再提交',
   'newIdea.createAnalyze': '创建并分析',
+  'newIdea.createProject': '创建项目',
+  'newIdea.createFailed': '创建项目失败，请重试',
   'newIdea.creatingProject': '创建中...',
 
   // ── Signal Card ──
