@@ -55,6 +55,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       status: 'draft',
       ...(input.is_light != null && { is_light: input.is_light }),
       ...(input.conversation_id && { conversation_id: input.conversation_id }),
+      ...(input.execution_mode && { execution_mode: input.execution_mode }),
     })
     .select()
     .single();
@@ -67,7 +68,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
 
 export async function updateProject(
   projectId: string,
-  updates: Partial<Pick<Project, 'name' | 'description' | 'status' | 'prepare_result' | 'plan_result' | 'signal_id' | 'agent_logs' | 'pipeline_checkpoint'>>
+  updates: Partial<Pick<Project, 'name' | 'description' | 'status' | 'prepare_result' | 'plan_result' | 'signal_id' | 'agent_logs' | 'pipeline_checkpoint' | 'execution_mode'>>
 ): Promise<Project> {
   const MAX_RETRIES = 3;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
