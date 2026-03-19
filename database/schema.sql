@@ -145,6 +145,7 @@ create table if not exists conversations (
   project_id uuid references projects(id),
   complexity_assessment jsonb,
   execution_mode text check (execution_mode in ('single_agent', 'workflow', 'agent_team', 'agent_swarm')),
+  highlighted boolean not null default false,
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now()
 );
