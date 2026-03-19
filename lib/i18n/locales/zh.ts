@@ -28,6 +28,8 @@ const zh: TranslationDict = {
   'common.test': '测试',
   'common.create': '创建',
   'common.creating': '创建中...',
+  'common.highlight': 'High Light',
+  'common.unhighlight': '取消 High Light',
   'common.justNow': '刚刚',
   'common.ago': '前',
 
@@ -64,6 +66,8 @@ const zh: TranslationDict = {
   'sidebar.noFiles': '暂无文件',
   'sidebar.signals': '信号',
   'sidebar.searchChats': '搜索对话...',
+  'sidebar.highlights': 'High Light',
+  'sidebar.recents': 'Recent',
   'sidebar.graph': '知识图谱',
   'sidebar.settings': '设置',
 
@@ -124,7 +128,7 @@ const zh: TranslationDict = {
   'chat.placeholder': '输入任何内容或描述你的需求...',
   'chat.enterToSend': '回车发送，Shift+回车换行',
   'chat.modelFastDesc': '高效处理日常任务',
-  'chat.modelSonnetDesc': 'Anthropic Claude 3.7，均衡性能',
+  'chat.modelSonnetDesc': 'Anthropic Claude Sonnet 4.5，均衡性能',
   'chat.extendedThinking': '深度思考',
   'chat.extendedThinkingDesc': '深度思考复杂问题',
   'chat.sendWillInterrupt': '发送新消息将中断当前生成',

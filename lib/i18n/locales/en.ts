@@ -28,6 +28,8 @@ const en: TranslationDict = {
   'common.test': 'Test',
   'common.create': 'Create',
   'common.creating': 'Creating...',
+  'common.highlight': 'Highlight',
+  'common.unhighlight': 'Unhighlight',
   'common.justNow': 'just now',
   'common.ago': 'ago',
 
@@ -64,6 +66,8 @@ const en: TranslationDict = {
   'sidebar.noFiles': 'No files yet',
   'sidebar.signals': 'Signals',
   'sidebar.searchChats': 'Search chats...',
+  'sidebar.highlights': 'Highlights',
+  'sidebar.recents': 'Recents',
   'sidebar.graph': 'Knowledge Graph',
   'sidebar.settings': 'Settings',
 
@@ -124,7 +128,7 @@ const en: TranslationDict = {
   'chat.placeholder': 'Ask anything or describe what you need...',
   'chat.enterToSend': 'Enter to send, Shift+Enter for new line',
   'chat.modelFastDesc': 'Most efficient for everyday tasks',
-  'chat.modelSonnetDesc': 'Anthropic Claude 3.7, balanced performance',
+  'chat.modelSonnetDesc': 'Anthropic Claude Sonnet 4.5, balanced performance',
   'chat.extendedThinking': 'Extended thinking',
   'chat.extendedThinkingDesc': 'Think longer for complex tasks',
   'chat.sendWillInterrupt': 'Sending will interrupt current generation',
