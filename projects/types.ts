@@ -25,6 +25,8 @@ export interface Project {
   agent_logs?: any[];
   /** Checkpoint for resumable prepare/plan pipeline stages. */
   pipeline_checkpoint?: PipelineCheckpoint | null;
+  /** Execution mode: foreman (single agent) or team (multi-agent). */
+  execution_mode?: 'foreman' | 'team';
 }
 
 /** Stored on the project after implement pipeline finishes. */
@@ -45,6 +47,7 @@ export interface CreateProjectInput {
   urls?: string[];
   is_light?: boolean;
   conversation_id?: string;
+  execution_mode?: 'foreman' | 'team';
 }
 
 export interface ProjectTask {
