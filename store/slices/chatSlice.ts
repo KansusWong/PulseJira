@@ -126,6 +126,12 @@ export interface ChatSlice {
     timeoutAt: number | null;
   };
 
+  // Project upgrade panel state (Chat → Project conversion prompt, transient)
+  projectUpgradePanel: {
+    visible: boolean;
+    conversationId: string | null;
+  };
+
   // Pending team upgrade data for auto-bridge (transient)
   pendingTeamUpgrade: {
     stateSummary: string;
@@ -216,6 +222,8 @@ export interface ChatSlice {
 
   showCompactionUpgrade: (data: { upgradeId: string; tokenUsage: { estimated: number; max: number; ratio: number } }) => void;
   hideCompactionUpgrade: () => void;
+  showProjectUpgrade: (conversationId: string) => void;
+  hideProjectUpgrade: () => void;
   setPendingTeamUpgrade: (data: { stateSummary: string; conversationId: string }) => void;
   clearPendingTeamUpgrade: () => void;
 
@@ -330,6 +338,11 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
     upgradeId: null,
     tokenUsage: null,
     timeoutAt: null,
+  },
+
+  projectUpgradePanel: {
+    visible: false,
+    conversationId: null,
   },
 
   pendingTeamUpgrade: null,
@@ -761,6 +774,11 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
       },
     }),
 
+  showProjectUpgrade: (conversationId) =>
+    set({ projectUpgradePanel: { visible: true, conversationId } }),
+  hideProjectUpgrade: () =>
+    set({ projectUpgradePanel: { visible: false, conversationId: null } }),
+
   setPendingTeamUpgrade: (data) =>
     set({ pendingTeamUpgrade: data }),
 
@@ -867,10 +885,11 @@ export const createChatSlice: StateCreator<ChatSlice> = (set) => ({
         const { [id]: _evicted, ...rest } = state.panelStateCache;
         return {
           ...DEFAULT_PANELS,
+          projectUpgradePanel: { visible: false, conversationId: null },
           panelStateCache: rest,
           panelCacheOrder: state.panelCacheOrder.filter((x) => x !== id),
         };
       }
-      return { ...DEFAULT_PANELS };
+      return { ...DEFAULT_PANELS, projectUpgradePanel: { visible: false, conversationId: null } };
     }),
 });
