@@ -188,16 +188,16 @@ export function Sidebar({
 
   // Highlighted conversations (user-pinned), sorted by most recent
   const highlightedConversations = useMemo(
-    () => conversations.filter((c) => c.highlighted).sort(
-      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-    ),
+    () => conversations
+      .filter((c) => c.highlighted && c.status !== 'converted')
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
     [conversations]
   );
 
   // Recent conversations (non-highlighted), top 5 by updated_at
   const recentConversations = useMemo(
     () => conversations
-      .filter((c) => !c.highlighted)
+      .filter((c) => !c.highlighted && c.status !== 'converted')
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, 5),
     [conversations]
