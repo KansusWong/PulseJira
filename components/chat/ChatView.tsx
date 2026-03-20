@@ -274,8 +274,12 @@ export function ChatView({ projectId }: ChatViewProps) {
     resetStreamingState();
     setStreaming(false);
     clearStreamingSteps();
-    setTeamCollaborationActive(false);
-  }, [activeConversationId, addMessage, resetStreamingState, setStreaming, clearStreamingSteps, setTeamCollaborationActive]);
+    // In project mode with active team, keep team visible for review
+    const hadTeam = usePulseStore.getState().teamCollaboration.active;
+    if (!projectId || !hadTeam) {
+      setTeamCollaborationActive(false);
+    }
+  }, [activeConversationId, addMessage, resetStreamingState, setStreaming, clearStreamingSteps, setTeamCollaborationActive, projectId]);
 
   const handleSend = useCallback(
     async (text: string, attachments?: AttachmentMeta[]) => {
@@ -303,7 +307,10 @@ export function ChatView({ projectId }: ChatViewProps) {
       resetStreamingState();
       setStreaming(true);
       clearStreamingSteps();
-      setTeamCollaborationActive(false);
+      // In project mode, don't reset team view to avoid flicker (new SSE events will update it)
+      if (!projectId) {
+        setTeamCollaborationActive(false);
+      }
 
       const abortController = new AbortController();
       abortRef.current = abortController;
@@ -487,8 +494,12 @@ export function ChatView({ projectId }: ChatViewProps) {
         setStreaming(false);
         clearStreamingSteps();
         resetStreamingState();
-        setTeamCollaborationActive(false);
-        clearAllMateState();
+        // In project mode, preserve team state so users can review agent work
+        const hadTeam = usePulseStore.getState().teamCollaboration.active;
+        if (!projectId || !hadTeam) {
+          setTeamCollaborationActive(false);
+          clearAllMateState();
+        }
         // Flush any remaining token buffer
         if (rafRef.current) {
           cancelAnimationFrame(rafRef.current);
@@ -750,7 +761,10 @@ export function ChatView({ projectId }: ChatViewProps) {
         }
 
         case "done": {
-          setTeamCollaborationActive(false);
+          // In project mode with active team, keep team visible for review
+          if (!projectId || !usePulseStore.getState().teamCollaboration.active) {
+            setTeamCollaborationActive(false);
+          }
           break;
         }
 
