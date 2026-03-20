@@ -11,7 +11,7 @@ When the RebuilD agent creates or modifies a file (via `write`, `edit`, or `mult
 3. **Close/reopen**: Clicking X closes the panel; clicking the inline card reopens it
 4. **File types**: code, json, csv, excel, markdown, html, svg, image, pdf, pptx
 5. **Content delivery**: File content is delivered inline via SSE event (no separate API call)
-6. **Edit support**: `write` (create), `edit` (modify), and `multi_edit` (multi-file modify) tools all trigger artifact events
+6. **Edit support**: `write` (create), `edit` (modify), and `multi_edit` (single-file, multi-edit-operation modify) tools all trigger artifact events
 7. **SSE panel coexistence**: SSE panels (PlanPanel, ClarificationForm, etc.) retain priority over artifact panel; artifact data is stored and displayed once SSE panel closes. `openArtifact()` unconditionally sets `artifactPanelOpen: true`; DashboardShell's existing priority logic (`showArtifacts = !showRightPanel && artifactPanelOpen`) is the sole gatekeeper — no additional gating needed in the store.
 
 ## Architecture
@@ -28,7 +28,7 @@ chat-engine.ts onToolCallEnd callback
 Detects write/edit success -> reads file content from disk
        |
 Emits SSE event: artifact_created
-  {id, filePath, content, language, lineCount, artifactType, action}
+  {id, filePath, content, lineCount, artifactType, action, url?}
        |
 Frontend ChatView receives SSE event
        |
@@ -63,9 +63,10 @@ interface ArtifactCreatedEventData {
   id: string;                                    // UUID
   filePath: string;                              // Relative to workspace root
   artifactType: string;                          // File type category
-  content: string;                               // Full file content (inline), empty for binary
+  content: string;                               // Full file content (inline), empty string for binary
   lineCount: number;                             // Number of lines
   action: 'created' | 'modified';                // write = created, edit = modified
+  url?: string;                                  // For binary files: /api/files/{path}
 }
 ```
 
@@ -94,7 +95,7 @@ In the `onToolCallEnd` callback, when `toolName` is `write`, `edit`, or `multi_e
    - `.pptx` -> type: `pptx`
    - default -> type: `code`
 6. Push `{ type: 'artifact_created', data: { ... } }` to the SSE channel
-7. For `multi_edit`: iterate over each file in the args and emit one `artifact_created` event per file
+7. For `multi_edit`: extract the single `path` from args and emit one `artifact_created` event (same as `edit` — `multi_edit` operates on a single file with multiple edit operations)
 
 ### 3. Callback Signature Update
 
@@ -215,32 +216,52 @@ case 'artifact_created': {
 
 #### `injectArtifactRef` Implementation
 
-This is a **local function in ChatView** (not a store action) that mutates the message ref in the streaming state:
+ChatView uses a **Zustand store-based streaming model**: streaming tokens accumulate in `streamingSections` (store state), and the final assistant message is only created when the SSE `message` event arrives (which calls `addMessage`). There is no `streamingMessageRef`.
+
+Approach: accumulate artifact refs in a **local ref** (`pendingArtifacts`) during streaming. When the `message` SSE event arrives and creates the final assistant message, merge the accumulated artifact refs into its metadata.
 
 ```typescript
-function injectArtifactRef(ref: { id: string; filePath: string; filename: string; artifactType: string; action: string }) {
-  // If currently streaming, attach to the streaming message ref
-  if (streamingMessageRef.current) {
-    const meta = streamingMessageRef.current.metadata || {};
-    const artifacts = meta.artifacts || [];
-    artifacts.push(ref);
-    streamingMessageRef.current.metadata = { ...meta, artifacts };
-    return;
-  }
+// In ChatView component:
+const pendingArtifactsRef = useRef<Array<{ id: string; filePath: string; filename: string; artifactType: string; action: string }>>([]);
 
-  // Otherwise, attach to the last assistant message in the current conversation
-  const messages = getMessages(activeConversationId);
-  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-  if (lastAssistant) {
-    const meta = lastAssistant.metadata || {};
-    const artifacts = meta.artifacts || [];
-    artifacts.push(ref);
-    lastAssistant.metadata = { ...meta, artifacts };
-    // Trigger re-render
-    setMessages(activeConversationId, [...messages]);
+// Called from the artifact_created SSE handler:
+function injectArtifactRef(ref: { id: string; filePath: string; filename: string; artifactType: string; action: string }) {
+  if (isStreaming) {
+    // Accumulate during streaming — will be merged into the final message
+    pendingArtifactsRef.current.push(ref);
+  } else {
+    // Not streaming: attach to the last assistant message
+    const convId = activeConversationId;
+    if (!convId) return;
+    const messages = usePulseStore.getState().messages[convId] || [];
+    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+    if (lastAssistant) {
+      const meta = lastAssistant.metadata || {};
+      const artifacts = [...(meta.artifacts || []), ref];
+      lastAssistant.metadata = { ...meta, artifacts };
+      setMessages(convId, [...messages]);
+    }
   }
 }
+
+// In the 'message' SSE event handler, before addMessage():
+case 'message': {
+  // ... existing msg construction ...
+  // Merge pending artifacts into message metadata
+  if (pendingArtifactsRef.current.length > 0) {
+    msg.metadata = {
+      ...msg.metadata,
+      artifacts: [...(msg.metadata?.artifacts || []), ...pendingArtifactsRef.current],
+    };
+    pendingArtifactsRef.current = [];  // Reset for next message
+  }
+  addMessage(conversationId, msg);
+  resetStreamingState();
+  break;
+}
 ```
+
+This ensures artifact refs are persisted with the message from the start — no post-hoc mutation needed.
 
 **Persistence**: Artifact references are stored in `message.metadata.artifacts[]` which is already persisted to the database when the message is saved (the existing `saveMessage` flow serializes the full metadata object). On page reload, messages loaded from the API will include the artifact references, and `ArtifactRefCard` will render. However, the artifact **content** is NOT persisted in the database — it only lives in the Zustand store (ephemeral). When a user clicks an ArtifactRefCard after a page reload, the system will need to re-fetch the content via the `/api/files/` endpoint. This is acceptable because:
 - The card itself is always visible (persisted in message metadata)
@@ -329,4 +350,4 @@ Keep:
 4. **Binary files (images, PDF, Excel, PPTX)**: SSE event has empty `content` and a `url` field pointing to `/api/files/{path}`. ArtifactsPanel uses `url` for rendering (existing support for `<img>` and `<iframe>`).
 5. **Edit/multi_edit tool**: Same `artifact_created` event with `action: 'modified'`. If the artifact is already open in panel (matched by `filePath`), `openArtifact()` updates its content in place and focuses the tab.
 6. **Page reload / conversation switch**: `message.metadata.artifacts[]` is persisted in the database (via existing message save flow). ArtifactRefCards render from persisted data. Artifact content is NOT in the database — when the user clicks a card after reload, content is fetched on-demand via `/api/files/{path}`.
-7. **multi_edit tool**: Emits one `artifact_created` event per file modified. Each event injects a separate ArtifactRefCard into the message.
+7. **multi_edit tool**: `multi_edit` operates on a single file (one `path` with an array of `edits`). Emits one `artifact_created` event for that file, same as `edit`.
