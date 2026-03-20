@@ -16,6 +16,7 @@ import { QuestionnaireInline } from "./QuestionnaireInline";
 import { CompactionUpgradeCard } from "./CompactionUpgradeCard";
 import { ProjectUpgradeCard } from "./ProjectUpgradeCard";
 import { TopBar } from "@/components/layout/TopBar";
+import { parseMentions } from '@/lib/utils/mention-parser';
 
 /** Build tool usage summary from streaming steps for message metadata. */
 function buildToolUsageSummary(steps: StructuredAgentStep[]): ToolStepSummary[] {
@@ -91,6 +92,8 @@ export function ChatView({ projectId }: ChatViewProps) {
   const appendMateStreamingToken = usePulseStore((s) => s.appendMateStreamingToken);
   const clearMateStreamingTokens = usePulseStore((s) => s.clearMateStreamingTokens);
   const clearAllMateState = usePulseStore((s) => s.clearAllMateState);
+  const teamAgents = usePulseStore((s) => s.teamPanel.agents);
+  const teamId = usePulseStore((s) => s.teamPanel.teamId);
 
   const questionnaireData = usePulseStore((s) => s.questionnaireData);
   const setQuestionnaireData = usePulseStore((s) => s.setQuestionnaireData);
@@ -337,6 +340,43 @@ export function ChatView({ projectId }: ChatViewProps) {
         created_at: new Date().toISOString(),
       };
       addMessage(conversationId, userMsg);
+
+      // --- @mention routing (project mode with active team) ---
+      // Must be BEFORE setStreaming(true)/try-catch to avoid UI freeze on early return.
+      if (projectId && teamId && teamAgents.length > 0) {
+        const parsed = parseMentions(text, teamAgents.map((a) => a.name));
+
+        if (parsed.mentions.includes('all')) {
+          try {
+            await fetch(`/api/teams/${teamId}/intervene`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'send_instruction',
+                instruction: parsed.cleanContent,
+              }),
+            });
+          } catch (err) {
+            console.error('Failed to send broadcast:', err);
+          }
+          return;
+        }
+
+        if (parsed.targetAgent) {
+          try {
+            await fetch(`/api/teams/${teamId}/agents/${parsed.targetAgent}/message`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: parsed.cleanContent,
+              }),
+            });
+          } catch (err) {
+            console.error('Failed to send agent message:', err);
+          }
+          return;
+        }
+      }
 
       // Stream from API
       try {
@@ -694,7 +734,7 @@ export function ChatView({ projectId }: ChatViewProps) {
   const teamFullscreen = teamCollaborationActive && isStreaming;
   const isEmpty = !loadingMessages && messages.length === 0;
 
-  const chatInputProps = { onSubmit: handleSend, onStop: handleStop, streaming: isStreaming, thinkingMode, onThinkingModeChange: setThinkingMode, selectedFastModel, onFastModelChange: setSelectedFastModel, conversationId: activeConversationId ?? undefined };
+  const chatInputProps = { onSubmit: handleSend, onStop: handleStop, streaming: isStreaming, thinkingMode, onThinkingModeChange: setThinkingMode, selectedFastModel, onFastModelChange: setSelectedFastModel, conversationId: activeConversationId ?? undefined, agents: (projectId && teamId) ? teamAgents : undefined };
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-base)]">
