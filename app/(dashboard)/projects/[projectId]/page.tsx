@@ -30,13 +30,26 @@ export default function ProjectDetailPage() {
   const removeProject = usePulseStore((s) => s.removeProject);
 
   const setActiveConversationId = usePulseStore((s) => s.setActiveConversationId);
+  const conversations = usePulseStore((s) => s.conversations);
 
-  // Clear active conversation when entering a project page.
-  // This prevents: (1) sidebar highlighting both a chat and the project simultaneously,
-  // (2) ChatView showing stale chat messages instead of the project's empty state.
+  // When entering a project page, switch to the project's own conversation
+  // (or clear if none exists). This prevents showing unrelated chat messages
+  // while preserving existing project conversation history.
   useEffect(() => {
-    setActiveConversationId(null);
-  }, [projectId, setActiveConversationId]);
+    const currentId = usePulseStore.getState().activeConversationId;
+    // Check if current conversation already belongs to this project
+    const currentConv = currentId
+      ? conversations.find((c) => c.id === currentId)
+      : null;
+    if (currentConv?.project_id === projectId) return; // already correct
+
+    // Find the most recent conversation for this project
+    const projectConv = conversations
+      .filter((c) => c.project_id === projectId && c.status !== 'converted')
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+
+    setActiveConversationId(projectConv?.id ?? null);
+  }, [projectId, conversations, setActiveConversationId]);
 
   const [fetchStatus, setFetchStatus] = useState<"idle" | "fetching" | "done">("idle");
   const fetchedRef = useRef<string | null>(null);
