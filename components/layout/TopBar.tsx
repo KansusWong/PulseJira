@@ -1,12 +1,8 @@
 "use client";
 
-import { Search } from "lucide-react";
 import { usePulseStore } from "@/store/usePulseStore.new";
-import { ContextWindowIndicator } from "@/components/chat/ContextWindowIndicator";
-import { useTranslation } from "@/lib/i18n";
 
 export function TopBar() {
-  const { t } = useTranslation();
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
   const conversations = usePulseStore((s) => s.conversations);
   const contextUsage = usePulseStore((s) => s.contextUsage);
@@ -30,9 +26,8 @@ export function TopBar() {
         ) : null}
       </div>
 
-      {/* Right: context indicator + search button */}
+      {/* Right: context indicator */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        {/* Context window indicator — text format */}
         {showIndicator && contextUsage && (
           <div
             className={
@@ -44,15 +39,6 @@ export function TopBar() {
             {Math.round(contextUsage.estimated / 1000)}k / {Math.round(contextUsage.max / 1000)}k
           </div>
         )}
-
-        {/* Search button */}
-        <button
-          type="button"
-          className="p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-          aria-label={t('common.search')}
-        >
-          <Search className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );
