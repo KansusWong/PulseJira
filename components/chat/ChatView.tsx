@@ -784,7 +784,8 @@ export function ChatView({ projectId }: ChatViewProps) {
     [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, showProjectUpgrade, showTeamPanel, updateTeamStatus, addTeamCommunication, updateProjectInStore, projectId, t]
   );
 
-  const teamFullscreen = teamCollaborationActive && isStreaming;
+  // Team view is visible when collaboration is active (during streaming or persisted in project mode)
+  const teamVisible = teamCollaborationActive && (isStreaming || (!!projectId && teamAgents.length > 0));
   const isEmpty = !loadingMessages && messages.length === 0;
 
   const chatInputProps = { onSubmit: handleSend, onStop: handleStop, streaming: isStreaming, thinkingMode, onThinkingModeChange: setThinkingMode, selectedFastModel, onFastModelChange: setSelectedFastModel, conversationId: activeConversationId ?? undefined, agents: (projectId && teamId) ? teamAgents : undefined };
@@ -813,7 +814,7 @@ export function ChatView({ projectId }: ChatViewProps) {
       ) : (
         <>
           {/* Messages area — shrinks when team is fullscreen */}
-          <div ref={scrollContainerRef} className={`${teamFullscreen ? 'flex-shrink-0 max-h-[15vh]' : 'flex-1'} overflow-y-auto`}>
+          <div ref={scrollContainerRef} className={`overflow-y-auto transition-all duration-300 ease-in-out ${teamVisible ? 'flex-shrink-0 max-h-[15vh]' : 'flex-1'}`}>
             {loadingMessages ? (
               <div className="max-w-[680px] mx-auto px-4 pt-6 space-y-4">
                 <div className="ml-auto max-w-[65%]">
@@ -834,7 +835,7 @@ export function ChatView({ projectId }: ChatViewProps) {
                   ))}
                 </div>
 
-                {!teamFullscreen && (
+                {!teamVisible && (
                   <div className="max-w-[680px] mx-auto px-4 pb-6 space-y-4">
                     {isStreaming && streamingSections.length > 0 && (
                       <StreamingBubble sections={streamingSections} />
@@ -885,11 +886,9 @@ export function ChatView({ projectId }: ChatViewProps) {
             )}
           </div>
 
-          {teamFullscreen && (
-            <div className="flex-1 min-h-0 flex flex-col px-3 pb-2">
-              <TeamCollaborationView />
-            </div>
-          )}
+          <div className={`flex flex-col px-3 pb-2 transition-all duration-300 ease-in-out overflow-hidden ${teamVisible ? 'flex-1 min-h-0 opacity-100' : 'h-0 opacity-0 p-0'}`}>
+            {teamCollaborationActive && <TeamCollaborationView />}
+          </div>
 
           <div>
             <ChatInput {...chatInputProps} />
