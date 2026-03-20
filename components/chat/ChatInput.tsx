@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { ArrowUp, Paperclip, Square, ChevronDown, Check, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from '@/lib/i18n';
 import { AttachmentPreview } from "./AttachmentPreview";
 import type { AttachmentMeta } from "@/lib/core/types";
+import type { AgentStatus } from '@/lib/core/types';
 
 const THINKING_MODEL_LABEL = process.env.NEXT_PUBLIC_THINKING_MODEL_LABEL || 'GLM-5';
 
@@ -39,6 +40,9 @@ interface ChatInputProps {
   onThinkingModeChange?: (enabled: boolean) => void;
   selectedFastModel?: string;
   onFastModelChange?: (modelId: string) => void;
+  /** Portal mode — full-width, no padding, borderless model selector */
+  portalMode?: boolean;
+  agents?: AgentStatus[];
 }
 
 export function ChatInput({
@@ -53,23 +57,93 @@ export function ChatInput({
   onThinkingModeChange,
   selectedFastModel,
   onFastModelChange,
+  portalMode = false,
+  agents,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const [text, setText] = useState("");
   const [pendingFiles, setPendingFiles] = useState<AttachmentMeta[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [showModelMenu, setShowModelMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [showMentionMenu, setShowMentionMenu] = useState(false);
+  const mentionMenuRef = useRef<HTMLDivElement>(null);
 
-  // Auto-resize textarea (max 6 lines ~144px)
+  const filteredAgents = useMemo(() => {
+    if (!agents || !showMentionMenu) return [];
+    const q = mentionQuery.toLowerCase();
+    const allOption: AgentStatus = { name: 'all', status: 'idle' as const };
+    const candidates = [allOption, ...agents];
+    if (!q) return candidates;
+    return candidates.filter((a) => a.name.toLowerCase().includes(q));
+  }, [agents, mentionQuery, showMentionMenu]);
+
+  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+    const maxH = portalMode ? 240 : 144;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 144)}px`;
-  }, [text]);
+    el.style.height = `${Math.min(el.scrollHeight, maxH)}px`;
+  }, [text, portalMode]);
+
+  const handleTextChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const val = e.target.value;
+      setText(val);
+
+      if (!agents || agents.length === 0) {
+        setShowMentionMenu(false);
+        return;
+      }
+
+      const cursorPos = e.target.selectionStart ?? val.length;
+      const textBeforeCursor = val.slice(0, cursorPos);
+      const mentionMatch = textBeforeCursor.match(/(?:^|\s)@([\w-]*)$/);
+
+      if (mentionMatch) {
+        setMentionQuery(mentionMatch[1]);
+        setMentionIndex(0);
+        setShowMentionMenu(true);
+      } else {
+        setShowMentionMenu(false);
+      }
+    },
+    [agents],
+  );
+
+  const insertMention = useCallback(
+    (agentName: string) => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      const cursorPos = ta.selectionStart ?? text.length;
+      const textBeforeCursor = text.slice(0, cursorPos);
+      const mentionMatch = textBeforeCursor.match(/(?:^|\s)@([\w-]*)$/);
+      if (!mentionMatch) return;
+
+      const matchStart =
+        mentionMatch.index! + (mentionMatch[0].startsWith(' ') ? 1 : 0);
+      const before = text.slice(0, matchStart);
+      const after = text.slice(cursorPos);
+      const inserted = `@${agentName} `;
+      const newText = before + inserted + after;
+
+      setText(newText);
+      setShowMentionMenu(false);
+
+      requestAnimationFrame(() => {
+        const newPos = before.length + inserted.length;
+        ta.setSelectionRange(newPos, newPos);
+        ta.focus();
+      });
+    },
+    [text],
+  );
 
   // Click outside to close model menu
   useEffect(() => {
@@ -82,6 +156,22 @@ export function ChatInput({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showModelMenu]);
+
+  useEffect(() => {
+    if (!showMentionMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        mentionMenuRef.current &&
+        !mentionMenuRef.current.contains(e.target as Node) &&
+        textareaRef.current &&
+        !textareaRef.current.contains(e.target as Node)
+      ) {
+        setShowMentionMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMentionMenu]);
 
   const uploadFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -138,6 +228,31 @@ export function ChatInput({
     setPendingFiles((prev) => prev.filter((f) => f.id !== id));
   }, []);
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragging(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    if (uploading || streaming) return;
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      uploadFiles(files);
+    }
+  }, [uploading, streaming, uploadFiles]);
+
   const handleSubmit = useCallback(() => {
     if ((!text.trim() && pendingFiles.length === 0) || disabled) return;
     onSubmit(text.trim(), pendingFiles.length > 0 ? pendingFiles : undefined);
@@ -148,7 +263,30 @@ export function ChatInput({
     }
   }, [text, pendingFiles, disabled, onSubmit]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentionMenu && filteredAgents.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((i) => (i + 1) % filteredAgents.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((i) => (i - 1 + filteredAgents.length) % filteredAgents.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(filteredAgents[mentionIndex].name);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMentionMenu(false);
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -160,10 +298,18 @@ export function ChatInput({
   const modelLabel = thinkingMode ? THINKING_MODEL_LABEL : activeFastModel.label;
 
   return (
-    <div className="px-4 py-3">
-      <div className="relative max-w-[680px] mx-auto">
+    <div
+      className={portalMode ? "" : "px-4 py-3"}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className={clsx("relative", !portalMode && "max-w-[680px] mx-auto")}>
         {/* Main input container - glass level 2 */}
-        <div className="flex flex-col bg-white/[0.02] backdrop-blur-md border border-[var(--border-default)] rounded-[14px] focus-within:border-[var(--border-focus)] transition-colors">
+        <div className={clsx(
+          "flex flex-col bg-white/[0.02] backdrop-blur-md border rounded-[14px] focus-within:border-[var(--border-focus)] transition-colors",
+          dragging ? "border-[var(--border-focus)] border-dashed" : "border-[var(--border-default)]"
+        )}>
             {/* Pending attachments */}
             {(pendingFiles.length > 0 || uploading) && (
               <div className="pt-2">
@@ -175,9 +321,70 @@ export function ChatInput({
               </div>
             )}
 
-            {/* Main input row: [+] [textarea] [model] [send] */}
-            <div className="flex items-end gap-2 px-3 py-3">
-              {/* Attach button (+) - 32px ghost button */}
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ALLOWED_EXTENSIONS}
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            {/* Textarea area */}
+            <div className={clsx("relative px-4", portalMode ? "pt-4 pb-2" : "")}>
+              {showMentionMenu && filteredAgents.length > 0 && (
+                <div
+                  ref={mentionMenuRef}
+                  className="absolute bottom-full left-0 mb-1 w-56 max-h-48 overflow-y-auto bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-xl z-20 py-1"
+                >
+                  {filteredAgents.map((agent, idx) => (
+                    <button
+                      key={agent.name}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        insertMention(agent.name);
+                      }}
+                      className={clsx(
+                        'w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors',
+                        idx === mentionIndex
+                          ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]',
+                      )}
+                    >
+                      <span className="font-medium">@{agent.name}</span>
+                      {agent.name === 'all' && (
+                        <span className="text-[10px] text-[var(--text-muted)]">
+                          {t('team.collaboration.mentionAllDesc')}
+                        </span>
+                      )}
+                      {agent.name !== 'all' && agent.current_task && (
+                        <span className="text-[10px] text-[var(--text-muted)] truncate">
+                          {agent.current_task}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleTextChange}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder ?? t('chat.placeholder')}
+                disabled={disabled}
+                rows={portalMode ? 4 : 1}
+                className={clsx(
+                  "w-full bg-transparent text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none resize-none leading-6",
+                  portalMode ? "min-h-[96px] max-h-[240px]" : "min-h-[24px] max-h-[144px]"
+                )}
+              />
+            </div>
+
+            {/* Controls row: [+] [model] [send] */}
+            <div className="flex items-center gap-2 px-3 py-2">
+              {/* Attach button (+) */}
               <button
                 onClick={handleFileSelect}
                 disabled={uploading || streaming}
@@ -192,27 +399,7 @@ export function ChatInput({
                 <Paperclip className="w-5 h-5" />
               </button>
 
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={ALLOWED_EXTENSIONS}
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
-              {/* Textarea - flexible width */}
-              <textarea
-                ref={textareaRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={placeholder ?? t('chat.placeholder')}
-                disabled={disabled}
-                rows={1}
-                className="flex-1 bg-transparent text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none resize-none min-h-[24px] max-h-[144px] leading-6"
-              />
+              <div className="flex-1" />
 
               {/* Model selector dropdown - ghost button with border-subtle
                   On mobile (< 768px): icon only, no label
@@ -221,7 +408,10 @@ export function ChatInput({
               <div ref={modelMenuRef} className="relative flex-shrink-0">
                 <button
                   onClick={() => setShowModelMenu(!showModelMenu)}
-                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 h-8 rounded-lg hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] transition-colors"
+                  className={clsx(
+                    "flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 h-8 rounded-lg hover:bg-[var(--bg-hover)] transition-colors",
+                    !portalMode && "border border-[var(--border-subtle)]"
+                  )}
                 >
                   {/* Mobile: only show icon */}
                   <Sparkles className="w-4 h-4 md:hidden" />
