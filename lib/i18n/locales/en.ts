@@ -83,6 +83,8 @@ const en: TranslationDict = {
   'sidebar.recents': 'Recents',
   'sidebar.graph': 'Knowledge Graph',
   'sidebar.settings': 'Settings',
+  'sidebar.viewAllProjects': 'View all projects',
+  'sidebar.chats': 'Chats',
 
   // ── Projects Page ──
   'projects.title': 'Projects',
