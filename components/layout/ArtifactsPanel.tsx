@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import {
   FileCode,
   FileJson,
@@ -8,6 +8,9 @@ import {
   FileText,
   File,
   Presentation,
+  FileSpreadsheet,
+  Globe,
+  Image,
   Copy,
   Download,
   X,
@@ -28,6 +31,10 @@ const typeIconMap: Record<ArtifactRef["type"], React.ComponentType<{ className?:
   image: FileImage,
   markdown: FileText,
   pdf: File,
+  csv: FileSpreadsheet,
+  excel: FileSpreadsheet,
+  html: Globe,
+  svg: Image,
 };
 
 const typeLabelMap: Record<ArtifactRef["type"], string> = {
@@ -37,6 +44,10 @@ const typeLabelMap: Record<ArtifactRef["type"], string> = {
   image: "Image",
   markdown: "Markdown",
   pdf: "PDF",
+  csv: "CSV",
+  excel: "Excel",
+  html: "HTML",
+  svg: "SVG",
 };
 
 // ── Helpers ──
@@ -237,6 +248,76 @@ function ArtifactLoadingSkeleton() {
   );
 }
 
+// ── HTML Viewer Sub-component ──
+
+function HtmlViewer({ content, filename }: { content: string; filename: string }) {
+  const blobUrl = useMemo(() => {
+    const blob = new Blob([content], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  }, [content]);
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(blobUrl);
+  }, [blobUrl]);
+
+  return (
+    <div className="flex-1 overflow-hidden">
+      <iframe src={blobUrl} title={filename} sandbox="allow-scripts" className="w-full h-full border-0 bg-white" />
+    </div>
+  );
+}
+
+// ── CSV Viewer Sub-component ──
+
+function CsvViewer({ content }: { content: string }) {
+  const rows = useMemo(() => {
+    return content.split('\n').filter(Boolean).map(row => {
+      const cells: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (const char of row) {
+        if (char === '"') { inQuotes = !inQuotes; continue; }
+        if (char === ',' && !inQuotes) { cells.push(current.trim()); current = ''; continue; }
+        current += char;
+      }
+      cells.push(current.trim());
+      return cells;
+    });
+  }, [content]);
+
+  if (rows.length === 0) return <DownloadPrompt artifact={{ id: '', type: 'csv', filename: 'data.csv', content }} />;
+
+  const headers = rows[0];
+  const dataRows = rows.slice(1);
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            {headers.map((h, i) => (
+              <th key={i} className="sticky top-0 bg-[#111] px-3 py-2 text-left text-xs font-medium text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {dataRows.map((row, ri) => (
+            <tr key={ri} className={ri % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.02]'}>
+              {row.map((cell, ci) => (
+                <td key={ci} className="px-3 py-1.5 text-[var(--text-secondary)] border-b border-[var(--border-subtle)]/30 whitespace-nowrap">
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Body renderer ──
 
 function ArtifactBody({ artifact }: { artifact: ArtifactRef }) {
@@ -253,6 +334,35 @@ function ArtifactBody({ artifact }: { artifact: ArtifactRef }) {
           <MarkdownRenderer content={artifact.content} />
         </div>
       );
+
+    case "csv":
+      if (!artifact.content) return <DownloadPrompt artifact={artifact} />;
+      return <CsvViewer content={artifact.content} />;
+
+    case "html":
+      if (artifact.content) {
+        return <HtmlViewer content={artifact.content} filename={artifact.filename} />;
+      }
+      if (artifact.url) {
+        return (
+          <div className="flex-1 overflow-hidden">
+            <iframe src={artifact.url} title={artifact.filename} sandbox="allow-scripts" className="w-full h-full border-0 bg-white" />
+          </div>
+        );
+      }
+      return <DownloadPrompt artifact={artifact} />;
+
+    case "svg":
+      if (artifact.content) {
+        const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(artifact.content)))}`;
+        return (
+          <div className="flex-1 overflow-auto flex items-center justify-center p-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={svgDataUrl} alt={artifact.filename} className="max-w-full max-h-full object-contain" />
+          </div>
+        );
+      }
+      return <DownloadPrompt artifact={artifact} />;
 
     case "image":
       if (artifact.url) {
@@ -284,17 +394,7 @@ function ArtifactBody({ artifact }: { artifact: ArtifactRef }) {
       return <DownloadPrompt artifact={artifact} />;
 
     case "pptx":
-      if (artifact.url) {
-        return (
-          <div className="flex-1 overflow-hidden">
-            <iframe
-              src={artifact.url}
-              title={artifact.filename}
-              className="w-full h-full border-0"
-            />
-          </div>
-        );
-      }
+    case "excel":
       return <DownloadPrompt artifact={artifact} />;
 
     default:

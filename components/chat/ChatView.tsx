@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageSquare } from "lucide-react";
 import { RebuilDLogo } from "@/components/ui/RebuilDLogo";
 import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
@@ -17,6 +17,18 @@ import { CompactionUpgradeCard } from "./CompactionUpgradeCard";
 import { ProjectUpgradeCard } from "./ProjectUpgradeCard";
 import { TopBar } from "@/components/layout/TopBar";
 import { parseMentions } from '@/lib/utils/mention-parser';
+
+/** Format a timestamp into a relative time string like "3 minutes ago". */
+function formatRelativeTime(isoString: string, t: (key: string) => string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return t('time.justNow');
+  if (mins < 60) return t('time.minutesAgo').replace('{n}', String(mins));
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return t('time.hoursAgo').replace('{n}', String(hours));
+  const days = Math.floor(hours / 24);
+  return t('time.daysAgo').replace('{n}', String(days));
+}
 
 /** Build tool usage summary from streaming steps for message metadata. */
 function buildToolUsageSummary(steps: StructuredAgentStep[]): ToolStepSummary[] {
@@ -68,6 +80,7 @@ export function ChatView({ projectId }: ChatViewProps) {
   const setStreaming = usePulseStore((s) => s.setStreaming);
   const setActiveConversationId = usePulseStore((s) => s.setActiveConversationId);
   const addConversation = usePulseStore((s) => s.addConversation);
+  const conversations = usePulseStore((s) => s.conversations);
   const showPlanPanel = usePulseStore((s) => s.showPlanPanel);
   const showToolApproval = usePulseStore((s) => s.showToolApproval);
   const hideToolApproval = usePulseStore((s) => s.hideToolApproval);
@@ -144,7 +157,10 @@ export function ChatView({ projectId }: ChatViewProps) {
     }
   }, [handleTokenBatch]);
 
+  const openArtifact = usePulseStore((s) => s.openArtifact);
+
   const setMessages = usePulseStore((s) => s.setMessages);
+  const pendingArtifactsRef = useRef<Array<{ id: string; filePath: string; filename: string; artifactType: string; action: string; workspace?: string }>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -271,6 +287,7 @@ export function ChatView({ projectId }: ChatViewProps) {
     }
 
     // Reset all streaming state
+    pendingArtifactsRef.current = [];
     resetStreamingState();
     setStreaming(false);
     clearStreamingSteps();
@@ -304,6 +321,7 @@ export function ChatView({ projectId }: ChatViewProps) {
       }
 
       clearQuestionnaireData();
+      pendingArtifactsRef.current = [];
       resetStreamingState();
       setStreaming(true);
       clearStreamingSteps();
@@ -491,6 +509,7 @@ export function ChatView({ projectId }: ChatViewProps) {
       } finally {
         clearTimeout(streamTimeout);
         abortRef.current = null;
+        pendingArtifactsRef.current = [];
         setStreaming(false);
         clearStreamingSteps();
         resetStreamingState();
@@ -538,6 +557,15 @@ export function ChatView({ projectId }: ChatViewProps) {
             },
             created_at: event.data.created_at || new Date().toISOString(),
           };
+          // Merge pending artifact references into message metadata
+          if (pendingArtifactsRef.current.length > 0) {
+            msg.metadata = {
+              ...msg.metadata,
+              artifacts: [...(msg.metadata?.artifacts || []), ...pendingArtifactsRef.current],
+            };
+            pendingArtifactsRef.current = [];
+          }
+
           // Add message first, then reset streaming — React batches both in same render
           addMessage(conversationId, msg);
           resetStreamingState();
@@ -760,6 +788,41 @@ export function ChatView({ projectId }: ChatViewProps) {
           break;
         }
 
+        case "artifact_created": {
+          const { id, filePath, content, artifactType, action, url } = event.data;
+          const filename = filePath.split('/').pop() || filePath;
+
+          // Open in ArtifactsPanel
+          openArtifact({
+            id,
+            type: artifactType as any,
+            filename,
+            filePath,
+            content: content || undefined,
+            url: url || undefined,
+          });
+
+          // Accumulate for injection into final message
+          const artifactMeta = { id, filePath, filename, artifactType, action, workspace: event.data.workspace };
+          const currentlyStreaming = usePulseStore.getState().isStreaming;
+
+          if (currentlyStreaming) {
+            pendingArtifactsRef.current.push(artifactMeta);
+          } else {
+            const convId = usePulseStore.getState().activeConversationId;
+            if (convId) {
+              const msgs = usePulseStore.getState().messages[convId] || [];
+              const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant');
+              if (lastAssistant) {
+                const meta = lastAssistant.metadata || {};
+                lastAssistant.metadata = { ...meta, artifacts: [...(meta.artifacts || []), artifactMeta] };
+                usePulseStore.getState().setMessages(convId, [...msgs]);
+              }
+            }
+          }
+          break;
+        }
+
         case "done": {
           // In project mode with active team, keep team visible for review
           if (!projectId || !usePulseStore.getState().teamCollaboration.active) {
@@ -781,12 +844,21 @@ export function ChatView({ projectId }: ChatViewProps) {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, showProjectUpgrade, showTeamPanel, updateTeamStatus, addTeamCommunication, updateProjectInStore, projectId, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, showProjectUpgrade, showTeamPanel, updateTeamStatus, addTeamCommunication, updateProjectInStore, openArtifact, projectId, t]
   );
 
   // Team view is visible when collaboration is active (during streaming or persisted in project mode)
   const teamVisible = teamCollaborationActive && (isStreaming || (!!projectId && teamAgents.length > 0));
   const isEmpty = !loadingMessages && messages.length === 0;
+
+  // Project conversations for the empty-state history list
+  const projectConversations = useMemo(() => {
+    if (!projectId) return [];
+    return conversations
+      .filter((c) => c.project_id === projectId && c.status !== 'converted')
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+      .slice(0, 5);
+  }, [projectId, conversations]);
 
   const chatInputProps = { onSubmit: handleSend, onStop: handleStop, streaming: isStreaming, thinkingMode, onThinkingModeChange: setThinkingMode, selectedFastModel, onFastModelChange: setSelectedFastModel, conversationId: activeConversationId ?? undefined, agents: (projectId && teamId) ? teamAgents : undefined };
 
@@ -795,14 +867,33 @@ export function ChatView({ projectId }: ChatViewProps) {
       {!projectId && <TopBar />}
       {isEmpty ? (
         projectId ? (
-          /* Project mode: compact empty state with project context */
-          <div className="flex-1 flex flex-col">
-            <div className="flex-1" />
-            <div className="max-w-[680px] w-full mx-auto px-4 pb-4">
-              <p className="text-sm text-[var(--text-muted)] mb-4 text-center">
-                {t('project.chat.emptyHint')}
-              </p>
+          /* Project mode: input at top + conversation history below */
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <div className="max-w-[780px] w-full mx-auto px-4 pt-8">
               <ChatInput {...chatInputProps} portalMode />
+
+              {/* Conversation history list */}
+              {projectConversations.length > 0 && (
+                <div className="mt-6 border-t border-[var(--border-subtle)]">
+                  {projectConversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => setActiveConversationId(conv.id)}
+                      className="w-full flex items-center gap-3 px-3 py-4 text-left hover:bg-[var(--bg-hover)] transition-colors border-b border-[var(--border-subtle)]"
+                    >
+                      <MessageSquare className="w-4 h-4 text-[var(--text-muted)] flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-[var(--text-primary)] truncate">
+                          {conv.title || t('chat.untitled')}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                          {formatRelativeTime(conv.updated_at, t)}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (

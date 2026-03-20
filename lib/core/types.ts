@@ -55,6 +55,7 @@ export interface AgentContext {
     toolCallId: string;
     result: string;
     success: boolean;
+    args: string;
   }) => void;
   /** Called when the LLM starts a new ReAct thinking step. */
   onStepStart?: (stepNumber: number) => void;
@@ -428,12 +429,25 @@ export type ChatEventType =
   | 'reasoning_token'
   | 'tool_call_start'
   | 'tool_call_end'
+  | 'artifact_created'
   | 'step_start'
   | 'step_complete'
   | 'context_usage'
   | 'mate_token'
   | 'error'
   | 'done';
+
+/** Data payload for artifact_created SSE events. */
+export interface ArtifactCreatedEventData {
+  id: string;
+  filePath: string;
+  artifactType: string;
+  content: string;
+  lineCount: number;
+  action: 'created' | 'modified';
+  url?: string;
+  workspace?: string;
+}
 
 export interface QuestionnaireQuestion {
   id: string;

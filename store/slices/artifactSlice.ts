@@ -5,7 +5,7 @@ import type { UISlice } from './uiSlice';
 
 export interface ArtifactRef {
   id: string;
-  type: 'code' | 'json' | 'pptx' | 'image' | 'markdown' | 'pdf';
+  type: 'code' | 'json' | 'pptx' | 'image' | 'markdown' | 'pdf' | 'csv' | 'excel' | 'html' | 'svg';
   filename: string;
   filePath?: string;
   content?: string;
@@ -38,13 +38,21 @@ export const createArtifactSlice: StateCreator<
 
   openArtifact: (ref) => {
     const { openArtifacts } = get();
-    const existing = openArtifacts.find((a) => a.id === ref.id);
+    const existing = openArtifacts.find((a) => a.filePath && a.filePath === ref.filePath);
 
     if (existing) {
-      // Already open — just focus it
-      set({ activeArtifactId: ref.id });
+      // Same file already open — update content in place and focus tab
+      set({
+        openArtifacts: openArtifacts.map((a) =>
+          a.filePath === ref.filePath
+            ? { ...a, content: ref.content, url: ref.url }
+            : a
+        ),
+        activeArtifactId: existing.id,
+        artifactPanelOpen: true,
+      });
     } else {
-      // Add to list, focus, and open panel
+      // New artifact — add tab, focus, open panel
       set({
         openArtifacts: [...openArtifacts, ref],
         activeArtifactId: ref.id,

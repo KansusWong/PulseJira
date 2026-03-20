@@ -13,21 +13,13 @@ export interface KanbanTask {
 
 export interface KanbanSlice {
   tasks: KanbanTask[];
-  setTasks: (tasks: KanbanTask[]) => void;
-  addTasks: (tasks: KanbanTask[]) => void;
   updateTaskStatus: (id: string, status: KanbanTask['status']) => void;
   clearTasks: () => void;
   deployToKanban: (analysisResult: any, projectId?: string) => void;
-  getProjectTaskProgress: (projectId: string) => { todo: number; inProgress: number; done: number; total: number };
 }
 
-export const createKanbanSlice: StateCreator<KanbanSlice> = (set, get) => ({
+export const createKanbanSlice: StateCreator<KanbanSlice> = (set) => ({
   tasks: [],
-
-  setTasks: (tasks) => set({ tasks }),
-
-  addTasks: (tasks) =>
-    set((state) => ({ tasks: [...state.tasks, ...tasks] })),
 
   updateTaskStatus: (id, status) =>
     set((state) => ({
@@ -54,15 +46,5 @@ export const createKanbanSlice: StateCreator<KanbanSlice> = (set, get) => ({
         ...newTasks,
       ],
     }));
-  },
-
-  getProjectTaskProgress: (projectId) => {
-    const projectTasks = get().tasks.filter((t) => t.projectId === projectId);
-    return {
-      todo: projectTasks.filter((t) => t.status === 'todo').length,
-      inProgress: projectTasks.filter((t) => t.status === 'in-progress').length,
-      done: projectTasks.filter((t) => t.status === 'done').length,
-      total: projectTasks.length,
-    };
   },
 });

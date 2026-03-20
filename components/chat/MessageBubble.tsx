@@ -8,6 +8,8 @@ import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { ToolUsageSummary } from "./ToolUsageSummary";
+import { ArtifactRefCard } from "./ArtifactRefCard";
+import { RebuilDLogo } from "@/components/ui/RebuilDLogo";
 import { MessageAttachments } from "./MessageAttachments";
 
 interface MessageBubbleProps {
@@ -94,9 +96,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         className="max-w-[85%] w-fit mr-auto"
       >
         <div className="flex gap-3">
-          {/* Avatar: 28px amber square */}
-          <div className="w-7 h-7 rounded-lg bg-[var(--accent-subtle)] flex items-center justify-center flex-shrink-0 mt-0.5">
-            <div className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+          {/* Avatar: 28px logo square */}
+          <div className="w-7 h-7 rounded-lg bg-[var(--accent)] flex items-center justify-center flex-shrink-0 mt-0.5">
+            <RebuilDLogo className="w-4 h-4 text-black" />
           </div>
 
           {/* Content */}
@@ -117,6 +119,28 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             {showToolSummary && (
               <ToolUsageSummary items={toolSteps} />
             )}
+
+            {/* Artifact reference cards */}
+            {message.metadata?.artifacts?.map((artifact: any) => {
+              const storeArtifact = usePulseStore.getState().openArtifacts.find(
+                (a) => a.filePath === artifact.filePath
+              );
+              return (
+                <div key={artifact.id} className="mt-2 max-w-md">
+                  <ArtifactRefCard
+                    artifact={{
+                      id: artifact.id,
+                      type: (artifact.artifactType || artifact.type) as any,
+                      filename: artifact.filename,
+                      filePath: artifact.filePath,
+                      content: storeArtifact?.content,
+                      url: storeArtifact?.url,
+                    }}
+                    workspace={artifact.workspace}
+                  />
+                </div>
+              );
+            })}
 
             {showExport && (
               <div className="border-t border-[var(--border-subtle)] mt-3 pt-2 flex justify-end">
@@ -155,8 +179,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       )}
       <div className={clsx(
         "px-3 py-2 rounded-lg",
-        isSystem && "bg-amber-500/5 text-amber-200/80",
-        isPlan && "bg-cyan-500/5 text-cyan-200/80",
+        isSystem && "bg-white/5 text-zinc-200/80",
+        isPlan && "bg-white/5 text-zinc-200/80",
         !isSystem && !isPlan && "text-[var(--text-secondary)]",
       )}>
         <MarkdownRenderer content={message.content} />

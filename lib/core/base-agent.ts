@@ -7,7 +7,7 @@ import { createStructuredLogger, generateTraceId } from '@/lib/utils/logger';
 import { buildSkillPromptForAgent } from '@/lib/skills/agent-skill-runtime';
 import { ContextBudget } from './token-budget';
 import { createToolContext } from './tool-context-factory';
-import type { AgentConfig, AgentContext } from './types';
+import type { AgentConfig, AgentContext, LazyPromptModule } from './types';
 
 // --- Context management constants (#14: configurable via env) ---
 /** Maximum number of recent messages to keep (excluding system + initial user). */
@@ -23,17 +23,17 @@ const MAX_BACKOFF_MS = parseInt(process.env.AGENT_MAX_BACKOFF_MS || '10000', 10)
 
 // --- Tool-result shrinking constants ---
 /** Number of recent messages considered "fresh" — tool results kept at higher char limit. */
-const TOOL_RESULT_FRESH_WINDOW = parseInt(process.env.AGENT_TOOL_RESULT_FRESH_WINDOW || '10', 10);
+const TOOL_RESULT_FRESH_WINDOW = parseInt(process.env.AGENT_TOOL_RESULT_FRESH_WINDOW || '5', 10);
 /** Max chars for tool results in the fresh window. */
-const TOOL_RESULT_FRESH_CHARS = parseInt(process.env.AGENT_TOOL_RESULT_FRESH_CHARS || '12000', 10);
+const TOOL_RESULT_FRESH_CHARS = parseInt(process.env.AGENT_TOOL_RESULT_FRESH_CHARS || '8000', 10);
 /** Max chars for tool results outside the fresh window (stale). */
-const TOOL_RESULT_STALE_CHARS = parseInt(process.env.AGENT_TOOL_RESULT_STALE_CHARS || '1500', 10);
+const TOOL_RESULT_STALE_CHARS = parseInt(process.env.AGENT_TOOL_RESULT_STALE_CHARS || '800', 10);
 /** Minimum content length before truncation applies (skip tiny results). */
 const TOOL_RESULT_MIN_TRUNCATE = parseInt(process.env.AGENT_TOOL_RESULT_MIN_TRUNCATE || '200', 10);
 /** Enable parallel tool execution when no approval is needed. Set to 'false' to disable. */
 const PARALLEL_TOOL_EXEC = process.env.AGENT_PARALLEL_TOOL_EXEC !== 'false';
 /** Fast model for intermediate tool-calling steps. Unset = always use primary model. */
-const FAST_MODEL = process.env.AGENT_FAST_MODEL || '';
+
 /** Token budget controller — triggers compression based on estimated token count. */
 const contextBudget = new ContextBudget();
 
@@ -204,6 +204,42 @@ function shrinkToolResults(
 
     return { ...msg, content: truncated };
   });
+}
+
+/**
+ * Inject lazy-loaded prompt modules into the conversation when triggered tools
+ * are first called. Modules are injected as user messages so they appear in context
+ * for subsequent LLM steps but don't bloat the initial system prompt.
+ *
+ * Returns the set of module IDs that have been injected (updated in place).
+ */
+function injectLazyModules(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  calledToolNames: string[],
+  lazyModules: LazyPromptModule[],
+  injectedModules: Set<string>,
+  log?: (msg: string) => Promise<void> | void,
+): void {
+  if (!lazyModules.length) return;
+
+  const calledSet = new Set(calledToolNames);
+  const toInject: LazyPromptModule[] = [];
+
+  for (const mod of lazyModules) {
+    if (injectedModules.has(mod.id)) continue;
+    if (mod.triggerTools.some(t => calledSet.has(t))) {
+      toInject.push(mod);
+    }
+  }
+
+  for (const mod of toInject) {
+    messages.push({
+      role: 'system',
+      content: `${mod.content}`,
+    });
+    injectedModules.add(mod.id);
+    log?.(`[lazy-modules] Injected module "${mod.id}"`);
+  }
 }
 
 /**
@@ -478,7 +514,7 @@ export class BaseAgent {
     const completionTokens = usage.completion_tokens ?? 0;
     const totalTokens = usage.total_tokens ?? (promptTokens + completionTokens);
 
-    slog.info('llm.completion', { step: step + 1, promptTokens, completionTokens, totalTokens });
+    slog.info('llm.completion', { step: step + 1, model, account: this.accountName, durationMs, promptTokens, completionTokens, totalTokens });
 
     if (context.recordUsage) {
       context.recordUsage({
@@ -532,9 +568,39 @@ export class BaseAgent {
       await log(`[${name}] Model "${model}" is a reasoner and does not support function calling. Tools disabled for this run.`);
     }
 
-    const openAITools = (!reasoner && tools.length > 0)
-      ? tools.map(tool => tool.toFunctionDef() as OpenAI.Chat.ChatCompletionTool)
-      : undefined;
+    // --- Tiered tool loading: start with Tier 1 only, expand on demand ---
+    const tier1Names = this.config.tier1Tools;
+    const tier2Groups = this.config.tier2Groups || [];
+    const activatedGroups = new Set<string>();
+
+    // Initial visible set: Tier 1 only (or all tools if no tiers configured)
+    const visibleToolNames = new Set<string>(
+      tier1Names
+        ? tools.filter(t => tier1Names.has(t.name)).map(t => t.name)
+        : tools.map(t => t.name),
+    );
+
+    // Pre-activate tier-2 groups based on user message keywords
+    if (tier1Names && !initialMessages) {
+      for (const group of tier2Groups) {
+        if (group.triggerKeywords.test(userMessage)) {
+          for (const tn of group.tools) visibleToolNames.add(tn);
+          activatedGroups.add(group.id);
+        }
+      }
+    }
+
+    const buildOpenAITools = (): OpenAI.Chat.ChatCompletionTool[] | undefined => {
+      if (reasoner || tools.length === 0) return undefined;
+      return tools
+        .filter(t => visibleToolNames.has(t.name))
+        .map(t => t.toFunctionDef() as OpenAI.Chat.ChatCompletionTool);
+    };
+    let openAITools = buildOpenAITools();
+
+    if (tier1Names) {
+      await log(`[${name}] Tool tiers: ${visibleToolNames.size}/${tools.length} tools visible (${activatedGroups.size} groups pre-activated)`);
+    }
 
     const toolCtx = tools.length > 0
       ? createToolContext({
@@ -551,6 +617,17 @@ export class BaseAgent {
     const MARKER_RE = /\[\[(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\][\s\S]*?\[\[\/(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\]/g;
     let upgradeOffered = false;
     let adaptiveDelay = INTER_STEP_DELAY_MS; // starts at base (default 0), grows on 429
+    const injectedLazyModules = new Set<string>();
+    const lazyModules = this.config.lazyModules || [];
+
+    // --- API-anchored token tracking ---
+    // After each LLM call we store the real prompt/completion tokens from the API.
+    // Before the next step, currentTokens = lastPromptTokens + lastCompletionTokens
+    // + heuristic(messages added since that call).  This is far more accurate than
+    // a pure character-based heuristic for the entire message array.
+    let lastPromptTokens: number | null = null;
+    let lastCompletionTokens = 0;
+    let messagesLenAtLastCall = 0;
 
     for (let step = 0; step < maxLoops!; step++) {
       if (step > 0 && adaptiveDelay > 0) {
@@ -566,23 +643,27 @@ export class BaseAgent {
         }
       }
 
+      // Compute current context token estimate — use API-anchored value when available
+      const currentTokens = lastPromptTokens != null
+        ? contextBudget.measureFromActual(lastPromptTokens, lastCompletionTokens, messages.slice(messagesLenAtLastCall))
+        : contextBudget.measure(messages);
+
       context.onStepStart?.(step + 1);
       context.onContextUsage?.({
-        estimated: contextBudget.measure(messages),
+        estimated: currentTokens,
         max: contextBudget.maxTokens,
-        ratio: contextBudget.usageRatio(messages),
+        ratio: contextBudget.usageRatio(currentTokens),
       });
       await log(`[${name}] Step ${step + 1}: Thinking...`);
 
       // --- Team upgrade check (same as run()) ---
-      if (!upgradeOffered && context.onCompactionUpgradeRequired && contextBudget.needsUpgrade(messages)) {
+      if (!upgradeOffered && context.onCompactionUpgradeRequired && contextBudget.needsUpgrade(currentTokens)) {
         upgradeOffered = true;
-        const ratio = contextBudget.usageRatio(messages);
-        const estimated = contextBudget.measure(messages);
+        const ratio = contextBudget.usageRatio(currentTokens);
         await log(`[${name}] Context usage at ${(ratio * 100).toFixed(0)}% — offering Team upgrade...`);
 
         const approved = await context.onCompactionUpgradeRequired({
-          tokenUsage: { estimated, max: contextBudget.maxTokens, ratio },
+          tokenUsage: { estimated: currentTokens, max: contextBudget.maxTokens, ratio },
         });
 
         if (approved) {
@@ -596,14 +677,9 @@ export class BaseAgent {
         }
       }
 
-      // --- Model routing: fast model for intermediate tool-calling steps ---
-      const fastModelId = this.config.fastModel || FAST_MODEL;
-      const isFirstStep = step === 0;
-      const isNearEnd = exitToolName && (maxLoops! - step) <= 2;
-      const stepModel = (fastModelId && !isFirstStep && !isNearEnd) ? fastModelId : model!;
-      if (stepModel !== model!) {
-        await log(`[${name}] Step ${step + 1}: Using fast model "${stepModel}"`);
-      }
+      // All steps use the agent's configured model — no implicit fast-model switching.
+      // The user's model choice (from UI) is respected for every step.
+      const stepModel = model!;
 
       // --- Streaming LLM call ---
       const completionStartAt = Date.now();
@@ -655,6 +731,22 @@ export class BaseAgent {
 
       // Record usage (from final chunk)
       this._recordUsage(acc.usage, step, name, model!, context, traceId, completionDurationMs, slog);
+
+      // Notify step completion with timing & model info
+      context.onStepComplete?.({
+        stepNumber: step + 1,
+        model: stepModel,
+        durationMs: completionDurationMs,
+        promptTokens: acc.usage?.prompt_tokens,
+        completionTokens: acc.usage?.completion_tokens,
+      });
+
+      // Anchor next step's token estimate to real API usage
+      if (acc.usage?.prompt_tokens != null) {
+        lastPromptTokens = acc.usage.prompt_tokens;
+        lastCompletionTokens = acc.usage.completion_tokens ?? 0;
+        messagesLenAtLastCall = messages.length;
+      }
 
       // No response at all
       if (!acc.content && acc.toolCalls.size === 0) {
@@ -791,6 +883,7 @@ export class BaseAgent {
               toolCallId: toolCall.id,
               result: preview,
               success: !isError,
+              args: toolCall.function.arguments,
             });
 
             if (tool.name === 'code_edit' && resultStr.includes('File not found')) {
@@ -830,7 +923,7 @@ export class BaseAgent {
                 if (!approved) {
                   resultStr = 'Tool execution was rejected by the user. Adjust your plan accordingly.';
                   messages.push({ role: 'tool', tool_call_id: toolCall.id, content: resultStr });
-                  context.onToolCallEnd?.({ toolName, toolCallId: toolCall.id, result: resultStr, success: false });
+                  context.onToolCallEnd?.({ toolName, toolCallId: toolCall.id, result: resultStr, success: false, args: toolCall.function.arguments });
                   continue;
                 }
               }
@@ -865,6 +958,7 @@ export class BaseAgent {
               toolCallId: toolCall.id,
               result: preview,
               success: !isError,
+              args: toolCall.function.arguments,
             });
 
             if (toolName === 'code_edit' && resultStr.includes('File not found')) {
@@ -879,6 +973,28 @@ export class BaseAgent {
         // Checkpoint
         if (context.onCheckpoint) {
           context.onCheckpoint({ messages: [...messages], stepsCompleted: step + 1 });
+        }
+
+        // Lazy module injection — inject relevant modules based on tools called this step
+        if (lazyModules.length > 0) {
+          const calledToolNames = executableCalls.map(({ tool }) => tool.name);
+          injectLazyModules(messages, calledToolNames, lazyModules, injectedLazyModules, log);
+        }
+
+        // Tier-2 tool expansion — activate groups triggered by tools called this step
+        if (tier1Names && tier2Groups.length > 0) {
+          const calledToolNames = executableCalls.map(({ tool }) => tool.name);
+          let expanded = false;
+          for (const group of tier2Groups) {
+            if (activatedGroups.has(group.id)) continue;
+            if (group.triggerTools.some(t => calledToolNames.includes(t))) {
+              for (const tn of group.tools) visibleToolNames.add(tn);
+              activatedGroups.add(group.id);
+              expanded = true;
+              await log(`[${name}] Activated tool group "${group.id}" (+${group.tools.length} tools)`);
+            }
+          }
+          if (expanded) openAITools = buildOpenAITools();
         }
 
         // Remaining steps warning
@@ -1052,9 +1168,37 @@ export class BaseAgent {
       await log(`[${name}] Model "${model}" is a reasoner and does not support function calling. Tools disabled for this run.`);
     }
 
-    const openAITools = (!reasoner && tools.length > 0)
-      ? tools.map(tool => tool.toFunctionDef() as OpenAI.Chat.ChatCompletionTool)
-      : undefined;
+    // --- Tiered tool loading: start with Tier 1 only, expand on demand ---
+    const tier1Names = this.config.tier1Tools;
+    const tier2Groups = this.config.tier2Groups || [];
+    const activatedGroups = new Set<string>();
+
+    const visibleToolNames = new Set<string>(
+      tier1Names
+        ? tools.filter(t => tier1Names.has(t.name)).map(t => t.name)
+        : tools.map(t => t.name),
+    );
+
+    if (tier1Names && !initialMessages) {
+      for (const group of tier2Groups) {
+        if (group.triggerKeywords.test(userMessage)) {
+          for (const tn of group.tools) visibleToolNames.add(tn);
+          activatedGroups.add(group.id);
+        }
+      }
+    }
+
+    const buildOpenAITools = (): OpenAI.Chat.ChatCompletionTool[] | undefined => {
+      if (reasoner || tools.length === 0) return undefined;
+      return tools
+        .filter(t => visibleToolNames.has(t.name))
+        .map(t => t.toFunctionDef() as OpenAI.Chat.ChatCompletionTool);
+    };
+    let openAITools = buildOpenAITools();
+
+    if (tier1Names) {
+      await log(`[${name}] Tool tiers: ${visibleToolNames.size}/${tools.length} tools visible (${activatedGroups.size} groups pre-activated)`);
+    }
 
     // Build ToolContext for this run — shared across all tool calls in the session
     const toolCtx = tools.length > 0
@@ -1074,6 +1218,13 @@ export class BaseAgent {
     const MARKER_RE = /\[\[(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\][\s\S]*?\[\[\/(?:QUESTION_DATA|PLAN_MODE_ENTER|PLAN_REVIEW|TEAM_UPGRADE)\]\]/g;
     let upgradeOffered = false;
     let adaptiveDelay = INTER_STEP_DELAY_MS;
+    const injectedLazyModules = new Set<string>();
+    const lazyModules = this.config.lazyModules || [];
+
+    // --- API-anchored token tracking (same as runStreaming) ---
+    let lastPromptTokens: number | null = null;
+    let lastCompletionTokens = 0;
+    let messagesLenAtLastCall = 0;
 
     for (let step = 0; step < maxLoops!; step++) {
       if (step > 0 && adaptiveDelay > 0) {
@@ -1089,17 +1240,21 @@ export class BaseAgent {
         }
       }
 
+      // Compute current context token estimate — use API-anchored value when available
+      const currentTokens = lastPromptTokens != null
+        ? contextBudget.measureFromActual(lastPromptTokens, lastCompletionTokens, messages.slice(messagesLenAtLastCall))
+        : contextBudget.measure(messages);
+
       await log(`[${name}] Step ${step + 1}: Thinking...`);
 
       // --- Team upgrade check: offer before compaction if ≥75% context used ---
-      if (!upgradeOffered && context.onCompactionUpgradeRequired && contextBudget.needsUpgrade(messages)) {
+      if (!upgradeOffered && context.onCompactionUpgradeRequired && contextBudget.needsUpgrade(currentTokens)) {
         upgradeOffered = true;
-        const ratio = contextBudget.usageRatio(messages);
-        const estimated = contextBudget.measure(messages);
+        const ratio = contextBudget.usageRatio(currentTokens);
         await log(`[${name}] Context usage at ${(ratio * 100).toFixed(0)}% — offering Team upgrade...`);
 
         const approved = await context.onCompactionUpgradeRequired({
-          tokenUsage: { estimated, max: contextBudget.maxTokens, ratio },
+          tokenUsage: { estimated: currentTokens, max: contextBudget.maxTokens, ratio },
         });
 
         if (approved) {
@@ -1115,14 +1270,9 @@ export class BaseAgent {
         // If rejected, fall through to normal compression + LLM call
       }
 
-      // --- Model routing: fast model for intermediate tool-calling steps ---
-      const fastModelId = this.config.fastModel || FAST_MODEL;
-      const isFirstStep = step === 0;
-      const isNearEnd = exitToolName && (maxLoops! - step) <= 2;
-      const stepModel = (fastModelId && !isFirstStep && !isNearEnd) ? fastModelId : model!;
-      if (stepModel !== model!) {
-        await log(`[${name}] Step ${step + 1}: Using fast model "${stepModel}"`);
-      }
+      // All steps use the agent's configured model — no implicit fast-model switching.
+      // The user's model choice (from UI) is respected for every step.
+      const stepModel = model!;
 
       const completionStartAt = Date.now();
       let completion: any;
@@ -1161,7 +1311,12 @@ export class BaseAgent {
         const completionTokens = usage.completion_tokens ?? 0;
         const totalTokens = usage.total_tokens ?? (promptTokens + completionTokens);
 
-        slog.info('llm.completion', { step: step + 1, promptTokens, completionTokens, totalTokens });
+        slog.info('llm.completion', { step: step + 1, model, account: this.accountName, durationMs: completionDurationMs, promptTokens, completionTokens, totalTokens });
+
+        // Anchor next step's token estimate to real API usage
+        lastPromptTokens = promptTokens;
+        lastCompletionTokens = completionTokens;
+        messagesLenAtLastCall = messages.length;
 
         if (context.recordUsage) {
           context.recordUsage({
@@ -1370,6 +1525,28 @@ export class BaseAgent {
         // Checkpoint callback — fire after all tool calls in this step are processed
         if (context.onCheckpoint) {
           context.onCheckpoint({ messages: [...messages], stepsCompleted: step + 1 });
+        }
+
+        // Lazy module injection — inject relevant modules based on tools called this step
+        if (lazyModules.length > 0) {
+          const calledToolNames = executableCalls.map(({ tool }) => tool.name);
+          injectLazyModules(messages, calledToolNames, lazyModules, injectedLazyModules, log);
+        }
+
+        // Tier-2 tool expansion — activate groups triggered by tools called this step
+        if (tier1Names && tier2Groups.length > 0) {
+          const calledToolNames = executableCalls.map(({ tool }) => tool.name);
+          let expanded = false;
+          for (const group of tier2Groups) {
+            if (activatedGroups.has(group.id)) continue;
+            if (group.triggerTools.some(t => calledToolNames.includes(t))) {
+              for (const tn of group.tools) visibleToolNames.add(tn);
+              activatedGroups.add(group.id);
+              expanded = true;
+              await log(`[${name}] Activated tool group "${group.id}" (+${group.tools.length} tools)`);
+            }
+          }
+          if (expanded) openAITools = buildOpenAITools();
         }
 
         // Warn agent about remaining steps BEFORE continuing the loop

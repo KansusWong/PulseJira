@@ -13,6 +13,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { supabase, supabaseConfigured } from '@/lib/db/client';
 import { generateJSON } from '@/lib/core/llm';
 import { messageBus } from '@/connectors/bus/message-bus';
@@ -39,6 +40,7 @@ import type {
   ChatEvent,
   StructuredAgentStep,
   AttachmentMeta,
+  ArtifactCreatedEventData,
 } from '@/lib/core/types';
 
 
@@ -194,6 +196,34 @@ Respond with JSON: { "name": "..." }`,
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Artifact type inference helpers
+// ---------------------------------------------------------------------------
+
+const EXT_TO_ARTIFACT_TYPE: Record<string, string> = {
+  ts: 'code', tsx: 'code', js: 'code', jsx: 'code',
+  py: 'code', go: 'code', rs: 'code', java: 'code',
+  c: 'code', cpp: 'code', h: 'code', hpp: 'code',
+  sh: 'code', yml: 'code', yaml: 'code', toml: 'code',
+  css: 'code', scss: 'code', sql: 'code',
+  json: 'json',
+  md: 'markdown',
+  csv: 'csv',
+  xlsx: 'excel', xls: 'excel',
+  html: 'html',
+  svg: 'svg',
+  png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image',
+  pdf: 'pdf',
+  pptx: 'pptx',
+};
+
+const BINARY_TYPES = new Set(['image', 'pdf', 'pptx', 'excel']);
+
+function inferArtifactType(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  return EXT_TO_ARTIFACT_TYPE[ext] || 'code';
+}
 
 // ---------------------------------------------------------------------------
 // ChatEngine
@@ -511,9 +541,53 @@ export class ChatEngine {
         const toolLabel = ChatEngine.TOOL_LABELS[params.toolName] || params.toolName;
         channel.push({ type: 'tool_call_start', data: { ...params, toolLabel } });
       };
-      const onToolCallEnd = (params: { toolName: string; toolCallId: string; result: string; success: boolean }) => {
+      const onToolCallEnd = (params: { toolName: string; toolCallId: string; result: string; success: boolean; args: string }) => {
         const toolLabel = ChatEngine.TOOL_LABELS[params.toolName] || params.toolName;
         channel.push({ type: 'tool_call_end', data: { ...params, toolLabel } });
+
+        // Emit artifact_created for successful file operations
+        if (params.success && ['write', 'edit', 'multi_edit'].includes(params.toolName)) {
+          try {
+            const parsedArgs = JSON.parse(params.args);
+            const relPath: string = parsedArgs.path;
+            if (!relPath || !workspace?.localPath) return;
+
+            const absPath = path.resolve(workspace.localPath, relPath);
+            const artifactType = inferArtifactType(relPath);
+            const isBinary = BINARY_TYPES.has(artifactType);
+
+            let content = '';
+            let lineCount = 0;
+            let url: string | undefined;
+
+            if (isBinary) {
+              url = `/api/files?path=${encodeURIComponent(relPath)}&workspace=${encodeURIComponent(workspace.localPath)}`;
+            } else {
+              try {
+                content = fs.readFileSync(absPath, 'utf-8');
+                lineCount = content.split('\n').length;
+              } catch {
+                // File read failed — skip artifact emission
+                return;
+              }
+            }
+
+            const artifactData: ArtifactCreatedEventData = {
+              id: crypto.randomUUID(),
+              filePath: relPath,
+              artifactType,
+              content,
+              lineCount,
+              action: params.toolName === 'write' ? 'created' : 'modified',
+              ...(url ? { url } : {}),
+              workspace: workspace.localPath,
+            };
+
+            channel.push({ type: 'artifact_created', data: artifactData });
+          } catch {
+            // JSON parse or other error — silently skip
+          }
+        }
       };
       const onStepStart = (stepNumber: number) => {
         channel.push({ type: 'step_start', data: { step: stepNumber } });
