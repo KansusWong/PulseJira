@@ -124,6 +124,11 @@ export function SearchModal({ conversations, onSelectConversation, onNewChat, on
                 >
                   <div className="w-5 h-5 rounded-full border border-[var(--border-subtle)] flex-shrink-0" />
                   <span className="truncate">{conv.title || t("sidebar.newConversation")}</span>
+                  {conv.status === 'converted' && (
+                    <span className="ml-auto px-1.5 py-0.5 text-[9px] uppercase tracking-wide rounded bg-blue-500/10 text-blue-400 font-medium flex-shrink-0">
+                      {t("sidebar.converted")}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

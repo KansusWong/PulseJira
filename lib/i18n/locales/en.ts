@@ -85,6 +85,7 @@ const en: TranslationDict = {
   'sidebar.settings': 'Settings',
   'sidebar.viewAllProjects': 'View all projects',
   'sidebar.chats': 'Chats',
+  'sidebar.converted': 'Converted',
 
   // ── Projects Page ──
   'projects.title': 'Projects',

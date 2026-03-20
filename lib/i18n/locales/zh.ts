@@ -85,6 +85,7 @@ const zh: TranslationDict = {
   'sidebar.settings': '设置',
   'sidebar.viewAllProjects': '查看所有项目',
   'sidebar.chats': '对话',
+  'sidebar.converted': '已转化',
 
   // ── 项目页 ──
   'projects.title': '项目',
