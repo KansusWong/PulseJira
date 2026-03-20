@@ -340,6 +340,7 @@ const en: TranslationDict = {
   'team.collaboration.comms': 'Messages ({count})',
   'team.collaboration.noComms': 'No inter-agent messages yet',
   'team.collaboration.earlierSteps': '+{count} earlier steps',
+  'team.collaboration.activated': 'Team mode activated',
 
   // ── Kanban ──
   'kanban.todo': 'To Do',

@@ -340,6 +340,7 @@ const zh: TranslationDict = {
   'team.collaboration.comms': '消息 ({count})',
   'team.collaboration.noComms': '暂无智能体间消息',
   'team.collaboration.earlierSteps': '+{count} 个早期步骤',
+  'team.collaboration.activated': '团队模式已激活',
 
   // ── Kanban ──
   'kanban.todo': '待办',
