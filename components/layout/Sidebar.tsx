@@ -14,6 +14,7 @@ import {
   Sparkles,
   SquarePen,
   FolderOpen,
+  FolderKanban,
 } from "lucide-react";
 import clsx from "clsx";
 import { RebuilDLogo } from "@/components/ui/RebuilDLogo";
@@ -178,6 +179,16 @@ export function Sidebar({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const updateConversation = usePulseStore((s) => s.updateConversation);
   const toggleHighlight = usePulseStore((s) => s.toggleHighlight);
+  const projects = usePulseStore((s) => s.projects);
+
+  // Top 5 non-archived projects by updated_at for sidebar listing
+  const sidebarProjects = useMemo(
+    () => projects
+      .filter((p) => p.status !== 'archived')
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      .slice(0, 5),
+    [projects]
+  );
 
   useEffect(() => {
     if (renamingId && renameInputRef.current) {
@@ -501,6 +512,45 @@ export function Sidebar({
             {highlightedConversations.length === 0 && recentConversations.length === 0 && (
               <div className="px-3 py-6 text-center">
                 <p className="text-xs text-[var(--text-muted)]">{t("sidebar.newConversation")}</p>
+              </div>
+            )}
+
+            {/* Projects */}
+            {sidebarProjects.length > 0 && (
+              <div className="mb-2">
+                <div className="px-3 pt-4 pb-1.5 text-[10px] uppercase tracking-[1.5px] text-[var(--text-muted)] font-medium select-none">
+                  {t("sidebar.projects")}
+                </div>
+                <div className="space-y-0.5">
+                  {sidebarProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className={clsx(
+                        "group/proj relative flex items-center rounded-lg transition-colors",
+                        pathname === `/projects/${project.id}`
+                          ? "border-l-2 border-[var(--accent)] bg-[var(--accent-ghost)]"
+                          : "border-l-2 border-transparent hover:bg-[var(--bg-hover)]",
+                      )}
+                    >
+                      <button
+                        onClick={() => { router.push(`/projects/${project.id}`); onCloseMobileMenu?.(); }}
+                        className="flex-1 text-left px-3 py-2 min-w-0 flex items-center gap-2"
+                      >
+                        <FolderKanban className="w-3.5 h-3.5 text-[var(--text-muted)] flex-shrink-0" />
+                        <div className="truncate text-[13px] text-[var(--text-primary)]">
+                          {project.name}
+                        </div>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {/* View all link */}
+                <button
+                  onClick={() => { router.push("/projects"); onCloseMobileMenu?.(); }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                >
+                  {t("sidebar.viewAllProjects")}
+                </button>
               </div>
             )}
           </>
