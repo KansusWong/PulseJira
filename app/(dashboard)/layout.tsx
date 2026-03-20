@@ -46,6 +46,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const activeConversationId = usePulseStore((s) => s.activeConversationId);
   const setActiveConversationId = usePulseStore((s) => s.setActiveConversationId);
   const removeConversation = usePulseStore((s) => s.removeConversation);
+  const setProjects = usePulseStore((s) => s.setProjects);
   const planPanelVisible = usePulseStore((s) => s.planPanel.visible);
   const teamPanelVisible = usePulseStore((s) => s.teamPanel.visible);
   const clarificationVisible = usePulseStore((s) => s.clarificationPanel.visible);
@@ -75,10 +76,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const res = await fetch("/api/projects");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && json.data) {
+        setProjects(json.data);
+      }
+    } catch {
+      // Keep existing projects if backend is unreachable
+    }
+  }, [setProjects]);
+
   // Fetch assets on first mount
   useEffect(() => {
     fetchAssets(true);
   }, [fetchAssets]);
+
+  // Fetch projects on first mount
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
 
   // Re-fetch assets on navigation (throttled)
   useEffect(() => {
