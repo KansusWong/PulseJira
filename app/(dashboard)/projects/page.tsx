@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, FolderOpen } from "lucide-react";
+import { Plus, Search, FolderOpen, Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { ProjectCard } from "@/components/project/ProjectCard";
 import type { Project } from "@/projects/types";
@@ -87,10 +87,8 @@ export default function ProjectsPage() {
 
         {/* Project list */}
         {loading ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-24 rounded-xl shimmer" />
-            ))}
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-5 h-5 text-[var(--text-muted)] animate-spin" />
           </div>
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">

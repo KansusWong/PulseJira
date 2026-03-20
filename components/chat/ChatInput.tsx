@@ -299,7 +299,7 @@ export function ChatInput({
 
   return (
     <div
-      className={portalMode ? "" : "px-4 py-3"}
+      className={portalMode ? "" : "px-4 pt-3 pb-10"}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -374,10 +374,10 @@ export function ChatInput({
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder ?? t('chat.placeholder')}
                 disabled={disabled}
-                rows={portalMode ? 4 : 1}
+                rows={1}
                 className={clsx(
                   "w-full bg-transparent text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none resize-none leading-6",
-                  portalMode ? "min-h-[96px] max-h-[240px]" : "min-h-[24px] max-h-[144px]"
+                  portalMode ? "min-h-[15px] max-h-[240px]" : "min-h-[24px] max-h-[144px]"
                 )}
               />
             </div>
@@ -482,7 +482,7 @@ export function ChatInput({
               {streaming && !text.trim() ? (
                 <button
                   onClick={onStop}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0 bg-red-500/80 text-white hover:bg-red-500"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0 bg-white/20 text-[var(--text-secondary)] hover:bg-white/30"
                   title={t('chat.stopGenerating')}
                 >
                   <Square className="w-4 h-4" />
