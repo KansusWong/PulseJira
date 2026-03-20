@@ -8,7 +8,7 @@ import { useTranslation } from '@/lib/i18n';
 import { usePulseStore } from "@/store/usePulseStore.new";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import type { ChatMessage, ChatEvent, StructuredAgentStep, AttachmentMeta } from "@/lib/core/types";
+import type { ChatMessage, ChatEvent, StructuredAgentStep, AttachmentMeta, TeamStatus } from "@/lib/core/types";
 import type { ToolStepSummary } from "./ToolUsageSummary";
 import { StreamingBubble } from "./StreamingBubble";
 import { TeamCollaborationView } from "./team/TeamCollaborationView";
@@ -94,6 +94,10 @@ export function ChatView({ projectId }: ChatViewProps) {
   const clearAllMateState = usePulseStore((s) => s.clearAllMateState);
   const teamAgents = usePulseStore((s) => s.teamPanel.agents);
   const teamId = usePulseStore((s) => s.teamPanel.teamId);
+  const showTeamPanel = usePulseStore((s) => s.showTeamPanel);
+  const updateTeamStatus = usePulseStore((s) => s.updateTeamStatus);
+  const addTeamCommunication = usePulseStore((s) => s.addTeamCommunication);
+  const updateProjectInStore = usePulseStore((s) => s.updateProjectInStore);
 
   const questionnaireData = usePulseStore((s) => s.questionnaireData);
   const setQuestionnaireData = usePulseStore((s) => s.setQuestionnaireData);
@@ -600,6 +604,10 @@ export function ChatView({ projectId }: ChatViewProps) {
             message: task ? `${t('streaming.subAgentStart')}: ${task}` : `${t('streaming.subAgentStarting', { name: agentName })}`,
             timestamp: Date.now(),
           });
+          // Activate team collaboration if not already active
+          if (!usePulseStore.getState().teamCollaboration.active) {
+            setTeamCollaborationActive(true);
+          }
           break;
         }
 
@@ -629,6 +637,37 @@ export function ChatView({ projectId }: ChatViewProps) {
 
         case "mate_token": {
           appendMateStreamingToken(event.data.agent, event.data.content);
+          break;
+        }
+
+        case "team_update": {
+          const status = event.data as TeamStatus;
+          const currentTeamPanel = usePulseStore.getState().teamPanel;
+          if (!currentTeamPanel.teamId) {
+            // First team_update — initialize the team panel
+            showTeamPanel(status.team_id, status.agents);
+          } else {
+            // Subsequent updates — refresh agent statuses
+            updateTeamStatus(status);
+          }
+          // Activate team collaboration view
+          setTeamCollaborationActive(true);
+          // Update project execution_mode to 'team' (fire-and-forget)
+          if (projectId) {
+            updateProjectInStore(projectId, { execution_mode: 'team' });
+            fetch(`/api/projects/${projectId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ execution_mode: 'team' }),
+            }).catch(() => {});
+          }
+          break;
+        }
+
+        case "team_comms": {
+          if (event.data) {
+            addTeamCommunication(event.data);
+          }
           break;
         }
 
@@ -728,7 +767,7 @@ export function ChatView({ projectId }: ChatViewProps) {
         }
       }
     },
-    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, showProjectUpgrade, t]
+    [addMessage, showToolApproval, hideToolApproval, addAgentLog, addStreamingStep, completeStreamingStep, setTeamCollaborationActive, setQuestionnaireData, showCompactionUpgrade, hideCompactionUpgrade, setPendingTeamUpgrade, addProject, setRunning, handleToken, startStreamingToolCall, endStreamingToolCall, resetStreamingState, setContextUsage, showProjectUpgrade, showTeamPanel, updateTeamStatus, addTeamCommunication, updateProjectInStore, projectId, t]
   );
 
   const teamFullscreen = teamCollaborationActive && isStreaming;
