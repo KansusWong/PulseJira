@@ -2,7 +2,7 @@
 
 ## Overview
 
-When the RebuilD agent creates or modifies a file (via `write` or `edit` tools), the system should automatically display the file content in a right-side artifact panel (similar to Claude.ai's artifact experience), and embed an artifact reference card inline in the chat message.
+When the RebuilD agent creates or modifies a file (via `write`, `edit`, or `multi_edit` tools), the system should automatically display the file content in a right-side artifact panel (similar to Claude.ai's artifact experience), and embed an artifact reference card inline in the chat message.
 
 ## Requirements
 
@@ -11,8 +11,8 @@ When the RebuilD agent creates or modifies a file (via `write` or `edit` tools),
 3. **Close/reopen**: Clicking X closes the panel; clicking the inline card reopens it
 4. **File types**: code, json, csv, excel, markdown, html, svg, image, pdf, pptx
 5. **Content delivery**: File content is delivered inline via SSE event (no separate API call)
-6. **Edit support**: Both `write` (create) and `edit` (modify) tools trigger artifact events
-7. **SSE panel coexistence**: SSE panels (PlanPanel, ClarificationForm, etc.) retain priority over artifact panel; artifact data is stored and displayed once SSE panel closes
+6. **Edit support**: `write` (create), `edit` (modify), and `multi_edit` (multi-file modify) tools all trigger artifact events
+7. **SSE panel coexistence**: SSE panels (PlanPanel, ClarificationForm, etc.) retain priority over artifact panel; artifact data is stored and displayed once SSE panel closes. `openArtifact()` unconditionally sets `artifactPanelOpen: true`; DashboardShell's existing priority logic (`showArtifacts = !showRightPanel && artifactPanelOpen`) is the sole gatekeeper — no additional gating needed in the store.
 
 ## Architecture
 
@@ -63,24 +63,27 @@ interface ArtifactCreatedEventData {
   id: string;                                    // UUID
   filePath: string;                              // Relative to workspace root
   artifactType: string;                          // File type category
-  language?: string;                             // Syntax highlight language identifier
-  content: string;                               // Full file content (inline)
+  content: string;                               // Full file content (inline), empty for binary
   lineCount: number;                             // Number of lines
   action: 'created' | 'modified';                // write = created, edit = modified
 }
 ```
 
+Note: `language` is NOT included in the SSE event. The frontend `ArtifactsPanel` already infers language from filename via its existing `detectLanguage()` function. No need to duplicate this logic on the backend.
+
 ### 2. Artifact Event Emission
 
 **File**: `lib/services/chat-engine.ts`
 
-In the `onToolCallEnd` callback, when `toolName` is `write` or `edit` and `success` is true:
+In the `onToolCallEnd` callback, when `toolName` is `write`, `edit`, or `multi_edit` and `success` is true:
 
-1. Extract `filePath` from the tool call arguments (available via closure or added to the callback params)
-2. Read file content with `fs.readFileSync(absolutePath, 'utf-8')`
-3. Infer `artifactType` and `language` from file extension:
-   - `.ts/.tsx/.js/.jsx/.py/.go/.rs/.java/.c/.cpp/.sh/.yml/.yaml/.toml` -> type: `code`, language: mapped
-   - `.json` -> type: `json`, language: `json`
+1. Extract `filePath` from the tool call arguments (now available via the updated `args` param)
+2. Determine if file is text or binary based on extension
+3. For text files: read content with `fs.readFileSync(absolutePath, 'utf-8')`
+4. For binary files (image, pdf, pptx, excel): set `content` to empty string; set `url` to `/api/files/${encodeURIComponent(relativePath)}` (see Section 4 below)
+5. Infer `artifactType` from file extension:
+   - `.ts/.tsx/.js/.jsx/.py/.go/.rs/.java/.c/.cpp/.sh/.yml/.yaml/.toml` -> type: `code`
+   - `.json` -> type: `json`
    - `.md` -> type: `markdown`
    - `.csv` -> type: `csv`
    - `.xlsx/.xls` -> type: `excel`
@@ -89,20 +92,99 @@ In the `onToolCallEnd` callback, when `toolName` is `write` or `edit` and `succe
    - `.png/.jpg/.jpeg/.gif/.webp` -> type: `image`
    - `.pdf` -> type: `pdf`
    - `.pptx` -> type: `pptx`
-   - default -> type: `code`, language: auto-detect
-4. Push `{ type: 'artifact_created', data: { ... } }` to the SSE channel
-
-**Argument access**: The `onToolCallEnd` callback currently receives `{ toolName, toolCallId, result, success }`. We need to also pass `args` (the original tool call arguments) so we can extract the file path. This requires a minor change to the callback signature in `base-agent.ts`.
+   - default -> type: `code`
+6. Push `{ type: 'artifact_created', data: { ... } }` to the SSE channel
+7. For `multi_edit`: iterate over each file in the args and emit one `artifact_created` event per file
 
 ### 3. Callback Signature Update
 
 **File**: `lib/core/base-agent.ts`
 
-Add `args` to the `onToolCallEnd` callback invocation so the chat engine can access the file path from tool arguments.
+The `onToolCallEnd` callback currently receives `{ toolName, toolCallId, result, success }`. Update to also include `args: string` (the raw JSON arguments string).
+
+**All call sites to update**:
+- `base-agent.ts` parallel execution path (~line 861): add `args` to the callback payload
+- `base-agent.ts` sequential execution path (~line 935): add `args` to the callback payload
+- `base-agent.ts` non-streaming `run()` method (if it has onToolCallEnd calls): add `args`
+
+**File**: `lib/core/types.ts`
+
+Update `AgentContext.onToolCallEnd` type definition:
+```typescript
+onToolCallEnd?: (params: {
+  toolName: string;
+  toolCallId: string;
+  result: string;
+  success: boolean;
+  args: string;           // ← NEW: raw JSON arguments string
+}) => void;
+```
+
+**File**: `lib/services/chat-engine.ts`
+
+Update the `onToolCallEnd` handler to destructure and use `args`:
+```typescript
+const onToolCallEnd = (params: { toolName: string; toolCallId: string; result: string; success: boolean; args: string }) => {
+  const toolLabel = ChatEngine.TOOL_LABELS[params.toolName] || params.toolName;
+  channel.push({ type: 'tool_call_end', data: { ...params, toolLabel } });
+
+  // Artifact detection
+  if (params.success && ['write', 'edit', 'multi_edit'].includes(params.toolName)) {
+    emitArtifactEvent(params.toolName, params.args, workspaceRoot);
+  }
+};
+```
+
+### 4. Binary File Serving Endpoint
+
+**New file**: `app/api/files/[...path]/route.ts`
+
+A new API route to serve workspace files for binary artifact types (images, PDFs, etc.) that cannot be inlined via SSE.
+
+- Accepts GET requests with the relative file path
+- Resolves against the project workspace root
+- Validates the path is within the workspace (security boundary)
+- Returns the file with appropriate Content-Type header
+- Returns 404 if file not found
 
 ## Frontend Changes
 
-### 1. ChatView SSE Event Handler
+### 1. Update `ArtifactRef` Type
+
+**File**: `store/slices/artifactSlice.ts`
+
+Extend the `ArtifactRef["type"]` union to include new types:
+
+```typescript
+type: 'code' | 'json' | 'pptx' | 'image' | 'markdown' | 'pdf' | 'csv' | 'excel' | 'html' | 'svg';
+```
+
+### 2. Update `openArtifact()` to Support Content Updates
+
+**File**: `store/slices/artifactSlice.ts`
+
+Modify `openArtifact()` so that when an artifact with the same `filePath` already exists in `openArtifacts`, it **replaces the content** instead of just focusing the tab. This handles the `edit` tool case where the same file is modified again.
+
+```typescript
+openArtifact(ref: ArtifactRef) {
+  const existing = get().openArtifacts.find(a => a.filePath === ref.filePath);
+  if (existing) {
+    // Update content in place, keep same tab
+    set({
+      openArtifacts: get().openArtifacts.map(a =>
+        a.filePath === ref.filePath ? { ...a, content: ref.content, url: ref.url } : a
+      ),
+      activeArtifactId: existing.id,
+      artifactPanelOpen: true,
+    });
+  } else {
+    // Existing logic: add new tab, enforce LRU, set active
+    // ...
+  }
+}
+```
+
+### 3. ChatView SSE Event Handler
 
 **File**: `components/chat/ChatView.tsx`
 
@@ -110,25 +192,62 @@ Add `artifact_created` case in SSE event handling:
 
 ```typescript
 case 'artifact_created': {
-  const { id, filePath, content, artifactType, language, lineCount, action } = event.data;
+  const { id, filePath, content, artifactType, lineCount, action, url } = event.data;
+
+  // Extract filename (browser-safe, no Node path module)
+  const filename = filePath.split('/').pop() || filePath;
 
   // 1. Open in ArtifactsPanel
   openArtifact({
     id,
     type: artifactType,
-    filename: path.basename(filePath),
+    filename,
     filePath,
-    content,
+    content: content || undefined,
+    url: url || undefined,
   });
 
-  // 2. Inject reference into current streaming message metadata
-  // (or last assistant message if not streaming)
-  injectArtifactRef(id, filePath, artifactType, action);
+  // 2. Inject artifact reference into current message metadata
+  injectArtifactRef({ id, filePath, filename, artifactType, action });
   break;
 }
 ```
 
-### 2. MessageBubble Inline ArtifactRefCard
+#### `injectArtifactRef` Implementation
+
+This is a **local function in ChatView** (not a store action) that mutates the message ref in the streaming state:
+
+```typescript
+function injectArtifactRef(ref: { id: string; filePath: string; filename: string; artifactType: string; action: string }) {
+  // If currently streaming, attach to the streaming message ref
+  if (streamingMessageRef.current) {
+    const meta = streamingMessageRef.current.metadata || {};
+    const artifacts = meta.artifacts || [];
+    artifacts.push(ref);
+    streamingMessageRef.current.metadata = { ...meta, artifacts };
+    return;
+  }
+
+  // Otherwise, attach to the last assistant message in the current conversation
+  const messages = getMessages(activeConversationId);
+  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+  if (lastAssistant) {
+    const meta = lastAssistant.metadata || {};
+    const artifacts = meta.artifacts || [];
+    artifacts.push(ref);
+    lastAssistant.metadata = { ...meta, artifacts };
+    // Trigger re-render
+    setMessages(activeConversationId, [...messages]);
+  }
+}
+```
+
+**Persistence**: Artifact references are stored in `message.metadata.artifacts[]` which is already persisted to the database when the message is saved (the existing `saveMessage` flow serializes the full metadata object). On page reload, messages loaded from the API will include the artifact references, and `ArtifactRefCard` will render. However, the artifact **content** is NOT persisted in the database — it only lives in the Zustand store (ephemeral). When a user clicks an ArtifactRefCard after a page reload, the system will need to re-fetch the content via the `/api/files/` endpoint. This is acceptable because:
+- The card itself is always visible (persisted in message metadata)
+- Content is fetched on-demand when the card is clicked
+- The `/api/files/` endpoint serves the current file from disk
+
+### 4. MessageBubble Inline ArtifactRefCard
 
 **File**: `components/chat/MessageBubble.tsx`
 
@@ -143,7 +262,7 @@ After rendering message content (markdown), check `message.metadata?.artifacts`:
 ))}
 ```
 
-### 3. ArtifactRefCard Enhancement
+### 5. ArtifactRefCard Enhancement
 
 **File**: `components/chat/ArtifactRefCard.tsx`
 
@@ -151,26 +270,27 @@ Update to match Claude.ai card style:
 - Left: type-specific icon (code brackets, file icon, etc.)
 - Center: filename (title) + type label (subtitle, e.g. "Code . JSON")
 - Right: Download button
-- Click anywhere on card -> `openArtifact()`
+- Click anywhere on card -> `openArtifact()` (if content not in store, fetch via `/api/files/` first)
 - Show "Viewing" state when this artifact is currently active in panel
 
-### 4. ArtifactsPanel New File Types
+Extend `typeColorMap`, `typeIconMap`, `typeLabelMap` to include `csv`, `excel`, `html`, `svg`.
+
+### 6. ArtifactsPanel New File Types
 
 **File**: `components/layout/ArtifactsPanel.tsx`
 
-Add rendering support for:
+Add rendering support for new types and extend `typeIconMap`, `typeLabelMap`, `ArtifactBody` switch:
 - **CSV**: Parse and render as an HTML table with alternating row colors
 - **Excel**: Show file info + download prompt (binary format, can't inline render)
-- **HTML**: Render in sandboxed iframe
-- **SVG**: Render inline with `dangerouslySetInnerHTML` (sanitize first) or as `<img src="data:image/svg+xml;...">`
+- **HTML**: Render in sandboxed iframe (`sandbox="allow-scripts"`)
+- **SVG**: Render via `<img src="data:image/svg+xml;base64,...">` (safe, no XSS risk — avoids `dangerouslySetInnerHTML`)
 
-### 5. Dead Code Cleanup
+### 7. Dead Code Cleanup
 
-Remove:
-- `components/layout/RightPanel.tsx` — unused, never rendered
-- `components/kanban/MiniKanban.tsx` — orphaned component
-- Kanban-related dead methods in store (if any are truly unused)
-- References to RightPanel imports (if any exist)
+Remove (verified unused — no imports found anywhere in codebase):
+- `components/layout/RightPanel.tsx`
+- `components/kanban/MiniKanban.tsx`
+- Kanban-related dead methods in `store/slices/kanbanSlice.ts`
 
 Keep:
 - `rightPanel` prop and 420px SSE panel logic in `DashboardShell.tsx` — still used by SSE panels
@@ -203,8 +323,10 @@ Keep:
 
 ## Edge Cases
 
-1. **SSE panel active when artifact created**: Artifact data stored in `artifactSlice`, panel shows once SSE panel closes (existing priority logic handles this)
-2. **Multiple artifacts in one message**: `metadata.artifacts[]` is an array; panel shows the last one as active tab, all are accessible via tabs
+1. **SSE panel active when artifact created**: `openArtifact()` unconditionally sets `artifactPanelOpen: true` and stores data. DashboardShell's `showArtifacts = !showRightPanel && artifactPanelOpen` ensures the panel only renders when no SSE panel is visible. No additional gating logic is needed.
+2. **Multiple artifacts in one message**: `metadata.artifacts[]` is an array; panel shows the last one as active tab, all are accessible via tabs.
 3. **Large files**: Content delivered inline via SSE. No special truncation — SSE can handle large payloads. If this becomes a problem in practice, we can add size limits later.
-4. **Binary files (images, PDF, Excel, PPTX)**: For `write` tool creating binary files, don't include `content` in the SSE event. Instead include a `url` field pointing to a static file serving endpoint (or the existing file path for local access). ArtifactsPanel already handles URL-based rendering for these types.
-5. **Edit tool**: Same artifact_created event with `action: 'modified'`. If the artifact is already open in panel, update its content in place.
+4. **Binary files (images, PDF, Excel, PPTX)**: SSE event has empty `content` and a `url` field pointing to `/api/files/{path}`. ArtifactsPanel uses `url` for rendering (existing support for `<img>` and `<iframe>`).
+5. **Edit/multi_edit tool**: Same `artifact_created` event with `action: 'modified'`. If the artifact is already open in panel (matched by `filePath`), `openArtifact()` updates its content in place and focuses the tab.
+6. **Page reload / conversation switch**: `message.metadata.artifacts[]` is persisted in the database (via existing message save flow). ArtifactRefCards render from persisted data. Artifact content is NOT in the database — when the user clicks a card after reload, content is fetched on-demand via `/api/files/{path}`.
+7. **multi_edit tool**: Emits one `artifact_created` event per file modified. Each event injects a separate ArtifactRefCard into the message.
